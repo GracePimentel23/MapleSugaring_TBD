@@ -1,26 +1,59 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-dm-sans);
+  --font-inter: var(--font-inter-body);
+
+  --color-sidebar: #2b4a1e;
+  --color-sidebar-hover: #3a6129;
+  --color-sidebar-active: #4a7a33;
+  --color-bg: #f4f1e8;
+  --color-card: #ffffff;
+  --color-accent: #4d7c30;
+  --color-accent-light: #e8f0e0;
+  --color-border: #e4dfd0;
+  --color-text: #1c1c1e;
+  --color-muted: #6b7280;
+  --color-status-online: #22c55e;
+  --color-status-attention: #f59e0b;
+  --color-status-offline: #ef4444;
+  --color-season-badge: #3f6b2a;
+  --color-progress-track: #e5e7eb;
+  --color-chart-bar: #3d6b28;
+  --color-chart-bar-today: #6b9e45;
+  --color-alert: #dc2626;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  font-family: var(--font-inter-body), sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  font-family: var(--font-sans), sans-serif;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
