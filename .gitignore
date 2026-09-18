@@ -27,6 +27,7 @@
 # ai
 AGENTS.md
 CLAUDE.md
+.cursor/
 
 # debug
 npm-debug.log*
