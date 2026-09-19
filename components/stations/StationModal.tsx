@@ -1,40 +1,30 @@
 "use client";
 
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
-import { DropletIcon } from "@/components/icons";
-import { progressFill } from "@/lib/selectors/stations";
+import { cardProgressFill } from "@/lib/selectors/stations";
+import type { Alert, StationDisplayStatus, StationView } from "@/lib/types/schema";
 import { formatLbsNumber } from "@/lib/units";
-import type { StationUiStatus, StationView } from "@/lib/types/schema";
 
-const statusColor: Record<StationUiStatus, string> = {
-  online: "var(--color-status-online)",
-  attention: "var(--color-status-attention)",
-  offline: "var(--color-status-offline)",
+const displayMeta: Record<StationDisplayStatus, { label: string; color: string }> = {
+  complete: { label: "Complete", color: "#16A34A" },
+  in_progress: { label: "In Progress", color: "#2563EB" },
+  offline: { label: "Offline", color: "#DC2626" },
 };
-
-const statusLabel: Record<StationUiStatus, string> = {
-  online: "Complete",
-  attention: "Needs Attention",
-  offline: "Offline",
-};
-
-const progressColor: Record<StationUiStatus, string> = {
-  online: "var(--color-accent)",
-  attention: "var(--color-status-attention)",
-  offline: "var(--color-status-offline)",
-};
-
-const trendDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function StationModal({
   station,
+  alerts,
   onClose,
 }: {
   station: StationView;
+  alerts: Alert[];
   onClose: () => void;
 }) {
+  const meta = displayMeta[station.displayStatus];
+  const fill = cardProgressFill(station.displayStatus);
+
   const chartData = station.trend.map((value, index) => ({
-    day: trendDays[index] ?? `D${index + 1}`,
+    day: `Day ${index + 1}`,
     lbs: value,
   }));
 
@@ -42,7 +32,7 @@ export default function StationModal({
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-0 cursor-default bg-black/40"
         aria-label="Close station details"
         onClick={onClose}
       />
@@ -57,10 +47,14 @@ export default function StationModal({
         <div className="p-5">
           <div className="mb-4 flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <DropletIcon fill="#1C1C1E" size={16} />
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path d="M10 2C10 2 5 8 5 12a5 5 0 0010 0c0-4-5-10-5-10z" fill="#1C1C1E" />
+              </svg>
               <div>
                 <h2 className="font-sans text-lg font-semibold">{station.name}</h2>
-                <p className="text-sm text-muted">Updated at {station.lastUpdated}</p>
+                <p className="text-sm text-muted">
+                  {station.location} · Updated {station.lastUpdated}
+                </p>
               </div>
             </div>
             <button
@@ -70,17 +64,22 @@ export default function StationModal({
               aria-label="Close"
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-                <path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path
+                  d="M4 4l10 10M14 4L4 14"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
               </svg>
             </button>
           </div>
 
           <span
             className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium"
-            style={{ color: statusColor[station.status] }}
+            style={{ color: meta.color }}
           >
-            <span className="text-[8px]">●</span>
-            {statusLabel[station.status]}
+            <span style={{ fontSize: 8 }}>●</span>
+            {meta.label}
           </span>
 
           <div className="mb-4 grid grid-cols-2 gap-3">
@@ -101,23 +100,67 @@ export default function StationModal({
           <div className="mb-5">
             <div className="mb-2 flex justify-between">
               <span className="font-sans text-sm font-medium">Fill Progress</span>
-              <span className="text-sm font-semibold" style={{ color: progressColor[station.status] }}>
-                {Math.round(station.fillPercent)}%
+              <span className="text-sm font-semibold" style={{ color: fill }}>
+                {Math.round(Math.min(station.fillPercent, 100))}%
               </span>
             </div>
-            <div className="h-3 overflow-hidden rounded-full bg-progress-track">
+            <div
+              className="h-3 overflow-hidden rounded-full"
+              style={{ background: "var(--color-progress-track)" }}
+            >
               <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${Math.min(station.fillPercent, 100)}%`,
-                  background: progressFill(station.status),
-                }}
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(station.fillPercent, 100)}%`, background: fill }}
               />
             </div>
           </div>
 
+          <div className="mb-5 grid grid-cols-3 gap-2">
+            {[
+              { label: "Battery", value: `${Math.round(station.batteryLevel)}%` },
+              { label: "Sap Flow", value: `${station.sapFlowLph.toFixed(2)} L/h` },
+              { label: "Species", value: station.treeSpecies },
+            ].map((item) => (
+              <div key={item.label} className="rounded-xl bg-bg p-2.5">
+                <div className="mb-0.5 text-xs text-muted">{item.label}</div>
+                <div className="font-sans text-sm font-bold">{item.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {alerts.length > 0 ? (
+            <div className="mb-5 flex flex-col gap-2">
+              {alerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className="rounded-xl px-3 py-2.5 text-xs"
+                  style={{
+                    background:
+                      alert.severity === "critical"
+                        ? "rgba(239,68,68,0.08)"
+                        : "rgba(245,158,11,0.1)",
+                    border: `1px solid ${
+                      alert.severity === "critical"
+                        ? "rgba(239,68,68,0.25)"
+                        : "rgba(245,158,11,0.25)"
+                    }`,
+                    color: alert.severity === "critical" ? "#DC2626" : "#B45309",
+                  }}
+                >
+                  <span className="font-semibold">
+                    {alert.alert_type.replace(/_/g, " ")}
+                  </span>
+                  {" · "}
+                  {alert.message}
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           <div>
-            <h3 className="mb-3 font-sans text-sm font-semibold">7-Day Trend</h3>
+            <h3 className="mb-3 font-sans text-sm font-semibold">
+              Fill Trend · {chartData.length} day{chartData.length === 1 ? "" : "s"}
+            </h3>
             <div className="h-[100px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
@@ -125,9 +168,9 @@ export default function StationModal({
                   <Line
                     type="monotone"
                     dataKey="lbs"
-                    stroke="#4D7C30"
+                    stroke="#2B4A1E"
                     strokeWidth={2}
-                    dot={{ r: 3, fill: "#4D7C30" }}
+                    dot={{ r: 3, fill: "#2B4A1E" }}
                     isAnimationActive={false}
                   />
                   <Tooltip
@@ -150,7 +193,8 @@ export default function StationModal({
           <div className="mt-5 flex flex-col gap-2">
             <button
               type="button"
-              className="w-full rounded-xl bg-accent py-2.5 font-sans text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="w-full rounded-xl py-2.5 font-sans text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              style={{ background: "var(--color-accent)" }}
             >
               Log Collection
             </button>

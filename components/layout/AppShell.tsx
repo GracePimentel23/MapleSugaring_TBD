@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import DemoControls from "@/components/demo/DemoControls";
+import { useDemo } from "@/components/demo/DemoProvider";
 import {
   BellIcon,
   DashboardIcon,
@@ -13,11 +15,15 @@ import {
   StationsIcon,
   UserIcon,
 } from "@/components/icons";
-import { alerts, dashboardMeta } from "@/lib/data/mock";
 
 type PageId = "dashboard" | "stations" | "data";
 
-const navItems: { id: PageId; href: string; label: string; Icon: typeof DashboardIcon }[] = [
+const navItems: {
+  id: PageId;
+  href: string;
+  label: string;
+  Icon: typeof DashboardIcon;
+}[] = [
   { id: "dashboard", href: "/", label: "Dashboard", Icon: DashboardIcon },
   { id: "stations", href: "/stations", label: "Stations", Icon: StationsIcon },
   { id: "data", href: "/data", label: "Data", Icon: DataIcon },
@@ -32,18 +38,20 @@ function activePage(pathname: string): PageId {
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const active = activePage(pathname);
+  const { day } = useDemo();
+
   const hasUnreadAlerts =
-    alerts.some((alert) => !alert.is_resolved) || Boolean(dashboardMeta.weatherAlert);
+    day.alerts.some((alert) => !alert.is_resolved) || Boolean(day.meta.weatherAlert);
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg text-text">
-      <aside className="hidden w-[200px] shrink-0 flex-col md:flex bg-sidebar">
-        <div className="flex items-center gap-2.5 px-5 py-5">
+      <aside className="hidden w-[220px] shrink-0 flex-col bg-sidebar md:flex">
+        <div className="flex items-center gap-2.5 border-b border-white/10 px-5 py-5">
           <MapleLeafLogo />
           <span className="font-sans text-base font-semibold text-white">& Title</span>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1 px-3 py-2">
+        <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
           {navItems.map(({ id, href, label, Icon }) => {
             const isActive = active === id;
             return (
@@ -52,8 +60,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 href={href}
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors"
                 style={{
-                  background: isActive ? "rgba(255,255,255,0.16)" : "transparent",
-                  color: isActive ? "#fff" : "rgba(255,255,255,0.62)",
+                  background: isActive ? "rgba(255,255,255,0.15)" : "transparent",
+                  color: isActive ? "#fff" : "rgba(255,255,255,0.6)",
                 }}
               >
                 <Icon active={isActive} />
@@ -63,24 +71,26 @@ export default function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="px-5 py-5">
+        <div className="border-t border-white/10 px-3 py-4">
           <button
             type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-white/10"
-            aria-label="Settings"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-white/10"
           >
             <SettingsIcon />
+            <span className="font-sans text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Settings
+            </span>
           </button>
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="hidden items-center justify-between border-b border-border px-6 py-3.5 md:flex bg-bg">
+        <header className="hidden items-center justify-between border-b border-border bg-bg px-6 py-3.5 md:flex">
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-season-badge px-3 py-1 font-sans text-sm font-medium text-white">
-              {dashboardMeta.seasonLabel}
+              {day.meta.seasonLabel}
             </span>
-            <span className="text-sm text-muted">{dashboardMeta.currentDateLabel}</span>
+            <span className="text-sm text-muted">{day.meta.currentDateLabel}</span>
           </div>
           <div className="flex items-center gap-2 text-muted">
             <button
@@ -90,7 +100,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             >
               <BellIcon />
               {hasUnreadAlerts ? (
-                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-status-attention" />
+                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
               ) : null}
             </button>
             <button
@@ -103,21 +113,21 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <header className="flex items-center justify-between border-b border-border px-4 py-3 md:hidden bg-bg">
+        <header className="flex items-center justify-between border-b border-border bg-bg px-4 py-3 md:hidden">
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded bg-sidebar">
               <MapleLeafLogo size={22} />
             </div>
             <span className="rounded-full bg-season-badge px-2 py-0.5 text-xs font-medium text-white">
-              {dashboardMeta.seasonLabel}
+              {day.meta.seasonLabel}
             </span>
-            <span className="text-xs text-muted">{dashboardMeta.currentDateShortLabel}</span>
+            <span className="text-xs text-muted">{day.meta.currentDateShortLabel}</span>
           </div>
           <div className="flex items-center gap-1 text-muted">
             <button type="button" className="relative p-1.5" aria-label="Notifications">
               <BellIcon />
               {hasUnreadAlerts ? (
-                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-status-attention" />
+                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-red-500" />
               ) : null}
             </button>
             <button type="button" className="p-1.5" aria-label="Account">
@@ -126,9 +136,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
 
-        <nav className="fixed right-0 bottom-0 left-0 flex border-t border-border bg-white md:hidden">
+        <DemoControls />
+
+        <nav className="fixed right-0 bottom-0 left-0 z-40 flex border-t border-border bg-white md:hidden">
           {navItems.map(({ id, href, label }) => {
             const isActive = active === id;
             return (

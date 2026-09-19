@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { DropletIcon } from "@/components/icons";
-import { formatFillLabel, progressFill } from "@/lib/selectors/stations";
+import { panelProgressFill } from "@/lib/selectors/stations";
 import type { StationUiStatus, StationView } from "@/lib/types/schema";
+import { formatLbsNumber } from "@/lib/units";
 
 const statusColor: Record<StationUiStatus, string> = {
   online: "var(--color-status-online)",
@@ -23,25 +23,51 @@ export default function StationsPanel({
   summaryLabel: string;
 }) {
   return (
-    <aside className="hidden w-[280px] shrink-0 lg:flex">
-      <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[0_1px_2px_rgba(28,28,30,0.04)]">
-        <div className="px-5 pt-4 pb-3">
-          <h2 className="font-sans text-base font-semibold">Stations</h2>
-          <p className="mt-0.5 text-xs text-muted">{summaryLabel}</p>
+    <aside className="hidden shrink-0 flex-col lg:flex" style={{ width: 333 }}>
+      <div
+        className="overflow-hidden rounded-2xl bg-white shadow-sm"
+        style={{
+          border: "1px solid var(--color-border)",
+          width: 333,
+          height: 650,
+          maxHeight: "100%",
+        }}
+      >
+        <div
+          className="flex items-center justify-between border-b px-4 py-3.5"
+          style={{ borderColor: "var(--color-border)" }}
+        >
+          <div>
+            <h2 className="font-sans text-sm font-semibold">Stations</h2>
+            <p className="mt-0.5 text-xs text-muted">{summaryLabel}</p>
+          </div>
+          <Link href="/stations" className="text-xs font-medium text-accent">
+            See all
+          </Link>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+        <div className="flex flex-col divide-y divide-border overflow-y-auto">
           {stations.map((station) => (
-            <div key={station.bucketId} className="px-5 py-3.5">
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <DropletIcon fill="#1C1C1E" size={16} />
+            <div key={station.bucketId} className="px-4 py-3.5">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                    style={{ background: "var(--color-accent-light)" }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path
+                        d="M10 2C10 2 5 8 5 12a5 5 0 0010 0c0-4-5-10-5-10z"
+                        fill="var(--color-accent)"
+                      />
+                    </svg>
+                  </div>
                   <div>
-                    <div className="font-sans text-sm leading-tight font-semibold">
+                    <div className="font-sans text-xs leading-tight font-semibold">
                       {station.name}
                     </div>
-                    <div className="text-[11px] text-muted">
-                      Updated at {station.lastUpdated}
+                    <div className="text-muted" style={{ fontSize: 10 }}>
+                      Updated {station.lastUpdated}
                     </div>
                   </div>
                 </div>
@@ -49,31 +75,32 @@ export default function StationsPanel({
                   className="flex items-center gap-1 text-xs font-medium"
                   style={{ color: statusColor[station.status] }}
                 >
-                  <span className="text-[8px]">●</span>
+                  <span style={{ fontSize: 7 }}>●</span>
                   {statusLabel[station.status]}
                 </span>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-progress-track">
+
+              <div
+                className="h-1.5 overflow-hidden rounded-full"
+                style={{ background: "var(--color-progress-track)" }}
+              >
                 <div
-                  className="h-full rounded-full"
+                  className="h-full rounded-full transition-all duration-300"
                   style={{
                     width: `${Math.min(station.fillPercent, 100)}%`,
-                    background: progressFill(station.status),
+                    background: panelProgressFill(station.status),
                   }}
                 />
               </div>
-              <div className="mt-1.5 text-xs text-muted">{formatFillLabel(station)}</div>
+              <div className="mt-1 text-xs text-muted">
+                <span className="font-semibold text-text">
+                  {formatLbsNumber(station.currentLbs)}
+                </span>
+                {" / "}
+                {formatLbsNumber(station.capacityLbs)} lbs
+              </div>
             </div>
           ))}
-        </div>
-
-        <div className="px-5 py-4 text-center">
-          <Link
-            href="/stations"
-            className="font-sans text-sm font-medium text-accent hover:underline"
-          >
-            See All Stations
-          </Link>
         </div>
       </div>
     </aside>

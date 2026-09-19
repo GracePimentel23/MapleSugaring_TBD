@@ -198,6 +198,10 @@ export const dashboardMeta: DashboardMeta = {
     lowF: 21,
     highF: 32,
     summary: "Cloudy",
+    precipIn: 0,
+    snowIn: 0,
+    windMph: 8,
+    cloudPercent: 90,
   },
   sapCondition: {
     label: "Sap Condition",

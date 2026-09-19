@@ -67,12 +67,19 @@ export interface Metric {
 
 export type StationUiStatus = "online" | "attention" | "offline";
 
+/** Derived for the card UI: a full bucket reads Complete, offline always wins. */
+export type StationDisplayStatus = "complete" | "in_progress" | "offline";
+
+export type UserRole = "admin" | "student" | "guest";
+
 export interface StationView {
   bucketId: number;
   nodeId: number;
   name: string;
+  location: string;
   treeSpecies: string;
   status: StationUiStatus;
+  displayStatus: StationDisplayStatus;
   lastUpdated: string;
   currentLbs: number;
   capacityLbs: number;
@@ -93,6 +100,10 @@ export interface DashboardMeta {
     lowF: number;
     highF: number;
     summary: string;
+    precipIn: number;
+    snowIn: number;
+    windMph: number;
+    cloudPercent: number;
   };
   sapCondition: {
     label: string;
@@ -118,4 +129,54 @@ export interface WeeklyCollectionPoint {
 export interface ProductionStat {
   label: string;
   value: string;
+}
+
+export interface CollectionEntry {
+  bucketId: number;
+  bucketName: string;
+  collectedBy: string;
+  lbs: number;
+}
+
+export interface Collection {
+  id: string;
+  collectionNumber: number;
+  date: string;
+  entries: CollectionEntry[];
+  totalLbs: number;
+  batchName: string;
+  loggedBy: string;
+  notes?: string;
+}
+
+export type BatchStatus = "completed" | "processing" | "active" | "waiting";
+
+export interface Batch {
+  id: string;
+  batchNumber: string;
+  date: string;
+  status: BatchStatus;
+  sapInLbs: number;
+  syrupOutLbs: number;
+  brix: number;
+  createdBy: string;
+  notes?: string;
+}
+
+export interface SeasonFlowPoint {
+  week: string;
+  lbs: number;
+  temp: number;
+}
+
+export interface SeasonSummary {
+  season: string;
+  totalSapLbs: number;
+  totalSyrupLbs: number;
+  avgBrix: number;
+  sapToSyrupRatio: number;
+  totalCollections: number;
+  totalBatches: number;
+  avgTempF: number;
+  weeklyFlow: SeasonFlowPoint[];
 }
