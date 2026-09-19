@@ -2,6 +2,7 @@
 
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { DropletIcon } from "@/components/icons";
+import { progressFill } from "@/lib/selectors/stations";
 import { formatLbsNumber } from "@/lib/units";
 import type { StationUiStatus, StationView } from "@/lib/types/schema";
 
@@ -15,12 +16,6 @@ const statusLabel: Record<StationUiStatus, string> = {
   online: "Complete",
   attention: "Needs Attention",
   offline: "Offline",
-};
-
-const statusBg: Record<StationUiStatus, string> = {
-  online: "rgba(34,197,94,0.1)",
-  attention: "rgba(245,158,11,0.1)",
-  offline: "rgba(239,68,68,0.1)",
 };
 
 const progressColor: Record<StationUiStatus, string> = {
@@ -62,12 +57,10 @@ export default function StationModal({
         <div className="p-5">
           <div className="mb-4 flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light">
-                <DropletIcon fill="var(--color-accent)" size={22} />
-              </div>
+              <DropletIcon fill="#1C1C1E" size={16} />
               <div>
                 <h2 className="font-sans text-lg font-semibold">{station.name}</h2>
-                <p className="text-sm text-muted">{station.treeSpecies}</p>
+                <p className="text-sm text-muted">Updated at {station.lastUpdated}</p>
               </div>
             </div>
             <button
@@ -83,8 +76,8 @@ export default function StationModal({
           </div>
 
           <span
-            className="mb-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium"
-            style={{ color: statusColor[station.status], background: statusBg[station.status] }}
+            className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium"
+            style={{ color: statusColor[station.status] }}
           >
             <span className="text-[8px]">●</span>
             {statusLabel[station.status]}
@@ -117,7 +110,7 @@ export default function StationModal({
                 className="h-full rounded-full"
                 style={{
                   width: `${Math.min(station.fillPercent, 100)}%`,
-                  background: progressColor[station.status],
+                  background: progressFill(station.status),
                 }}
               />
             </div>

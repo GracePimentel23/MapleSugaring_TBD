@@ -72,3 +72,13 @@ export function getStationSummary() {
 export function formatFillLabel(station: StationView): string {
   return `${formatLbsNumber(station.currentLbs)} / ${formatLbsNumber(station.capacityLbs)} lbs`;
 }
+
+export function progressFill(status: StationUiStatus): string {
+  if (status === "attention") {
+    return "linear-gradient(90deg, #F59E0B 0%, #F97316 100%)";
+  }
+  if (status === "offline") {
+    return "var(--color-status-offline)";
+  }
+  return "linear-gradient(90deg, #4D7C30 0%, #7CB342 100%)";
+}

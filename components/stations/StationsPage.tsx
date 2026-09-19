@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { DropletIcon } from "@/components/icons";
 import StationModal from "@/components/stations/StationModal";
-import { getStationSummary } from "@/lib/selectors/stations";
+import { getStationSummary, progressFill } from "@/lib/selectors/stations";
 import { formatLbsNumber } from "@/lib/units";
 import type { StationUiStatus, StationView } from "@/lib/types/schema";
 
@@ -28,12 +28,6 @@ const statusLabel: Record<StationUiStatus, string> = {
   offline: "Offline",
 };
 
-const statusBg: Record<StationUiStatus, string> = {
-  online: "rgba(34,197,94,0.1)",
-  attention: "rgba(245,158,11,0.1)",
-  offline: "rgba(239,68,68,0.1)",
-};
-
 const progressColor: Record<StationUiStatus, string> = {
   online: "var(--color-accent)",
   attention: "var(--color-status-attention)",
@@ -53,26 +47,22 @@ function StationCard({
       onClick={onClick}
       className="w-full rounded-2xl border border-border bg-white p-4 text-left shadow-[0_1px_2px_rgba(28,28,30,0.04)] transition-shadow hover:shadow-md"
     >
-      <div className="mb-1 flex items-start justify-between">
+      <div className="mb-3 flex items-start justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-light">
-            <DropletIcon fill="var(--color-accent)" size={18} />
-          </div>
+          <DropletIcon fill="#1C1C1E" size={16} />
           <div>
             <div className="font-sans text-sm leading-tight font-semibold">{station.name}</div>
-            <div className="mt-0.5 text-xs text-muted">{station.treeSpecies}</div>
+            <div className="mt-0.5 text-xs text-muted">Updated at {station.lastUpdated}</div>
           </div>
         </div>
         <span
-          className="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-          style={{ color: statusColor[station.status], background: statusBg[station.status] }}
+          className="flex shrink-0 items-center gap-1 text-xs font-medium"
+          style={{ color: statusColor[station.status] }}
         >
-          <span className="text-[7px]">●</span>
+          <span className="text-[8px]">●</span>
           {statusLabel[station.status]}
         </span>
       </div>
-
-      <div className="mb-3 text-xs text-muted">Updated at {station.lastUpdated}</div>
 
       <div>
         <div className="h-2 overflow-hidden rounded-full bg-progress-track">
@@ -80,7 +70,7 @@ function StationCard({
             className="h-full rounded-full"
             style={{
               width: `${Math.min(station.fillPercent, 100)}%`,
-              background: progressColor[station.status],
+              background: progressFill(station.status),
             }}
           />
         </div>

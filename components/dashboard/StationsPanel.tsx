@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DropletIcon } from "@/components/icons";
-import { formatFillLabel } from "@/lib/selectors/stations";
+import { formatFillLabel, progressFill } from "@/lib/selectors/stations";
 import type { StationUiStatus, StationView } from "@/lib/types/schema";
 
 const statusColor: Record<StationUiStatus, string> = {
@@ -14,16 +14,6 @@ const statusLabel: Record<StationUiStatus, string> = {
   attention: "Attention",
   offline: "Offline",
 };
-
-function progressFill(status: StationUiStatus): string {
-  if (status === "attention") {
-    return "linear-gradient(90deg, #F59E0B 0%, #F97316 100%)";
-  }
-  if (status === "offline") {
-    return "var(--color-status-offline)";
-  }
-  return "linear-gradient(90deg, #4D7C30 0%, #7CB342 100%)";
-}
 
 export default function StationsPanel({
   stations,

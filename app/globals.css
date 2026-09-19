@@ -2,12 +2,11 @@
 
 @theme inline {
   --font-sans: var(--font-dm-sans);
-  --font-inter: var(--font-inter-body);
 
   --color-sidebar: #2b4a1e;
   --color-sidebar-hover: #3a6129;
   --color-sidebar-active: #4a7a33;
-  --color-bg: #f4f1e8;
+  --color-bg: #f5f3f0;
   --color-card: #ffffff;
   --color-accent: #4d7c30;
   --color-accent-light: #e8f0e0;
@@ -35,18 +34,10 @@ body {
 
 body {
   margin: 0;
-  font-family: var(--font-inter-body), sans-serif;
+  font-family: var(--font-sans), sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
   font-size: 14px;
-}
-
-h1,
-h2,
-h3,
-h4,
-h5 {
-  font-family: var(--font-sans), sans-serif;
 }
 
 .no-scrollbar::-webkit-scrollbar {
