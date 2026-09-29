@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import SignOutButton from "@/components/auth/SignOutButton";
 import {
   BellIcon,
   DashboardIcon,
@@ -40,7 +41,21 @@ export interface ShellInfo {
   hasUnreadAlerts: boolean;
 }
 
-export default function AppShell({ children, shell }: { children: ReactNode; shell: ShellInfo }) {
+export interface ShellUser {
+  email: string;
+  name: string;
+  role: string;
+}
+
+export default function AppShell({
+  children,
+  shell,
+  user = null,
+}: {
+  children: ReactNode;
+  shell: ShellInfo;
+  user?: ShellUser | null;
+}) {
   const pathname = usePathname();
   const active = activePage(pathname);
   const { hasUnreadAlerts } = shell;
@@ -112,6 +127,7 @@ export default function AppShell({ children, shell }: { children: ReactNode; she
             >
               <UserIcon />
             </button>
+            {user ? <SignOutButton email={user.email} /> : null}
           </div>
         </header>
 
@@ -135,6 +151,7 @@ export default function AppShell({ children, shell }: { children: ReactNode; she
             <button type="button" className="p-1.5" aria-label="Account">
               <UserIcon />
             </button>
+            {user ? <SignOutButton email={user.email} /> : null}
           </div>
         </header>
 

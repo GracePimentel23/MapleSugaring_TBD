@@ -3,6 +3,7 @@
  * browser under /api/*, the same way 7BS's nginx does.
  */
 import express from "express";
+import { authRouter, hasRole, requireSession, ROLES } from "./auth.js";
 import { config } from "./config.js";
 import { pool, withTransaction } from "./db.js";
 import { ingestBatch } from "./domain/ingest.js";
@@ -52,6 +53,11 @@ function requireIngestKey(req) {
   if (req.get("x-ingest-key") !== config.ingestKey) throw new HttpError(401, "missing or wrong X-Ingest-Key");
 }
 
+/** With sign-in off there are no users, so admin routes are open like the rest of the API. */
+function requireAdmin(req) {
+  if (config.auth.enabled && !hasRole(req.user, "admin")) throw new HttpError(403, "needs the admin role");
+}
+
 export function createApp() {
   const app = express();
   app.disable("x-powered-by");
@@ -73,6 +79,31 @@ export function createApp() {
     if (!lines) throw new HttpError(400, 'send {"gateway": "...", "lines": [...]} or {"gateway": "...", "packet": {...}}');
     if (lines.length > 500) throw new HttpError(413, "at most 500 lines per request");
     res.json(await ingestBatch(req.body));
+  }));
+
+  // ---- sign-in (everything below needs a session when AUTH_PROVIDER is set) --------------------
+  app.use(authRouter());
+  app.use(requireSession());
+
+  app.get("/users", wrap(async (req, res) => {
+    requireAdmin(req);
+    const { rows } = await pool.query(
+      `select u.id, u.email, u.full_name as name, coalesce(r.role_name, 'viewer') as role, u.last_login_at
+         from users u left join roles r on r.id = u.role_id order by u.id`,
+    );
+    res.json(rows);
+  }));
+
+  app.patch("/users/:id", wrap(async (req, res) => {
+    requireAdmin(req);
+    const role = String(req.body?.role ?? "");
+    if (!ROLES.includes(role)) throw new HttpError(400, `role must be one of ${ROLES.join(", ")}`);
+    const { rowCount } = await pool.query(
+      "update users set role_id = (select id from roles where role_name = $2) where id = $1",
+      [idParam(req.params.id), role],
+    );
+    if (!rowCount) throw new HttpError(404, "no such user");
+    res.json({ ok: true });
   }));
 
   // ---- stations ---------------------------------------------------------------------------------

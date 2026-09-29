@@ -53,9 +53,10 @@ await withTransaction(async (client) => {
     await client.query(`truncate collection_logs, collections, batches, metrics, alerts, readings, raw_packets,
                         buckets, node, gateway, users, roles restart identity cascade`);
   }
-  await client.query(`insert into roles (role_name) values ('club_lead'), ('member')`);
+  await client.query(`insert into roles (role_name) values ('admin'), ('member'), ('viewer') on conflict (role_name) do nothing`);
   await client.query(`insert into users (role_id, full_name, email) values
-                        (1, 'Maple Club Lead', 'lead@maplesugaring.club'), (2, 'Alex Rivera', 'alex@maplesugaring.club')`);
+                        ((select id from roles where role_name = 'admin'), 'Maple Club Lead', 'lead@maplesugaring.club'),
+                        ((select id from roles where role_name = 'member'), 'Alex Rivera', 'alex@maplesugaring.club')`);
   const gateway = await client.query(
     `insert into gateway (gateway_code, gateway_name, ip_address, status, last_ping)
      values ('GW-NORTH-01', 'North grove gateway', '10.20.0.12', 'online', now()) returning id`,

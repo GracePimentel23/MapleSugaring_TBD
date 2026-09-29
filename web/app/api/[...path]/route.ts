@@ -8,7 +8,8 @@ import { workerUrl } from "@/lib/api/server";
  */
 export const dynamic = "force-dynamic";
 
-const FORWARDED_HEADERS = ["content-type", "accept", "x-ingest-key"];
+// cookie carries the session to the worker (sign-in); set-cookie and location come back for the OAuth flow.
+const FORWARDED_HEADERS = ["content-type", "accept", "x-ingest-key", "cookie"];
 
 async function forward(request: NextRequest, ctx: RouteContext<"/api/[...path]">) {
   const base = workerUrl();
@@ -31,12 +32,16 @@ async function forward(request: NextRequest, ctx: RouteContext<"/api/[...path]">
       headers,
       body: hasBody ? await request.arrayBuffer() : undefined,
       cache: "no-store",
+      redirect: "manual",
       signal: AbortSignal.timeout(15_000),
     });
-    return new Response(upstream.body, {
-      status: upstream.status,
-      headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" },
+    const responseHeaders = new Headers({
+      "content-type": upstream.headers.get("content-type") ?? "application/json",
     });
+    const location = upstream.headers.get("location");
+    if (location) responseHeaders.set("location", location);
+    for (const cookie of upstream.headers.getSetCookie()) responseHeaders.append("set-cookie", cookie);
+    return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
   } catch (error) {
     return Response.json({ error: `worker unreachable: ${(error as Error).message}` }, { status: 502 });
   }
