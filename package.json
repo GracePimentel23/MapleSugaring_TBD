@@ -1,30 +1,21 @@
 {
-  "name": "maplesugaring",
+  "name": "maplesugaring-tbd",
   "version": "0.1.0",
   "private": true,
+  "description": "Monorepo: web/ (Next.js dashboard) and worker/ (API + sensor ingest). This root only holds local dev tooling.",
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "next": "16.3.4",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "recharts": "^3.10.1"
+    "setup": "npm install && npm --prefix web install && npm --prefix worker install",
+    "db": "node scripts/db.mjs",
+    "dev": "node scripts/dev.mjs",
+    "seed": "npm --prefix worker run seed",
+    "simulate": "npm --prefix worker run simulate --",
+    "test": "npm --prefix worker test"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.4",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "embedded-postgres": "17.10.0-beta.17"
   },
   "allowScripts": {
-    "unrs-resolver@1.12.2": true
+    "@embedded-postgres/windows-x64@17.10.0-beta.17": true
   }
 }

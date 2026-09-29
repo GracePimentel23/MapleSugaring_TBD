@@ -1,0 +1,75 @@
+# TBD preview stack (temporary, not the shared msdocker compose).
+# Builds the same folders the maintainer's compose will (/srv/TBD/web, /srv/TBD/worker) with the
+# same inline Dockerfile, but: own project name and container names, a named volume instead of
+# /srv/TBD/postgres, and the site bound to 127.0.0.1 only (http://localhost:3100 on the VM, or an SSH tunnel).
+#   start: deploy/update.sh   (or: sudo docker compose -f deploy/preview.compose.yml up -d --build)
+#   stop:  sudo docker compose -f deploy/preview.compose.yml down   (add -v to drop the data)
+name: tbd-preview
+
+x-node-build: &node-build
+  dockerfile_inline: |
+    FROM node:22-alpine
+    WORKDIR /app
+    COPY package*.json ./
+    RUN npm ci
+    COPY . .
+    RUN npm run build
+    ENV NODE_ENV=production
+    CMD ["npm", "start"]
+
+x-node-healthcheck: &node-healthcheck
+  test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  interval: 15s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+
+services:
+  db:
+    container_name: TBD_PREVIEW_DB
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tbd
+      POSTGRES_PASSWORD: tbd-preview
+      POSTGRES_DB: tbd
+    volumes:
+      - preview_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tbd -d tbd"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    container_name: TBD_PREVIEW_WKR
+    build:
+      context: ../worker
+      <<: *node-build
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgres://tbd:tbd-preview@db:5432/tbd
+    healthcheck: *node-healthcheck
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    container_name: TBD_PREVIEW_WEB
+    build:
+      context: ../web
+      <<: *node-build
+    restart: unless-stopped
+    environment:
+      PORT: 3100
+      WORKER_URL: http://worker:4000
+    ports:
+      - "127.0.0.1:3100:3100"
+    healthcheck: *node-healthcheck
+    depends_on:
+      worker:
+        condition: service_healthy
+
+volumes:
+  preview_pg:

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# git hook: after `git pull` in /srv/TBD, rebuild the containers for whatever changed.
+# Installed by deploy/install-hook.sh. Skip once with: SKIP_DEPLOY=1 git pull
+[ -n "${SKIP_DEPLOY:-}" ] && exit 0
+exec "$(git rev-parse --show-toplevel)/deploy/update.sh"
