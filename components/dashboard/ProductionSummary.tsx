@@ -9,16 +9,17 @@ export default function ProductionSummary({
 }) {
   return (
     <div className="mb-5">
-      <h2 className="font-sans text-base font-semibold text-text">Production Summary</h2>
+      <h2 className="mb-1 font-sans text-base font-semibold">Production Summary</h2>
       <div className="mb-3 text-xs text-muted">{periodLabel}</div>
       <div className="grid grid-cols-3 gap-3">
         {items.map((item) => (
           <div
             key={item.label}
-            className="rounded-2xl border border-border bg-white px-4 py-3 shadow-[0_1px_2px_rgba(28,28,30,0.04)]"
+            className="rounded-xl bg-white px-4 py-3 shadow-sm"
+            style={{ border: "1px solid var(--color-border)" }}
           >
             <div className="mb-1 text-xs text-muted">{item.label}</div>
-            <div className="font-sans text-xl font-semibold tracking-tight">{item.value}</div>
+            <div className="font-sans text-xl font-bold">{item.value}</div>
           </div>
         ))}
       </div>

@@ -1,6 +1,12 @@
 import { alerts, buckets, metrics, nodes } from "@/lib/data/mock";
-import type { Alert, Node, StationUiStatus, StationView } from "@/lib/types/schema";
-import { formatLbsNumber, litersToLbs } from "@/lib/units";
+import type {
+  Alert,
+  Node,
+  StationDisplayStatus,
+  StationUiStatus,
+  StationView,
+} from "@/lib/types/schema";
+import { litersToLbs } from "@/lib/units";
 
 function formatUpdatedAt(isoDate: string): string {
   const match = isoDate.match(/T(\d{2}):(\d{2})/);
@@ -16,6 +22,16 @@ function stationStatus(node: Node, nodeAlerts: Alert[]): StationUiStatus {
   if (node.status === "offline") return "offline";
   if (nodeAlerts.some((alert) => !alert.is_resolved)) return "attention";
   return "online";
+}
+
+/**
+ * The Stations page uses complete / in_progress / offline, driven by how full
+ * the bucket is. Offline always wins.
+ */
+function stationDisplayStatus(node: Node, fillPercent: number): StationDisplayStatus {
+  if (node.status === "offline") return "offline";
+  if (fillPercent >= 100) return "complete";
+  return "in_progress";
 }
 
 export function getStationCards(): StationView[] {
@@ -43,6 +59,7 @@ export function getStationCards(): StationView[] {
       name: node.node_code,
       treeSpecies: bucket.tree_species,
       status: stationStatus(node, nodeAlerts),
+      displayStatus: stationDisplayStatus(node, fillPercent),
       lastUpdated: latest ? formatUpdatedAt(latest.recorded_at) : "—",
       currentLbs,
       capacityLbs,
@@ -69,16 +86,20 @@ export function getStationSummary() {
   };
 }
 
-export function formatFillLabel(station: StationView): string {
-  return `${formatLbsNumber(station.currentLbs)} / ${formatLbsNumber(station.capacityLbs)} lbs`;
+export function getUnresolvedAlertsForNode(nodeId: number): Alert[] {
+  return alerts.filter((alert) => alert.node_id === nodeId && !alert.is_resolved);
 }
 
-export function progressFill(status: StationUiStatus): string {
-  if (status === "attention") {
-    return "linear-gradient(90deg, #F59E0B 0%, #F97316 100%)";
-  }
-  if (status === "offline") {
-    return "var(--color-status-offline)";
-  }
-  return "linear-gradient(90deg, #4D7C30 0%, #7CB342 100%)";
+/** Flat fills on the dashboard stations panel. */
+export function panelProgressFill(status: StationUiStatus): string {
+  if (status === "attention") return "#F59E0B";
+  if (status === "offline") return "#EF4444";
+  return "#2B4A1E";
+}
+
+/** Flat fills on the Stations page cards. */
+export function cardProgressFill(status: StationDisplayStatus): string {
+  if (status === "complete") return "#2B4A1E";
+  if (status === "in_progress") return "#3B82F6";
+  return "#D1D5DB";
 }

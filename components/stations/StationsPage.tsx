@@ -1,131 +1,329 @@
 "use client";
 
 import { useState } from "react";
-import { DropletIcon } from "@/components/icons";
 import StationModal from "@/components/stations/StationModal";
-import { getStationSummary, progressFill } from "@/lib/selectors/stations";
+import {
+  cardProgressFill,
+  getStationCards,
+  getUnresolvedAlertsForNode,
+} from "@/lib/selectors/stations";
+import type { StationDisplayStatus, StationView } from "@/lib/types/schema";
 import { formatLbsNumber } from "@/lib/units";
-import type { StationUiStatus, StationView } from "@/lib/types/schema";
 
-type TabFilter = "all" | "online" | "attention" | "offline";
+type TabFilter = "all" | StationDisplayStatus;
 
 const tabs: { id: TabFilter; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "online", label: "Complete" },
-  { id: "attention", label: "Needs Attention" },
+  { id: "complete", label: "Complete" },
+  { id: "in_progress", label: "In Progress" },
   { id: "offline", label: "Offline" },
 ];
 
-const statusColor: Record<StationUiStatus, string> = {
-  online: "var(--color-status-online)",
-  attention: "var(--color-status-attention)",
-  offline: "var(--color-status-offline)",
+const displayMeta: Record<
+  StationDisplayStatus,
+  { label: string; color: string; bg: string }
+> = {
+  complete: { label: "Complete", color: "#16A34A", bg: "rgba(34,197,94,0.12)" },
+  in_progress: { label: "In Progress", color: "#2563EB", bg: "rgba(59,130,246,0.12)" },
+  offline: { label: "Offline", color: "#DC2626", bg: "rgba(239,68,68,0.12)" },
 };
 
-const statusLabel: Record<StationUiStatus, string> = {
-  online: "Complete",
-  attention: "Needs Attention",
-  offline: "Offline",
-};
+function EditIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path
+        d="M9.5 2.5l2 2-7 7H2.5v-2l7-7z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
-const progressColor: Record<StationUiStatus, string> = {
-  online: "var(--color-accent)",
-  attention: "var(--color-status-attention)",
-  offline: "var(--color-status-offline)",
-};
+function CloseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function StatusChip({ station }: { station: StationView }) {
+  const meta = displayMeta[station.displayStatus];
+
+  return (
+    <span
+      className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+      style={{ color: meta.color, background: meta.bg }}
+    >
+      <span style={{ fontSize: 7 }}>●</span>
+      {meta.label}
+    </span>
+  );
+}
 
 function StationCard({
   station,
-  onClick,
+  onOpenDetails,
 }: {
   station: StationView;
-  onClick: () => void;
+  onOpenDetails: () => void;
 }) {
+  const isOffline = station.displayStatus === "offline";
+  const percent = Math.min(station.fillPercent, 100);
+  const fill = cardProgressFill(station.displayStatus);
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full rounded-2xl border border-border bg-white p-4 text-left shadow-[0_1px_2px_rgba(28,28,30,0.04)] transition-shadow hover:shadow-md"
+    <div
+      className="rounded-2xl bg-white p-4 shadow-sm"
+      style={{ border: "1px solid var(--color-border)" }}
     >
-      <div className="mb-3 flex items-start justify-between">
-        <div className="flex items-center gap-2.5">
-          <DropletIcon fill="#1C1C1E" size={16} />
-          <div>
-            <div className="font-sans text-sm leading-tight font-semibold">{station.name}</div>
-            <div className="mt-0.5 text-xs text-muted">Updated at {station.lastUpdated}</div>
-          </div>
-        </div>
-        <span
-          className="flex shrink-0 items-center gap-1 text-xs font-medium"
-          style={{ color: statusColor[station.status] }}
+      <div className="mb-2.5 flex items-start justify-between">
+        <button
+          type="button"
+          onClick={onOpenDetails}
+          className="flex items-center gap-2.5 text-left transition-opacity"
+          style={{ opacity: isOffline ? 0.45 : 1 }}
         >
-          <span className="text-[8px]">●</span>
-          {statusLabel[station.status]}
-        </span>
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M10 2C10 2 5 8 5 12a5 5 0 0010 0c0-4-5-10-5-10z" fill="#1C1C1E" />
+          </svg>
+          <div>
+            <div className="font-sans text-sm leading-tight font-semibold">
+              {station.name}
+            </div>
+            <div className="mt-0.5 text-xs text-muted">
+              Updated {station.lastUpdated}
+            </div>
+          </div>
+        </button>
+
+        <StatusChip station={station} />
       </div>
 
-      <div>
-        <div className="h-2 overflow-hidden rounded-full bg-progress-track">
+      <div style={{ opacity: isOffline ? 0.45 : 1 }}>
+        <div
+          className="h-2 overflow-hidden rounded-full"
+          style={{ background: "var(--color-progress-track)" }}
+        >
           <div
-            className="h-full rounded-full"
-            style={{
-              width: `${Math.min(station.fillPercent, 100)}%`,
-              background: progressFill(station.status),
-            }}
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${percent}%`, background: fill }}
           />
         </div>
         <div className="mt-1.5 flex items-center justify-between">
           <span className="text-xs text-muted">
-            <span className="font-semibold text-text">{formatLbsNumber(station.currentLbs)}</span>
-            {" lbs / "}
+            <span className="font-semibold text-text">
+              {formatLbsNumber(station.currentLbs)}
+            </span>
+            {" / "}
             {formatLbsNumber(station.capacityLbs)} lbs
           </span>
-          <span className="text-xs font-medium" style={{ color: progressColor[station.status] }}>
-            {Math.round(station.fillPercent)}%
+          <span
+            className="text-xs font-medium"
+            style={{ color: isOffline ? "#9CA3AF" : fill }}
+          >
+            {Math.round(percent)}%
           </span>
         </div>
       </div>
-    </button>
+    </div>
+  );
+}
+
+function AddStationModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default bg-black/40"
+        aria-label="Close"
+        onClick={onClose}
+      />
+      <div className="relative z-10 w-full rounded-t-3xl bg-white p-5 shadow-2xl md:max-w-md md:rounded-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-sans text-base font-semibold">Add Station</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1.5 hover:bg-gray-100"
+            aria-label="Close"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+        <div className="space-y-3">
+          {[
+            { label: "Bucket Name", placeholder: "e.g. Bucket #06", type: "text" },
+            { label: "Location", placeholder: "e.g. East Slope", type: "text" },
+            { label: "Target Weight (lbs)", placeholder: "12", type: "number" },
+          ].map((field) => (
+            <div key={field.label}>
+              <label className="mb-1 block text-xs font-medium text-muted">
+                {field.label}
+              </label>
+              <input
+                type={field.type}
+                placeholder={field.placeholder}
+                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                style={{ borderColor: "var(--color-border)" }}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl border py-2.5 font-sans text-sm font-semibold"
+            style={{ borderColor: "var(--color-border)" }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl py-2.5 font-sans text-sm font-semibold text-white"
+            style={{ background: "var(--color-accent)" }}
+          >
+            Add Station
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditBucketModal({
+  station,
+  onClose,
+}: {
+  station: StationView;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default bg-black/40"
+        aria-label="Close"
+        onClick={onClose}
+      />
+      <div className="relative z-10 w-full rounded-t-3xl bg-white p-5 shadow-2xl md:max-w-md md:rounded-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="font-sans text-base font-semibold">Edit Bucket</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full p-1.5 hover:bg-gray-100"
+            aria-label="Close"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+        <div className="space-y-3">
+          {[
+            { label: "Bucket Name", value: station.name, type: "text" },
+            { label: "Location", value: "", type: "text" },
+            { label: "Target Weight (lbs)", value: station.capacityLbs, type: "number" },
+            { label: "Current Weight (lbs)", value: station.currentLbs, type: "number" },
+          ].map((field) => (
+            <div key={field.label}>
+              <label className="mb-1 block text-xs font-medium text-muted">
+                {field.label}
+              </label>
+              <input
+                type={field.type}
+                defaultValue={field.value}
+                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
+                style={{ borderColor: "var(--color-border)" }}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl border py-2.5 font-sans text-sm font-semibold"
+            style={{ borderColor: "var(--color-border)" }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl py-2.5 font-sans text-sm font-semibold text-white"
+            style={{ background: "var(--color-accent)" }}
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
 export default function StationsPage() {
-  const { stations, summaryLabel } = getStationSummary();
+  const stations = getStationCards();
   const [activeTab, setActiveTab] = useState<TabFilter>("all");
-  const [selected, setSelected] = useState<StationView | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editBucketId, setEditBucketId] = useState<number | null>(null);
+  const [details, setDetails] = useState<number | null>(null);
+  const isAdmin = true;
 
-  const filtered = stations.filter((station) => {
-    if (activeTab === "all") return true;
-    return station.status === activeTab;
-  });
+  const counts: Record<TabFilter, number> = {
+    all: stations.length,
+    complete: stations.filter((station) => station.displayStatus === "complete").length,
+    in_progress: stations.filter((station) => station.displayStatus === "in_progress")
+      .length,
+    offline: stations.filter((station) => station.displayStatus === "offline").length,
+  };
+
+  const filtered = stations.filter((station) =>
+    activeTab === "all" ? true : station.displayStatus === activeTab,
+  );
+
+  const detailStation = stations.find((station) => station.bucketId === details) ?? null;
+  const editStation =
+    stations.find((station) => station.bucketId === editBucketId) ?? null;
 
   return (
     <div className="p-4 md:p-6">
-      <div className="mb-5">
-        <h1 className="font-sans text-2xl font-semibold md:text-3xl">Stations</h1>
-        <p className="mt-0.5 text-sm text-muted">{summaryLabel}</p>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-sans text-2xl font-semibold md:text-3xl">Stations</h1>
+          <p className="mt-0.5 text-sm text-muted">
+            {counts.complete + counts.in_progress} active · {counts.offline} offline
+          </p>
+        </div>
+        {isAdmin ? (
+          <button
+            type="button"
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 rounded-xl px-4 py-2 font-sans text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ background: "var(--color-accent)" }}
+          >
+            <span className="text-base leading-none">+</span> Add Station
+          </button>
+        ) : null}
       </div>
 
       <div className="mb-5 -mx-4 px-4 md:mx-0 md:px-0">
         <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
           {tabs.map((tab) => {
             const active = activeTab === tab.id;
-            const count =
-              tab.id === "all"
-                ? stations.length
-                : stations.filter((station) => station.status === tab.id).length;
-
             return (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition-all"
+                className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 font-sans text-sm font-medium whitespace-nowrap transition-all"
                 style={{
                   background: active ? "var(--color-accent)" : "white",
                   color: active ? "#fff" : "var(--color-muted)",
                   border: active ? "none" : "1.5px solid var(--color-border)",
-                  fontFamily: "var(--font-dm-sans), sans-serif",
                 }}
               >
                 {tab.label}
@@ -136,7 +334,7 @@ export default function StationsPage() {
                     color: active ? "#fff" : "var(--color-muted)",
                   }}
                 >
-                  {count}
+                  {counts[tab.id]}
                 </span>
               </button>
             );
@@ -146,21 +344,44 @@ export default function StationsPage() {
 
       {filtered.length === 0 ? (
         <div className="py-16 text-center text-muted">
+          <div className="mb-3 text-4xl">🍁</div>
           <p className="text-sm font-medium">No stations in this category</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {filtered.map((station) => (
-            <StationCard
-              key={station.bucketId}
-              station={station}
-              onClick={() => setSelected(station)}
-            />
+            <div key={station.bucketId} className="group relative">
+              <StationCard
+                station={station}
+                onOpenDetails={() => setDetails(station.bucketId)}
+              />
+              {isAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => setEditBucketId(station.bucketId)}
+                  className="absolute right-3 bottom-3 flex items-center gap-1 rounded-lg border bg-white px-2.5 py-1 font-sans text-xs opacity-0 transition-opacity group-hover:opacity-100 hover:bg-gray-50"
+                  style={{ borderColor: "var(--color-border)", color: "var(--color-muted)" }}
+                >
+                  <EditIcon />
+                  Edit Bucket
+                </button>
+              ) : null}
+            </div>
           ))}
         </div>
       )}
 
-      {selected ? <StationModal station={selected} onClose={() => setSelected(null)} /> : null}
+      {showAdd ? <AddStationModal onClose={() => setShowAdd(false)} /> : null}
+      {editStation ? (
+        <EditBucketModal station={editStation} onClose={() => setEditBucketId(null)} />
+      ) : null}
+      {detailStation ? (
+        <StationModal
+          station={detailStation}
+          alerts={getUnresolvedAlertsForNode(detailStation.nodeId)}
+          onClose={() => setDetails(null)}
+        />
+      ) : null}
     </div>
   );
 }

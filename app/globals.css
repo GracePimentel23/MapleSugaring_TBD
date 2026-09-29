@@ -2,21 +2,24 @@
 
 @theme inline {
   --font-sans: var(--font-dm-sans);
+  --font-body: var(--font-inter);
 
   --color-sidebar: #2b4a1e;
   --color-sidebar-hover: #3a6129;
   --color-sidebar-active: #4a7a33;
   --color-bg: #f5f3f0;
   --color-card: #ffffff;
-  --color-accent: #4d7c30;
+  --color-accent: #2b4a1e;
   --color-accent-light: #e8f0e0;
-  --color-border: #e4dfd0;
+  --color-accent-mid: #3d6b28;
+  --color-border: #e0ddd6;
   --color-text: #1c1c1e;
   --color-muted: #6b7280;
   --color-status-online: #22c55e;
   --color-status-attention: #f59e0b;
   --color-status-offline: #ef4444;
-  --color-season-badge: #3f6b2a;
+  --color-status-progress: #3b82f6;
+  --color-season-badge: #2b4a1e;
   --color-progress-track: #e5e7eb;
   --color-chart-bar: #3d6b28;
   --color-chart-bar-today: #6b9e45;
@@ -34,10 +37,18 @@ body {
 
 body {
   margin: 0;
-  font-family: var(--font-sans), sans-serif;
+  font-family: var(--font-inter), sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
   font-size: 14px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  font-family: var(--font-dm-sans), sans-serif;
 }
 
 .no-scrollbar::-webkit-scrollbar {
