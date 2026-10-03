@@ -46,6 +46,29 @@ Other commands: `npm run db` (just Postgres), `npm run seed` (demo data into an 
 `npm --prefix worker run seed -- --force` wipes and reseeds), `npm test` (worker tests; set
 `DATABASE_URL=postgres://tbd:tbd@127.0.0.1:5433/tbd` to include the API tests against Postgres).
 
+## Front end layout (`web/`)
+
+One component per file, named after what you see on screen. Imports use `@/` from `web/`.
+
+```
+web/
+  app/                      routes only: page.tsx (Dashboard), stations/, data/, layout.tsx, globals.css (colors, fonts)
+  components/
+    layout/AppShell.tsx     sidebar, top bar, mobile nav
+    dashboard/              Dashboard cards: ConditionCards, ProductionSummary, SapCollectedChart, StationsPanel
+    stations/               StationsPage, StationCard, StationDetailsModal, AddStationModal, EditBucketModal
+    data/                   DataPage (the tab bar), OverviewTab, AnalysisTab, RecordsContext
+      collections/          CollectionsTab, AddCollectionSheet, EditCollectionSheet, EditEntryPopup
+      batches/              BatchesTab, BatchCard, CreateBatchModal
+    auth/                   AccessContext (ShowFor, useShows), AccountMenu, SignOutButton, AuthError
+    common/LiveRefresh.tsx  the Live / Sample data badge
+    ui/icons.tsx            every shared SVG icon
+  hooks/useFormSubmit.ts    sends a modal's form to the API and refreshes the page
+  lib/                      data loading, types (types/schema.ts), selectors, formatting (units.ts, dates.ts)
+```
+
+Who sees which card is in `worker/src/rbac.config.js`: see [docs/FRONTEND_ROLES.md](docs/FRONTEND_ROLES.md).
+
 ## Sign-in (Google, RIT accounts)
 
 Off by default: with `AUTH_PROVIDER` unset the API is open, as before, and no keys are needed.

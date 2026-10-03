@@ -13,7 +13,7 @@ Everything lives in one file: [`worker/src/rbac.config.js`](../worker/src/rbac.c
 
 1. In `rbac.config.js` → `COMPONENTS`, add an id and who sees it:
    `"dashboard.sapChart": "dashboard:view"` (a permission) or `["manager", "owner"]` (roles).
-2. Wrap the card: `<ShowFor id="dashboard.sapChart">…</ShowFor>` (from `@/components/auth/Access`).
+2. Wrap the card: `<ShowFor id="dashboard.sapChart">…</ShowFor>` (from `@/components/auth/AccessContext`).
 3. Restart `npm run dev`.
 
 ## Let a role do more

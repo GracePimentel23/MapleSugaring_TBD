@@ -3,7 +3,7 @@ import ProductionSummary from "@/components/dashboard/ProductionSummary";
 import SapCollectedChart from "@/components/dashboard/SapCollectedChart";
 import StationsPanel from "@/components/dashboard/StationsPanel";
 import LiveRefresh from "@/components/common/LiveRefresh";
-import { ShowFor } from "@/components/auth/Access";
+import { ShowFor } from "@/components/auth/AccessContext";
 import { loadDashboard } from "@/lib/data/source";
 
 export default async function Home() {

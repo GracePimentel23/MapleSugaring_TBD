@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { shows, useAccess } from "@/components/auth/Access";
-import Analysis from "@/components/data/Analysis";
-import Batches from "@/components/data/Batches";
-import Collections from "@/components/data/Collections";
-import Overview from "@/components/data/Overview";
+import { shows, useAccess } from "@/components/auth/AccessContext";
+import AnalysisTab from "@/components/data/AnalysisTab";
+import BatchesTab from "@/components/data/batches/BatchesTab";
+import CollectionsTab from "@/components/data/collections/CollectionsTab";
+import OverviewTab from "@/components/data/OverviewTab";
 import LiveRefresh from "@/components/common/LiveRefresh";
 import type { DataSource } from "@/lib/data/source";
 
@@ -18,7 +18,7 @@ const tabs: { id: DataTab; label: string }[] = [
   { id: "analysis", label: "Analysis" },
 ];
 
-export default function DataTabs({ source }: { source: DataSource }) {
+export default function DataPage({ source }: { source: DataSource }) {
   // Tabs each role may see: "data.<id>" in worker/src/rbac.config.js.
   const access = useAccess();
   const visibleTabs = tabs.filter((tab) => shows(access, `data.${tab.id}`));
@@ -64,10 +64,10 @@ export default function DataTabs({ source }: { source: DataSource }) {
       </div>
 
       <div className="flex-1">
-        {activeTab === "overview" ? <Overview /> : null}
-        {activeTab === "collections" ? <Collections /> : null}
-        {activeTab === "batches" ? <Batches /> : null}
-        {activeTab === "analysis" ? <Analysis /> : null}
+        {activeTab === "overview" ? <OverviewTab /> : null}
+        {activeTab === "collections" ? <CollectionsTab /> : null}
+        {activeTab === "batches" ? <BatchesTab /> : null}
+        {activeTab === "analysis" ? <AnalysisTab /> : null}
       </div>
     </div>
   );

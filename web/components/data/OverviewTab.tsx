@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { useRecords } from "@/components/data/RecordsContext";
 
-export default function Overview() {
+export default function OverviewTab() {
   const { seasons } = useRecords();
   const [selectedSeason, setSelectedSeason] = useState(seasons[0]!.season);
   const season = seasons.find((item) => item.season === selectedSeason) ?? seasons[0]!;

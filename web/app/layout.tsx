@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { DM_Sans, Inter } from "next/font/google";
-import { AccessProvider } from "@/components/auth/Access";
+import { AccessProvider } from "@/components/auth/AccessContext";
 import AppShell from "@/components/layout/AppShell";
 import { loadAuth } from "@/lib/api/server";
 import { loadShell } from "@/lib/data/source";

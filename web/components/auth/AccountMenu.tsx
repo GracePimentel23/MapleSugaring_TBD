@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useAccess } from "@/components/auth/Access";
+import { useAccess } from "@/components/auth/AccessContext";
 import SignOutButton from "@/components/auth/SignOutButton";
-import { UserIcon } from "@/components/icons";
+import { UserIcon } from "@/components/ui/icons";
 
 /**
  * The profile icon's dropdown. A plain placeholder for testing until the real account menu is designed:

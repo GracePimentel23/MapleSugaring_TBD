@@ -25,7 +25,7 @@ Guest is just someone looking at the site. It is not an account.
 2. Wrap the component:
 
    ```tsx
-   import { ShowFor } from "@/components/auth/Access";
+   import { ShowFor } from "@/components/auth/AccessContext";
 
    <ShowFor id="dashboard.myCard">
      <MyCard />

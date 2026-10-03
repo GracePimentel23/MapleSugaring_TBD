@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { ShowFor, shows, useAccess } from "@/components/auth/Access";
+import { ShowFor, shows, useAccess } from "@/components/auth/AccessContext";
 import AccountMenu from "@/components/auth/AccountMenu";
 import AuthError from "@/components/auth/AuthError";
 import {
@@ -14,7 +14,7 @@ import {
   MobileNavIcon,
   SettingsIcon,
   StationsIcon,
-} from "@/components/icons";
+} from "@/components/ui/icons";
 
 type PageId = "dashboard" | "stations" | "data";
 
