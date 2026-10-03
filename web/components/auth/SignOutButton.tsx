@@ -9,7 +9,7 @@ export default function SignOutButton({ email }: { email: string }) {
 
   async function signOut() {
     await sendJson("POST", "/auth/logout").catch(() => {});
-    // Re-render the server components without the cookie: the layout then shows the sign-in screen.
+    // Re-render the server components without the cookie: the page falls back to the guest view.
     router.refresh();
   }
 

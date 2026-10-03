@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useShows } from "@/components/auth/Access";
 import LiveRefresh from "@/components/common/LiveRefresh";
 import { useFormSubmit } from "@/components/common/useFormSubmit";
 import StationModal from "@/components/stations/StationModal";
@@ -308,7 +309,8 @@ export default function StationsPage({
   const [showAdd, setShowAdd] = useState(false);
   const [editBucketId, setEditBucketId] = useState<number | null>(null);
   const [details, setDetails] = useState<number | null>(null);
-  const isAdmin = true;
+  // Who sees "Add station" and the edit pencil: worker/src/rbac.config.js COMPONENTS.
+  const isAdmin = useShows("stations.manage");
 
   const counts: Record<TabFilter, number> = {
     all: stations.length,

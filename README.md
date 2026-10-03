@@ -50,15 +50,19 @@ Other commands: `npm run db` (just Postgres), `npm run seed` (demo data into an 
 
 Off by default: with `AUTH_PROVIDER` unset the API is open, as before, and no keys are needed.
 To turn it on locally, copy `worker/.env.example` to `worker/.env`, fill in the Google client ID and
-secret, a `SESSION_SECRET` and `ADMIN_EMAILS`, then `npm run dev`. Signed-out visitors see a
-"Sign in with Google" button; the worker runs the OAuth code flow (PKCE, state, nonce), checks the
-ID token server-side and sets an httpOnly session cookie (sessions live in the `sessions` table).
+secret, a `SESSION_SECRET` and `ADMIN_EMAILS`, then `npm run dev`. Sign-in is optional: signed-out
+visitors get the read-only guest view, and the profile icon at the top right starts Google sign-in.
+The worker runs the OAuth code flow (PKCE, state, nonce), checks the ID token server-side and sets
+an httpOnly session cookie (sessions live in the `sessions` table).
 
 Who gets in: verified Google accounts whose email domain **and** Workspace `hd` claim are in
 `ALLOWED_EMAIL_DOMAINS` (default `g.rit.edu`, RIT's Google Workspace), plus anyone in
-`ALLOWED_EMAILS` or `ADMIN_EMAILS`. New users are `viewer` (read only); `member` can write;
-`ADMIN_EMAILS` are made `admin` on every sign-in and can change roles with `PATCH /users/:id`.
-`/health` and `/ingest` never need a session.
+`ALLOWED_EMAILS` or `ADMIN_EMAILS`. New users are `member`; `ADMIN_EMAILS` are made `owner` on every
+sign-in and can change roles with `PATCH /users/:id`. `/health` and `/ingest` never need a session.
+
+**Roles:** member, manager, owner; signed out is the guest view (no role). What each may see and do, and which cards
+show for whom, is in one file, `worker/src/rbac.config.js`; every API route checks it. See
+[docs/RBAC.md](docs/RBAC.md).
 
 Google Cloud setup: create an OAuth client of type "Web application" and add
 `<PUBLIC_URL>/api/auth/google/callback` as an authorized redirect URI for each place the app runs
@@ -72,10 +76,11 @@ Browser calls go to `/api/<path>` on the web app, which forwards to the worker.
 |---|---|---|
 | GET | `/health` | 200 when Postgres answers, 503 otherwise |
 | POST | `/ingest` | Gateway lines `{gateway, lines: [...]}` (header `X-Ingest-Key` when `INGEST_KEY` is set) |
-| GET | `/auth/me` | `{authEnabled, user: {id, email, name, role} | null}` |
+| GET | `/auth/me` | `{authEnabled, user, role, permissions, components}`: who is looking and which cards they see |
 | GET | `/auth/google`, `/auth/google/callback` | Google sign-in redirect and callback |
 | POST | `/auth/logout` | End the session |
-| GET/PATCH | `/users`, `/users/:id` | List users; set `{role}` (admin only) |
+| GET/PATCH | `/users`, `/users/:id` | List users; set `{role}` (owner; the last owner cannot be demoted) |
+| GET | `/roles`, `/audit?entity=user&id=` | Roles and their permissions; history of role changes (owner) |
 | GET | `/stations`, `/stations/:bucketId` | Station cards (`StationView`), open alerts |
 | POST/PATCH | `/stations`, `/stations/:bucketId` | Add or edit a station (name, location, target lbs, sensor id) |
 | GET | `/dashboard` | Production totals and the 7-day collection chart |

@@ -4,8 +4,8 @@ import { test } from "node:test";
 import {
   checkAccount,
   decodeJwtPayload,
-  hasRole,
   parseCookies,
+  previewRole,
   safeReturnTo,
   serializeCookie,
   sign,
@@ -118,10 +118,12 @@ test("return paths stay on this site", () => {
   assert.equal(safeReturnTo(undefined), "/");
 });
 
-test("roles are ordered viewer < member < admin", () => {
-  assert.equal(hasRole({ role: "admin" }, "member"), true);
-  assert.equal(hasRole({ role: "member" }, "member"), true);
-  assert.equal(hasRole({ role: "viewer" }, "member"), false);
-  assert.equal(hasRole({ role: "club_lead" }, "viewer"), false);
-  assert.equal(hasRole(null, "viewer"), false);
+test("View as: the cookie picks a role only while sign-in is off", () => {
+  const req = (cookie) => ({ get: () => cookie });
+  assert.equal(previewRole(req("tbd_view_as=manager"), { authEnabled: false, devRole: null }), "manager");
+  assert.equal(previewRole(req("tbd_view_as=guest"), { authEnabled: false, devRole: "owner" }), "guest");
+  assert.equal(previewRole(req("tbd_view_as=all"), { authEnabled: false, devRole: "guest" }), null);
+  assert.equal(previewRole(req("tbd_view_as=root"), { authEnabled: false, devRole: "member" }), "member");
+  assert.equal(previewRole(req(undefined), { authEnabled: false, devRole: null }), null);
+  assert.equal(previewRole(req("tbd_view_as=owner"), { authEnabled: true, devRole: null }), null);
 });

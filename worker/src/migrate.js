@@ -1,10 +1,12 @@
 /**
  * Forward-only migrations: every migrations/*.sql file runs once, in filename order, each in its own
  * transaction, and is recorded in schema_migrations. Never edit a file that has run on the VM; add a new one.
+ * Afterwards every role named in rbac.config.js gets a row in `roles`.
  */
 import { readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { syncRoles } from "./rbac.js";
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
 
@@ -35,6 +37,7 @@ export async function runMigrations(pool, log = console.log) {
       }
     }
     if (!pending.length) log(`schema up to date (${applied.size} migrations)`);
+    await syncRoles(client);
     return pending;
   } finally {
     client.release();

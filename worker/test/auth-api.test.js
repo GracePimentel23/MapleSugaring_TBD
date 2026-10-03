@@ -125,12 +125,24 @@ async function signIn(claims, { code = "good-code", tamperState = false, nonce }
   return { start, googleUrl, callback, cookie: session ? `tbd_session=${session}` : null };
 }
 
-test("signed out: data routes need a session; health, ingest and /auth/me stay open", { skip }, async () => {
-  assert.equal((await call("GET", "/stations")).status, 401);
+test("signed out is the guest view: dashboard and stations only; health, ingest and /auth/me stay open", { skip }, async () => {
+  assert.equal((await call("GET", "/dashboard")).status, 200);
+  assert.equal((await call("GET", "/stations")).status, 200);
+  for (const path of ["/collections", "/batches", "/alerts", "/readings", "/users"]) {
+    assert.equal((await call("GET", path)).status, 401, path);
+  }
   assert.equal((await call("POST", "/stations", { body: { name: "X" } })).status, 401);
+  assert.equal((await call("POST", "/collections", { body: { bucketIds: [1] } })).status, 401);
   assert.equal((await call("GET", "/health")).status, 200);
-  const me = await call("GET", "/auth/me");
-  assert.deepEqual(me.body, { authEnabled: true, user: null });
+  const me = await call("GET", "/auth/me", { cookie: "tbd_view_as=owner" }); // ignored: sign-in is on
+  assert.equal(me.body.authEnabled, true);
+  assert.equal(me.body.viewAs, null);
+  assert.equal(me.body.user, null);
+  assert.equal(me.body.role, "guest");
+  assert.deepEqual(me.body.permissions, ["dashboard:view", "stations:view"]);
+  assert.equal(me.body.components["dashboard.sapChart"], true);
+  assert.equal(me.body.components["nav.data"], false);
+  assert.equal(me.body.components["data.collections.add"], false);
   const ingest = await call("POST", "/ingest", { body: { gateway: "GW-A", lines: [] } });
   assert.equal(ingest.status, 200);
 });
@@ -147,8 +159,8 @@ test("the Google redirect carries PKCE, nonce, the hd hint and our callback URL"
   assert.equal(lastTokenRequest.client_secret, "test-secret");
 });
 
-test("an RIT account signs in as a viewer: can read, cannot write", { skip }, async () => {
-  const { callback, cookie } = await signIn({ sub: "g-viewer", email: "abc1234@g.rit.edu", hd: "g.rit.edu", name: "Abby" });
+test("an RIT account signs in as a member: reads everything, cannot run the season", { skip }, async () => {
+  const { callback, cookie } = await signIn({ sub: "g-member", email: "abc1234@g.rit.edu", hd: "g.rit.edu", name: "Abby" });
   assert.equal(callback.status, 302);
   assert.equal(callback.location, `${PUBLIC_URL}/stations`);
   assert.ok(cookie, "session cookie set");
@@ -157,9 +169,18 @@ test("an RIT account signs in as a viewer: can read, cannot write", { skip }, as
   const me = await call("GET", "/auth/me", { cookie });
   assert.equal(me.body.user.email, "abc1234@g.rit.edu");
   assert.equal(me.body.user.name, "Abby");
-  assert.equal(me.body.user.role, "viewer");
+  assert.equal(me.body.user.role, "member");
+  assert.equal(me.body.role, "member");
+  assert.equal(me.body.components["nav.data"], true);
+  assert.equal(me.body.components["data.collections.add"], true);
+  assert.equal(me.body.components["data.batches.manage"], false);
+  assert.equal(me.body.components["nav.settings"], false);
   assert.equal((await call("GET", "/stations", { cookie })).status, 200);
-  assert.equal((await call("POST", "/stations", { cookie, body: { name: "Nope" } })).status, 403);
+  assert.equal((await call("GET", "/collections", { cookie })).status, 200);
+  const refused = await call("POST", "/stations", { cookie, body: { name: "Nope" } });
+  assert.equal(refused.status, 403);
+  assert.match(refused.body.error, /needs stations:manage/);
+  assert.equal((await call("POST", "/batches", { cookie, body: {} })).status, 403);
   assert.equal((await call("GET", "/users", { cookie })).status, 403);
 });
 
@@ -191,20 +212,77 @@ test("a forged state, a wrong nonce or a bad code are rejected", { skip }, async
   assert.equal(noCookie.location, `${PUBLIC_URL}/?auth_error=expired`);
 });
 
-test("an admin email becomes admin and can promote a viewer to member", { skip }, async () => {
-  const viewer = await signIn({ sub: "g-promote", email: "promote@g.rit.edu", hd: "g.rit.edu" });
+test("an ADMIN_EMAILS address becomes owner and can promote a member to manager", { skip }, async () => {
+  const member = await signIn({ sub: "g-promote", email: "promote@g.rit.edu", hd: "g.rit.edu" });
   const boss = await signIn({ sub: "g-boss", email: "Boss@g.rit.edu", hd: "g.rit.edu" });
-  assert.equal((await call("GET", "/auth/me", { cookie: boss.cookie })).body.user.role, "admin");
+  const bossMe = await call("GET", "/auth/me", { cookie: boss.cookie });
+  assert.equal(bossMe.body.user.role, "owner");
+  assert.equal(bossMe.body.components["nav.settings"], true);
+
+  const roles = await call("GET", "/roles", { cookie: boss.cookie });
+  assert.deepEqual(roles.body.map((role) => [role.name, role.assignable]), [
+    ["guest", false], ["member", true], ["manager", true], ["owner", true],
+  ]);
 
   const users = await call("GET", "/users", { cookie: boss.cookie });
   const target = users.body.find((user) => user.email === "promote@g.rit.edu");
-  assert.equal(target.role, "viewer");
-  assert.equal((await call("PATCH", `/users/${target.id}`, { cookie: boss.cookie, body: { role: "owner" } })).status, 400);
-  assert.equal((await call("PATCH", `/users/${target.id}`, { cookie: boss.cookie, body: { role: "member" } })).status, 200);
+  assert.equal(target.role, "member");
+  for (const role of ["admin", "guest"]) {
+    assert.equal((await call("PATCH", `/users/${target.id}`, { cookie: boss.cookie, body: { role } })).status, 400, role);
+  }
 
-  // The viewer's existing session picks up the new role straight away.
-  const created = await call("POST", "/stations", { cookie: viewer.cookie, body: { name: "Promoted tree" } });
-  assert.equal(created.status, 201);
+  // As a member: logs collections, cannot add stations or delete collections.
+  const station = await call("POST", "/stations", { cookie: boss.cookie, body: { name: "Owner tree" } });
+  assert.equal(station.status, 201);
+  const logged = await call("POST", "/collections", { cookie: member.cookie, body: { bucketIds: [station.body.bucketId] } });
+  assert.equal(logged.status, 201);
+  assert.equal((await call("POST", "/stations", { cookie: member.cookie, body: { name: "Nope" } })).status, 403);
+  assert.equal((await call("DELETE", `/collections/${logged.body.id}`, { cookie: member.cookie })).status, 403);
+
+  const promoted = await call("PATCH", `/users/${target.id}`, { cookie: boss.cookie, body: { role: "manager" } });
+  assert.equal(promoted.status, 200);
+  assert.deepEqual(promoted.body, { ok: true, changed: true, user: { id: target.id, email: "promote@g.rit.edu", role: "manager" } });
+
+  // The existing session picks up the new role straight away; people stay with owners.
+  assert.equal((await call("DELETE", `/collections/${logged.body.id}`, { cookie: member.cookie })).status, 200);
+  assert.equal((await call("POST", "/stations", { cookie: member.cookie, body: { name: "Manager tree" } })).status, 201);
+  assert.equal((await call("GET", "/users", { cookie: member.cookie })).status, 403);
+
+  // The change is in the audit log, with who made it.
+  const audit = await call("GET", `/audit?entity=user&id=${target.id}`, { cookie: boss.cookie });
+  assert.equal(audit.status, 200);
+  assert.equal(audit.body.length, 1);
+  assert.equal(audit.body[0].action, "role_change");
+  assert.equal(audit.body[0].actor_email, "boss@g.rit.edu");
+  assert.deepEqual([audit.body[0].before, audit.body[0].after], [{ role: "member" }, { role: "manager" }]);
+  assert.equal((await call("GET", "/audit", { cookie: member.cookie })).status, 403);
+});
+
+test("the last owner cannot be demoted, and ADMIN_EMAILS cannot be demoted at all", { skip }, async () => {
+  const boss = await signIn({ sub: "g-boss", email: "boss@g.rit.edu", hd: "g.rit.edu" });
+  const second = await signIn({ sub: "g-second", email: "second@g.rit.edu", hd: "g.rit.edu" });
+  const users = (await call("GET", "/users", { cookie: boss.cookie })).body;
+  const bossId = users.find((user) => user.email === "boss@g.rit.edu").id;
+  const secondId = users.find((user) => user.email === "second@g.rit.edu").id;
+
+  const keepBoss = await call("PATCH", `/users/${bossId}`, { cookie: boss.cookie, body: { role: "member" } });
+  assert.equal(keepBoss.status, 409);
+  assert.match(keepBoss.body.error, /ADMIN_EMAILS/);
+
+  assert.equal((await call("PATCH", `/users/${secondId}`, { cookie: boss.cookie, body: { role: "owner" } })).status, 200);
+  // Take boss out by hand (the API refuses, see above), leaving second as the only owner.
+  await pool.query("update users set role_id = (select id from roles where role_name = 'manager') where id = $1", [bossId]);
+  const last = await call("PATCH", `/users/${secondId}`, { cookie: second.cookie, body: { role: "manager" } });
+  assert.equal(last.status, 409);
+  assert.match(last.body.error, /last owner/);
+  assert.equal((await call("GET", "/auth/me", { cookie: second.cookie })).body.role, "owner");
+
+  // Signing in again restores an ADMIN_EMAILS address to owner, and that is audited too.
+  await signIn({ sub: "g-boss", email: "boss@g.rit.edu", hd: "g.rit.edu" });
+  const audit = (await call("GET", `/audit?entity=user&id=${bossId}`, { cookie: second.cookie })).body;
+  assert.equal(audit[0].reason, "listed in ADMIN_EMAILS");
+  assert.deepEqual([audit[0].before, audit[0].after], [{ role: "manager" }, { role: "owner" }]);
+  assert.equal((await call("PATCH", `/users/${secondId}`, { cookie: second.cookie, body: { role: "member" } })).status, 200);
 });
 
 test("a listed non-RIT address can sign in", { skip }, async () => {
@@ -224,14 +302,14 @@ test("tampered, unknown and logged-out sessions are refused", { skip }, async ()
   const [name, value] = cookie.split("=");
   const token = decodeURIComponent(value);
   const tampered = `${name}=${encodeURIComponent(`${token[0] === "A" ? "B" : "A"}${token.slice(1)}`)}`;
-  assert.equal((await call("GET", "/stations", { cookie: tampered })).status, 401);
-  assert.equal((await call("GET", "/stations", { cookie: "tbd_session=made.up" })).status, 401);
+  assert.equal((await call("GET", "/collections", { cookie: tampered })).status, 401);
+  assert.equal((await call("GET", "/collections", { cookie: "tbd_session=made.up" })).status, 401);
 
-  assert.equal((await call("GET", "/stations", { cookie })).status, 200);
+  assert.equal((await call("GET", "/collections", { cookie })).status, 200);
   const logout = await call("POST", "/auth/logout", { cookie });
   assert.equal(logout.status, 200);
   assert.match(logout.response.headers.getSetCookie()[0], /tbd_session=;.*Max-Age=0/);
-  assert.equal((await call("GET", "/stations", { cookie })).status, 401);
+  assert.equal((await call("GET", "/collections", { cookie })).status, 401);
 });
 
 test("expired sessions are refused", { skip }, async () => {
@@ -239,5 +317,10 @@ test("expired sessions are refused", { skip }, async () => {
   await pool.query(
     "update sessions set expires_at = now() - interval '1 minute' where user_id = (select id from users where email = 'old@g.rit.edu')",
   );
-  assert.equal((await call("GET", "/stations", { cookie })).status, 401);
+  assert.equal((await call("GET", "/collections", { cookie })).status, 401);
+});
+
+test("the roles table holds exactly the configured roles", { skip }, async () => {
+  const { rows } = await pool.query("select role_name from roles order by role_name");
+  assert.deepEqual(rows.map((row) => row.role_name), ["manager", "member", "owner"]);
 });

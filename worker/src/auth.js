@@ -9,12 +9,15 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import { Router } from "express";
 import { config } from "./config.js";
 import { pool, withTransaction } from "./db.js";
+import { accessFor, ASSIGNABLE_ROLES, describeAccess, GUEST_ROLE, NEW_USER_ROLE, OWNER_ROLE } from "./rbac.js";
 
 export const SESSION_COOKIE = "tbd_session";
+/** The "View as" test switch in the profile menu. Only read while sign-in is off. */
+export const VIEW_AS_COOKIE = "tbd_view_as";
+/** What "View as" offers: "all" (no limits) or one view. */
+export const VIEW_AS_CHOICES = ["all", GUEST_ROLE, ...ASSIGNABLE_ROLES];
 const STATE_COOKIE = "tbd_oauth";
 const STATE_MAX_AGE_S = 10 * 60;
-const ROLE_LEVEL = { viewer: 0, member: 1, admin: 2 };
-export const ROLES = Object.keys(ROLE_LEVEL);
 const GOOGLE_ISSUERS = new Set(["https://accounts.google.com", "accounts.google.com"]);
 
 // ---- pure helpers (unit tested) -----------------------------------------------------------------
@@ -90,7 +93,7 @@ export function validateIdClaims(claims, { clientId, nonce, now = Date.now() }) 
  *  - otherwise both the email's domain and the `hd` claim must be in ALLOWED_EMAIL_DOMAINS. `hd` is only
  *    set for Google Workspace accounts, so a personal Google account registered with an @rit.edu address
  *    (which Google marks verified) is still refused.
- * Returns { ok, email, name, sub, admin } or { ok: false, reason }.
+ * Returns { ok, email, name, sub, admin } or { ok: false, reason }; admin means "make them owner".
  */
 export function checkAccount(claims, { allowedDomains = [], allowedEmails = [], adminEmails = [] }) {
   const email = String(claims.email ?? "").trim().toLowerCase();
@@ -105,10 +108,6 @@ export function checkAccount(claims, { allowedDomains = [], allowedEmails = [], 
   if (!listed && !domainOk) return { ok: false, reason: "domain_not_allowed" };
 
   return { ok: true, email, sub: String(claims.sub), name: String(claims.name ?? "").trim() || email, admin };
-}
-
-export function hasRole(user, role) {
-  return (ROLE_LEVEL[user?.role] ?? -1) >= ROLE_LEVEL[role];
 }
 
 /** Only same-site paths, so the callback cannot be turned into an open redirect. */
@@ -143,14 +142,15 @@ async function loadSessionUser(req) {
   const token = sessionToken(req);
   if (!token) return null;
   const { rows } = await pool.query(
-    `select u.id, u.email, u.full_name as name, coalesce(r.role_name, 'viewer') as role
+    `select u.id, u.email, u.full_name as name, r.role_name as role
        from sessions s join users u on u.id = s.user_id left join roles r on r.id = u.role_id
       where s.id = $1 and s.expires_at > now()`,
     [hashToken(token)],
   );
   const user = rows[0];
   if (!user) return null;
-  if (!(user.role in ROLE_LEVEL)) user.role = "viewer";
+  // No role yet, or one that was removed from rbac.config.js: treat as a new user.
+  if (!ASSIGNABLE_ROLES.includes(user.role)) user.role = NEW_USER_ROLE;
   return user;
 }
 
@@ -158,8 +158,9 @@ async function loadSessionUser(req) {
 async function upsertUser(account) {
   return withTransaction(async (client) => {
     const found = await client.query(
-      `select id, google_sub from users where google_sub = $1 or lower(email) = $2
-        order by (google_sub = $1) desc nulls last limit 1`,
+      `select u.id, u.google_sub, r.role_name as role from users u left join roles r on r.id = u.role_id
+        where u.google_sub = $1 or lower(u.email) = $2
+        order by (u.google_sub = $1) desc nulls last limit 1`,
       [account.sub, account.email],
     );
     const existing = found.rows[0];
@@ -169,17 +170,24 @@ async function upsertUser(account) {
     if (existing) {
       await client.query(
         `update users set google_sub = $2, email = $3, full_name = $4, last_login_at = now(),
-                role_id = case when $5 then (select id from roles where role_name = 'admin')
-                               else coalesce(role_id, (select id from roles where role_name = 'viewer')) end
+                role_id = case when $5 then (select id from roles where role_name = $6)
+                               else coalesce(role_id, (select id from roles where role_name = $7)) end
           where id = $1`,
-        [existing.id, account.sub, account.email, account.name, account.admin],
+        [existing.id, account.sub, account.email, account.name, account.admin, OWNER_ROLE, NEW_USER_ROLE],
       );
+      if (account.admin && existing.role !== OWNER_ROLE) {
+        await client.query(
+          `insert into audit_log (entity, entity_id, action, before, after, reason)
+           values ('user', $1, 'role_change', $2, $3, 'listed in ADMIN_EMAILS')`,
+          [String(existing.id), { role: existing.role ?? null }, { role: OWNER_ROLE }],
+        );
+      }
       return existing.id;
     }
     const inserted = await client.query(
       `insert into users (full_name, email, google_sub, last_login_at, role_id)
        values ($1, $2, $3, now(), (select id from roles where role_name = $4)) returning id`,
-      [account.name, account.email, account.sub, account.admin ? "admin" : "viewer"],
+      [account.name, account.email, account.sub, account.admin ? OWNER_ROLE : NEW_USER_ROLE],
     );
     return inserted.rows[0].id;
   });
@@ -199,10 +207,16 @@ function fail(res, reason) {
 export function authRouter() {
   const router = Router();
 
-  router.get("/auth/me", wrap(async (req, res) => {
-    if (!config.auth.enabled) return res.json({ authEnabled: false, user: null });
-    res.json({ authEnabled: true, user: await loadSessionUser(req) });
-  }));
+  // Who is asking and what they may see: { authEnabled, user, role, permissions, components }.
+  // viewAs is only offered with sign-in off (local testing): the choices for the profile menu.
+  router.get("/auth/me", (req, res) => {
+    res.json({
+      authEnabled: config.auth.enabled,
+      user: req.user,
+      ...describeAccess(req.access),
+      viewAs: config.auth.enabled ? null : VIEW_AS_CHOICES,
+    });
+  });
 
   router.post("/auth/logout", wrap(async (req, res) => {
     if (config.auth.enabled) {
@@ -303,17 +317,24 @@ export function authRouter() {
 }
 
 /**
- * Gate for everything registered after it. No-op when sign-in is off. Reads need any signed-in user,
- * writes need member or admin.
+ * Works out who is asking: req.user (the signed-in user, or null) and req.access ({ role, permissions }).
+ * Never refuses anything itself; each route checks req.access with requirePermission().
  */
-export function requireSession() {
-  return wrap(async (req, res, next) => {
-    if (!config.auth.enabled) return next();
-    const user = await loadSessionUser(req);
-    if (!user) return res.status(401).json({ error: "sign in required" });
-    const needed = req.method === "GET" || req.method === "HEAD" ? "viewer" : "member";
-    if (!hasRole(user, needed)) return res.status(403).json({ error: `needs the ${needed} role` });
-    req.user = user;
+export function identify() {
+  return wrap(async (req, _res, next) => {
+    req.user = config.auth.enabled ? await loadSessionUser(req) : null;
+    req.access = accessFor({ authEnabled: config.auth.enabled, user: req.user, devRole: previewRole(req) });
     next();
   });
+}
+
+/**
+ * With sign-in off, which role to act as: the "View as" cookie if set, else DEV_ROLE, else none (all).
+ * With sign-in on it is always null, so the cookie can never change what a signed-in person may do.
+ */
+export function previewRole(req, { authEnabled = config.auth.enabled, devRole = config.devRole } = {}) {
+  if (authEnabled) return null;
+  const chosen = parseCookies(req.get("cookie"))[VIEW_AS_COOKIE];
+  if (chosen === "all") return null;
+  return VIEW_AS_CHOICES.includes(chosen) ? chosen : devRole;
 }

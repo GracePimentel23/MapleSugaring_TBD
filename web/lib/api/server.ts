@@ -24,7 +24,7 @@ export async function fetchWorker<T>(path: string): Promise<T | null> {
       signal: AbortSignal.timeout(4000),
     });
     if (!response.ok) {
-      // 401/403 just mean "signed out"; the login gate in the layout handles that.
+      // 401/403 mean this role may not read it (rbac.config.js); the UI hides those parts.
       if (response.status !== 401 && response.status !== 403) console.error(`worker ${path} -> ${response.status}`);
       return null;
     }
@@ -39,15 +39,26 @@ export interface SessionUser {
   id: number;
   email: string;
   name: string;
-  role: "viewer" | "member" | "admin";
+  /** A role name from worker/src/rbac.config.js, e.g. "member", "manager", "owner". */
+  role: string;
 }
 
-export interface AuthState {
+/** GET /auth/me: who is looking and what they may see and do. Roles are in worker/src/rbac.config.js. */
+export interface Access {
   authEnabled: boolean;
+  /** null when signed out (the guest view) or when sign-in is off. */
   user: SessionUser | null;
+  /** "guest" when signed out; null when sign-in is off and everything is allowed. */
+  role: string | null;
+  /** e.g. ["dashboard:view", "collections:log"]. */
+  permissions: string[];
+  /** Every component id in rbac.config.js COMPONENTS -> whether this role sees it. */
+  components: Record<string, boolean>;
+  /** With sign-in off: the "View as" choices for testing ("all", "guest", roles...). null with sign-in on. */
+  viewAs: string[] | null;
 }
 
-/** Sign-in state from the worker; null when the worker is unset or down (sample-data mode, no gate). */
-export function loadAuth(): Promise<AuthState | null> {
-  return fetchWorker<AuthState>("/auth/me");
+/** Sign-in state from the worker; null when the worker is unset or down (sample-data mode: no limits). */
+export function loadAuth(): Promise<Access | null> {
+  return fetchWorker<Access>("/auth/me");
 }

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useFormSubmit } from "@/components/common/useFormSubmit";
 import { useRecords } from "@/components/data/RecordsContext";
-import type { Collection, CollectionEntry, UserRole } from "@/lib/types/schema";
+import { useShows } from "@/components/auth/Access";
+import type { Collection, CollectionEntry } from "@/lib/types/schema";
 
 const PEOPLE = ["Mr. Adams", "Chloe M.", "Jordan T.", "Sam R."];
 
@@ -465,7 +466,7 @@ function AddCollectionSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
-export default function Collections({ role }: { role: UserRole }) {
+export default function Collections() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editCollectionId, setEditCollectionId] = useState<string | null>(null);
@@ -475,8 +476,9 @@ export default function Collections({ role }: { role: UserRole }) {
   } | null>(null);
 
   const { collections } = useRecords();
-  const canAdd = role === "admin" || role === "student";
-  const isAdmin = role === "admin";
+  // Who sees these buttons: worker/src/rbac.config.js COMPONENTS.
+  const canAdd = useShows("data.collections.add");
+  const isAdmin = useShows("data.collections.edit");
 
   const editCollection =
     collections.find((collection) => collection.id === editCollectionId) ?? null;

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useFormSubmit } from "@/components/common/useFormSubmit";
 import { useRecords } from "@/components/data/RecordsContext";
-import type { Batch, BatchStatus, UserRole } from "@/lib/types/schema";
+import { useShows } from "@/components/auth/Access";
+import type { Batch, BatchStatus } from "@/lib/types/schema";
 
 const statusStyles: Record<BatchStatus, { bg: string; color: string; label: string }> = {
   completed: { bg: "rgba(34,197,94,0.1)", color: "#16A34A", label: "Completed" },
@@ -222,10 +223,11 @@ function CreateBatchModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-export default function Batches({ role }: { role: UserRole }) {
+export default function Batches() {
   const { batches } = useRecords();
   const [showAdd, setShowAdd] = useState(false);
-  const isAdmin = role === "admin";
+  // Who sees the batch buttons: worker/src/rbac.config.js COMPONENTS.
+  const isAdmin = useShows("data.batches.manage");
 
   const activeBatches = batches.filter(
     (batch) => batch.status === "active" || batch.status === "processing",

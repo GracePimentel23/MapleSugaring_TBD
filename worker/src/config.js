@@ -1,4 +1,5 @@
 /** Environment, read once. Everything has a local-dev default except DATABASE_URL. */
+import { ROLES } from "./rbac.config.js";
 
 function number(name, fallback) {
   const value = process.env[name];
@@ -17,7 +18,8 @@ function list(name, fallback = "") {
 
 /**
  * Sign-in. Off unless AUTH_PROVIDER=google, so local dev, the simulator and the demo keep working
- * with no keys. When it is on, every route except /health, /ingest and /auth/* needs a session.
+ * with no keys. When it is on, signed-out visitors get the guest role and every route checks the
+ * caller's permissions (rbac.config.js); /health, /ingest and /auth/* need none.
  */
 function authConfig() {
   const provider = (process.env.AUTH_PROVIDER ?? "").trim().toLowerCase();
@@ -35,7 +37,7 @@ function authConfig() {
     allowedDomains: list("ALLOWED_EMAIL_DOMAINS", "g.rit.edu"),
     // Individual addresses let in whatever their domain (e.g. a teacher's personal Gmail).
     allowedEmails: list("ALLOWED_EMAILS"),
-    // Made admin on every sign-in; also let in whatever their domain.
+    // Made owner on every sign-in; also let in whatever their domain.
     adminEmails: list("ADMIN_EMAILS"),
     sessionDays: number("SESSION_DAYS", 30),
     // Overridable only so tests can stand in for Google.
@@ -49,6 +51,20 @@ function authConfig() {
   return auth;
 }
 
+/**
+ * Local preview of one role while sign-in is off, e.g. DEV_ROLE=guest to see the signed-out view.
+ * Ignored when sign-in is on. It can only take permissions away, so it is safe to leave set.
+ */
+function devRole(authEnabled) {
+  const role = (process.env.DEV_ROLE ?? "").trim().toLowerCase();
+  if (!role || authEnabled) return null;
+  const choices = ["guest", ...Object.keys(ROLES)];
+  if (!choices.includes(role)) throw new Error(`DEV_ROLE must be one of ${choices.join(", ")}, got "${role}"`);
+  return role;
+}
+
+const auth = authConfig();
+
 export const config = {
   port: number("PORT", 4000),
   databaseUrl: process.env.DATABASE_URL ?? "postgres://tbd:tbd@127.0.0.1:5433/tbd",
@@ -60,5 +76,6 @@ export const config = {
   metricIntervalMinutes: number("METRIC_INTERVAL_MINUTES", 15),
   fullPercent: number("FULL_PERCENT", 90),
   migrateOnBoot: process.env.MIGRATE_ON_BOOT !== "false",
-  auth: authConfig(),
+  auth,
+  devRole: devRole(auth.enabled),
 };

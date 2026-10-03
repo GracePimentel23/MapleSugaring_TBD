@@ -1,61 +1,25 @@
 /**
  * HTTP API. Routes are mounted at the root (/stations, /ingest, ...); the Next app exposes them to the
  * browser under /api/*, the same way 7BS's nginx does.
+ *
+ * Every route after identify() names the permission it needs with can("area:action"); who holds which
+ * permission is in rbac.config.js. A test fails if a route is added without one.
  */
 import express from "express";
-import { authRouter, hasRole, requireSession, ROLES } from "./auth.js";
+import { authRouter, identify } from "./auth.js";
 import { config } from "./config.js";
 import { pool, withTransaction } from "./db.js";
 import { ingestBatch } from "./domain/ingest.js";
 import { resolveAlerts } from "./domain/alerts.js";
 import { lbsToKg } from "./domain/units.js";
+import { HttpError, idParam, optionalDate, optionalNumber, optionalText, wrap } from "./http.js";
+import { requirePermission as can } from "./rbac.js";
+import { usersRouter } from "./users.js";
 import { getAlerts, getBatches, getCollections, getDashboard, getSeasons, getStations } from "./views.js";
-
-export class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
-
-const wrap = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
-
-function idParam(value, prefix = "") {
-  const id = Number(String(value).replace(prefix, ""));
-  if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, "invalid id");
-  return id;
-}
-
-function optionalNumber(value, name, { min = -Infinity, max = Infinity } = {}) {
-  if (value === undefined || value === null || value === "") return null;
-  const number = Number(value);
-  if (!Number.isFinite(number) || number < min || number > max) {
-    throw new HttpError(400, `${name} must be a number between ${min} and ${max}`);
-  }
-  return number;
-}
-
-function optionalText(value, name, max = 200) {
-  if (value === undefined || value === null) return null;
-  const text = String(value).trim();
-  if (text.length > max) throw new HttpError(400, `${name} is longer than ${max} characters`);
-  return text || null;
-}
-
-function optionalDate(value, name) {
-  if (value === undefined || value === null || value === "") return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) throw new HttpError(400, `${name} must be YYYY-MM-DD`);
-  return String(value);
-}
 
 function requireIngestKey(req) {
   if (!config.ingestKey) return;
   if (req.get("x-ingest-key") !== config.ingestKey) throw new HttpError(401, "missing or wrong X-Ingest-Key");
-}
-
-/** With sign-in off there are no users, so admin routes are open like the rest of the API. */
-function requireAdmin(req) {
-  if (config.auth.enabled && !hasRole(req.user, "admin")) throw new HttpError(403, "needs the admin role");
 }
 
 export function createApp() {
@@ -81,35 +45,15 @@ export function createApp() {
     res.json(await ingestBatch(req.body));
   }));
 
-  // ---- sign-in (everything below needs a session when AUTH_PROVIDER is set) --------------------
+  // ---- sign-in and people (everything below checks the caller's permissions) ---------------------
+  app.use(identify());
   app.use(authRouter());
-  app.use(requireSession());
-
-  app.get("/users", wrap(async (req, res) => {
-    requireAdmin(req);
-    const { rows } = await pool.query(
-      `select u.id, u.email, u.full_name as name, coalesce(r.role_name, 'viewer') as role, u.last_login_at
-         from users u left join roles r on r.id = u.role_id order by u.id`,
-    );
-    res.json(rows);
-  }));
-
-  app.patch("/users/:id", wrap(async (req, res) => {
-    requireAdmin(req);
-    const role = String(req.body?.role ?? "");
-    if (!ROLES.includes(role)) throw new HttpError(400, `role must be one of ${ROLES.join(", ")}`);
-    const { rowCount } = await pool.query(
-      "update users set role_id = (select id from roles where role_name = $2) where id = $1",
-      [idParam(req.params.id), role],
-    );
-    if (!rowCount) throw new HttpError(404, "no such user");
-    res.json({ ok: true });
-  }));
+  app.use(usersRouter());
 
   // ---- stations ---------------------------------------------------------------------------------
-  app.get("/stations", wrap(async (_req, res) => res.json(await getStations())));
+  app.get("/stations", can("stations:view"), wrap(async (_req, res) => res.json(await getStations())));
 
-  app.get("/stations/:bucketId", wrap(async (req, res) => {
+  app.get("/stations/:bucketId", can("stations:view"), wrap(async (req, res) => {
     const bucketId = idParam(req.params.bucketId);
     const { stations, alerts } = await getStations();
     const station = stations.find((item) => item.bucketId === bucketId);
@@ -120,7 +64,7 @@ export function createApp() {
     });
   }));
 
-  app.post("/stations", wrap(async (req, res) => {
+  app.post("/stations", can("stations:manage"), wrap(async (req, res) => {
     const name = optionalText(req.body?.name, "name", 100);
     if (!name) throw new HttpError(400, "name is required");
     const capacityLbs = optionalNumber(req.body?.capacityLbs, "capacityLbs", { min: 0.5, max: 200 });
@@ -144,7 +88,7 @@ export function createApp() {
     res.status(201).json({ bucketId });
   }));
 
-  app.patch("/stations/:bucketId", wrap(async (req, res) => {
+  app.patch("/stations/:bucketId", can("stations:manage"), wrap(async (req, res) => {
     const bucketId = idParam(req.params.bucketId);
     const capacityLbs = optionalNumber(req.body?.capacityLbs, "capacityLbs", { min: 0.5, max: 200 });
     const tareKg = optionalNumber(req.body?.tareKg, "tareKg", { min: -5, max: 50 });
@@ -161,7 +105,7 @@ export function createApp() {
   }));
 
   // ---- raw data -------------------------------------------------------------------------------
-  app.get("/readings", wrap(async (req, res) => {
+  app.get("/readings", can("sensors:view"), wrap(async (req, res) => {
     const limit = Math.min(optionalNumber(req.query.limit, "limit", { min: 1, max: 5000 }) ?? 200, 5000);
     const params = [limit];
     const where = [];
@@ -188,7 +132,7 @@ export function createApp() {
     res.json(rows);
   }));
 
-  app.get("/packets", wrap(async (req, res) => {
+  app.get("/packets", can("sensors:view"), wrap(async (req, res) => {
     const limit = Math.min(optionalNumber(req.query.limit, "limit", { min: 1, max: 1000 }) ?? 100, 1000);
     const { rows } = await pool.query(
       `select p.*, g.gateway_code from raw_packets p left join gateway g on g.id = p.gateway_id
@@ -198,14 +142,14 @@ export function createApp() {
     res.json(rows);
   }));
 
-  app.get("/nodes", wrap(async (_req, res) => {
+  app.get("/nodes", can("sensors:view"), wrap(async (_req, res) => {
     const { rows } = await pool.query(
       `select n.*, g.gateway_code from node n left join gateway g on g.id = n.gateway_id order by n.id`,
     );
     res.json(rows);
   }));
 
-  app.get("/gateways", wrap(async (_req, res) => {
+  app.get("/gateways", can("sensors:view"), wrap(async (_req, res) => {
     const { rows } = await pool.query(
       `select g.*, (select count(*)::int from raw_packets p
                      where p.gateway_id = g.id and p.received_at > now() - interval '1 hour') as packets_last_hour
@@ -215,11 +159,11 @@ export function createApp() {
   }));
 
   // ---- alerts ---------------------------------------------------------------------------------
-  app.get("/alerts", wrap(async (req, res) => {
+  app.get("/alerts", can("alerts:view"), wrap(async (req, res) => {
     res.json(await getAlerts({ openOnly: req.query.all === undefined }));
   }));
 
-  app.patch("/alerts/:id", wrap(async (req, res) => {
+  app.patch("/alerts/:id", can("alerts:resolve"), wrap(async (req, res) => {
     const id = idParam(req.params.id);
     const resolved = req.body?.is_resolved !== false;
     const { rowCount } = await pool.query(
@@ -231,13 +175,13 @@ export function createApp() {
   }));
 
   // ---- collections ----------------------------------------------------------------------------
-  app.get("/collections", wrap(async (_req, res) => res.json(await getCollections())));
+  app.get("/collections", can("collections:view"), wrap(async (_req, res) => res.json(await getCollections())));
 
   /**
    * { date, bucketIds: [1,2], entries?: [{bucketId, lbs, collectedBy}], batchId?, loggedBy, notes }
    * A bucket without an explicit lbs is logged at its current load cell weight.
    */
-  app.post("/collections", wrap(async (req, res) => {
+  app.post("/collections", can("collections:log"), wrap(async (req, res) => {
     const body = req.body ?? {};
     const entries = Array.isArray(body.entries)
       ? body.entries
@@ -283,16 +227,16 @@ export function createApp() {
     res.status(201).json({ id: `c${id}` });
   }));
 
-  app.delete("/collections/:id", wrap(async (req, res) => {
+  app.delete("/collections/:id", can("collections:edit"), wrap(async (req, res) => {
     const { rowCount } = await pool.query("delete from collections where id = $1", [idParam(req.params.id, "c")]);
     if (!rowCount) throw new HttpError(404, "no such collection");
     res.json({ ok: true });
   }));
 
   // ---- batches --------------------------------------------------------------------------------
-  app.get("/batches", wrap(async (_req, res) => res.json(await getBatches())));
+  app.get("/batches", can("batches:view"), wrap(async (_req, res) => res.json(await getBatches())));
 
-  app.post("/batches", wrap(async (req, res) => {
+  app.post("/batches", can("batches:manage"), wrap(async (req, res) => {
     const body = req.body ?? {};
     const sapInLbs = optionalNumber(body.sapInLbs, "sapInLbs", { min: 0, max: 100_000 });
     const syrupOutLbs = optionalNumber(body.syrupOutLbs, "syrupOutLbs", { min: 0, max: 10_000 }) ?? 0;
@@ -311,7 +255,7 @@ export function createApp() {
     res.status(201).json({ id: `b${rows[0].id}` });
   }));
 
-  app.patch("/batches/:id", wrap(async (req, res) => {
+  app.patch("/batches/:id", can("batches:manage"), wrap(async (req, res) => {
     const body = req.body ?? {};
     const status = body.status ?? null;
     if (status && !["completed", "processing", "active", "waiting"].includes(status)) throw new HttpError(400, "bad status");
@@ -330,8 +274,8 @@ export function createApp() {
   }));
 
   // ---- summaries ------------------------------------------------------------------------------
-  app.get("/seasons", wrap(async (_req, res) => res.json(await getSeasons())));
-  app.get("/dashboard", wrap(async (_req, res) => res.json(await getDashboard())));
+  app.get("/seasons", can("dashboard:view"), wrap(async (_req, res) => res.json(await getSeasons())));
+  app.get("/dashboard", can("dashboard:view"), wrap(async (_req, res) => res.json(await getDashboard())));
 
   // ---- errors ---------------------------------------------------------------------------------
   app.use((_req, _res, next) => next(new HttpError(404, "not found")));
