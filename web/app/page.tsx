@@ -3,6 +3,7 @@ import ProductionSummary from "@/components/dashboard/ProductionSummary";
 import SapCollectedChart from "@/components/dashboard/SapCollectedChart";
 import StationsPanel from "@/components/dashboard/StationsPanel";
 import LiveRefresh from "@/components/common/LiveRefresh";
+import { ShowFor } from "@/components/auth/AccessContext";
 import { loadDashboard } from "@/lib/data/source";
 
 export default async function Home() {
@@ -19,20 +20,28 @@ export default async function Home() {
           <LiveRefresh source={dashboard.source} />
         </div>
 
-        <ConditionCards meta={dashboard.meta} />
+        <ShowFor id="dashboard.conditions">
+          <ConditionCards meta={dashboard.meta} />
+        </ShowFor>
 
-        <ProductionSummary
-          periodLabel={dashboard.production.periodLabel}
-          items={dashboard.production.items}
-        />
+        <ShowFor id="dashboard.production">
+          <ProductionSummary
+            periodLabel={dashboard.production.periodLabel}
+            items={dashboard.production.items}
+          />
+        </ShowFor>
 
-        <SapCollectedChart data={dashboard.weeklyCollection} />
+        <ShowFor id="dashboard.sapChart">
+          <SapCollectedChart data={dashboard.weeklyCollection} />
+        </ShowFor>
       </div>
 
-      <StationsPanel
-        stations={dashboard.stations}
-        summaryLabel={dashboard.summaryLabel}
-      />
+      <ShowFor id="dashboard.stations">
+        <StationsPanel
+          stations={dashboard.stations}
+          summaryLabel={dashboard.summaryLabel}
+        />
+      </ShowFor>
     </div>
   );
 }

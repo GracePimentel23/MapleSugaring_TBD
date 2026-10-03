@@ -70,8 +70,6 @@ export type StationUiStatus = "online" | "attention" | "offline";
 /** Derived for the card UI: a full bucket reads Complete, offline always wins. */
 export type StationDisplayStatus = "complete" | "in_progress" | "offline";
 
-export type UserRole = "admin" | "student" | "guest";
-
 export interface StationView {
   bucketId: number;
   nodeId: number;

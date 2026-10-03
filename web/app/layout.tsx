@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { DM_Sans, Inter } from "next/font/google";
+import { AccessProvider } from "@/components/auth/AccessContext";
 import AppShell from "@/components/layout/AppShell";
+import { loadAuth } from "@/lib/api/server";
 import { loadShell } from "@/lib/data/source";
 import "./globals.css";
 
@@ -28,7 +30,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  const shell = await loadShell();
+  // Sign-in is optional: signed-out visitors get the guest view. The worker enforces every
+  // permission; `access` only tells the UI what to show (see docs/RBAC.md).
+  const [access, shell] = await Promise.all([loadAuth(), loadShell()]);
 
   return (
     <html
@@ -36,7 +40,9 @@ export default async function RootLayout({
       className={`${dmSans.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <AppShell shell={shell}>{children}</AppShell>
+        <AccessProvider access={access}>
+          <AppShell shell={shell}>{children}</AppShell>
+        </AccessProvider>
       </body>
     </html>
   );

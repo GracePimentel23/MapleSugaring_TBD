@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { ShowFor, shows, useAccess } from "@/components/auth/AccessContext";
+import AccountMenu from "@/components/auth/AccountMenu";
+import AuthError from "@/components/auth/AuthError";
 import {
   BellIcon,
   DashboardIcon,
@@ -11,8 +14,7 @@ import {
   MobileNavIcon,
   SettingsIcon,
   StationsIcon,
-  UserIcon,
-} from "@/components/icons";
+} from "@/components/ui/icons";
 
 type PageId = "dashboard" | "stations" | "data";
 
@@ -40,10 +42,19 @@ export interface ShellInfo {
   hasUnreadAlerts: boolean;
 }
 
-export default function AppShell({ children, shell }: { children: ReactNode; shell: ShellInfo }) {
+export default function AppShell({
+  children,
+  shell,
+}: {
+  children: ReactNode;
+  shell: ShellInfo;
+}) {
   const pathname = usePathname();
   const active = activePage(pathname);
   const { hasUnreadAlerts } = shell;
+  // Nav links each role may see: "nav.<id>" in worker/src/rbac.config.js.
+  const access = useAccess();
+  const visibleNavItems = navItems.filter((item) => shows(access, `nav.${item.id}`));
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg text-text">
@@ -54,7 +65,7 @@ export default function AppShell({ children, shell }: { children: ReactNode; she
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
-          {navItems.map(({ id, href, label, Icon }) => {
+          {visibleNavItems.map(({ id, href, label, Icon }) => {
             const isActive = active === id;
             return (
               <Link
@@ -73,17 +84,19 @@ export default function AppShell({ children, shell }: { children: ReactNode; she
           })}
         </nav>
 
-        <div className="border-t border-white/10 px-3 py-4">
-          <button
-            type="button"
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-white/10"
-          >
-            <SettingsIcon />
-            <span className="font-sans text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Settings
-            </span>
-          </button>
-        </div>
+        <ShowFor id="nav.settings">
+          <div className="border-t border-white/10 px-3 py-4">
+            <button
+              type="button"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-white/10"
+            >
+              <SettingsIcon />
+              <span className="font-sans text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+                Settings
+              </span>
+            </button>
+          </div>
+        </ShowFor>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -105,13 +118,7 @@ export default function AppShell({ children, shell }: { children: ReactNode; she
                 <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
               ) : null}
             </button>
-            <button
-              type="button"
-              className="rounded-lg p-1.5 transition-colors hover:bg-black/5"
-              aria-label="Account"
-            >
-              <UserIcon />
-            </button>
+            <AccountMenu className="rounded-lg p-1.5 transition-colors hover:bg-black/5" />
           </div>
         </header>
 
@@ -132,16 +139,17 @@ export default function AppShell({ children, shell }: { children: ReactNode; she
                 <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-red-500" />
               ) : null}
             </button>
-            <button type="button" className="p-1.5" aria-label="Account">
-              <UserIcon />
-            </button>
+            <AccountMenu className="p-1.5" />
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto pb-20 md:pb-0">
+          <AuthError />
+          {children}
+        </main>
 
         <nav className="fixed right-0 bottom-0 left-0 z-40 flex border-t border-border bg-white md:hidden">
-          {navItems.map(({ id, href, label }) => {
+          {visibleNavItems.map(({ id, href, label }) => {
             const isActive = active === id;
             return (
               <Link

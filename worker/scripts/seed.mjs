@@ -8,6 +8,7 @@
  */
 import { pool, withTransaction } from "../src/db.js";
 import { runMigrations } from "../src/migrate.js";
+import { syncRoles } from "../src/rbac.js";
 import { lbsToKg } from "../src/domain/units.js";
 
 const force = process.argv.includes("--force");
@@ -53,9 +54,10 @@ await withTransaction(async (client) => {
     await client.query(`truncate collection_logs, collections, batches, metrics, alerts, readings, raw_packets,
                         buckets, node, gateway, users, roles restart identity cascade`);
   }
-  await client.query(`insert into roles (role_name) values ('club_lead'), ('member')`);
+  await syncRoles(client); // the roles named in src/rbac.config.js
   await client.query(`insert into users (role_id, full_name, email) values
-                        (1, 'Maple Club Lead', 'lead@maplesugaring.club'), (2, 'Alex Rivera', 'alex@maplesugaring.club')`);
+                        ((select id from roles where role_name = 'owner'), 'Maple Club Lead', 'lead@maplesugaring.club'),
+                        ((select id from roles where role_name = 'member'), 'Alex Rivera', 'alex@maplesugaring.club')`);
   const gateway = await client.query(
     `insert into gateway (gateway_code, gateway_name, ip_address, status, last_ping)
      values ('GW-NORTH-01', 'North grove gateway', '10.20.0.12', 'online', now()) returning id`,

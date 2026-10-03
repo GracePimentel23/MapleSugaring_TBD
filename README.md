@@ -46,6 +46,51 @@ Other commands: `npm run db` (just Postgres), `npm run seed` (demo data into an 
 `npm --prefix worker run seed -- --force` wipes and reseeds), `npm test` (worker tests; set
 `DATABASE_URL=postgres://tbd:tbd@127.0.0.1:5433/tbd` to include the API tests against Postgres).
 
+## Front end layout (`web/`)
+
+One component per file, named after what you see on screen. Imports use `@/` from `web/`.
+
+```
+web/
+  app/                      routes only: page.tsx (Dashboard), stations/, data/, layout.tsx, globals.css (colors, fonts)
+  components/
+    layout/AppShell.tsx     sidebar, top bar, mobile nav
+    dashboard/              Dashboard cards: ConditionCards, ProductionSummary, SapCollectedChart, StationsPanel
+    stations/               StationsPage, StationCard, StationDetailsModal, AddStationModal, EditBucketModal
+    data/                   DataPage (the tab bar), OverviewTab, AnalysisTab, RecordsContext
+      collections/          CollectionsTab, AddCollectionSheet, EditCollectionSheet, EditEntryPopup
+      batches/              BatchesTab, BatchCard, CreateBatchModal
+    auth/                   AccessContext (ShowFor, useShows), AccountMenu, SignOutButton, AuthError
+    common/LiveRefresh.tsx  the Live / Sample data badge
+    ui/icons.tsx            every shared SVG icon
+  hooks/useFormSubmit.ts    sends a modal's form to the API and refreshes the page
+  lib/                      data loading, types (types/schema.ts), selectors, formatting (units.ts, dates.ts)
+```
+
+Who sees which card is in `worker/src/rbac.config.js`: see [docs/FRONTEND_ROLES.md](docs/FRONTEND_ROLES.md).
+
+## Sign-in (Google, RIT accounts)
+
+Off by default: with `AUTH_PROVIDER` unset the API is open, as before, and no keys are needed.
+To turn it on locally, copy `worker/.env.example` to `worker/.env`, fill in the Google client ID and
+secret, a `SESSION_SECRET` and `ADMIN_EMAILS`, then `npm run dev`. Sign-in is optional: signed-out
+visitors get the read-only guest view, and the profile icon at the top right starts Google sign-in.
+The worker runs the OAuth code flow (PKCE, state, nonce), checks the ID token server-side and sets
+an httpOnly session cookie (sessions live in the `sessions` table).
+
+Who gets in: verified Google accounts whose email domain **and** Workspace `hd` claim are in
+`ALLOWED_EMAIL_DOMAINS` (default `g.rit.edu`, RIT's Google Workspace), plus anyone in
+`ALLOWED_EMAILS` or `ADMIN_EMAILS`. New users are `member`; `ADMIN_EMAILS` are made `owner` on every
+sign-in and can change roles with `PATCH /users/:id`. `/health` and `/ingest` never need a session.
+
+**Roles:** member, manager, owner; signed out is the guest view (no role). What each may see and do, and which cards
+show for whom, is in one file, `worker/src/rbac.config.js`; every API route checks it. See
+[docs/RBAC.md](docs/RBAC.md).
+
+Google Cloud setup: create an OAuth client of type "Web application" and add
+`<PUBLIC_URL>/api/auth/google/callback` as an authorized redirect URI for each place the app runs
+(e.g. `http://localhost:3000/api/auth/google/callback`).
+
 ## API (worker)
 
 Browser calls go to `/api/<path>` on the web app, which forwards to the worker.
@@ -54,6 +99,11 @@ Browser calls go to `/api/<path>` on the web app, which forwards to the worker.
 |---|---|---|
 | GET | `/health` | 200 when Postgres answers, 503 otherwise |
 | POST | `/ingest` | Gateway lines `{gateway, lines: [...]}` (header `X-Ingest-Key` when `INGEST_KEY` is set) |
+| GET | `/auth/me` | `{authEnabled, user, role, permissions, components}`: who is looking and which cards they see |
+| GET | `/auth/google`, `/auth/google/callback` | Google sign-in redirect and callback |
+| POST | `/auth/logout` | End the session |
+| GET/PATCH | `/users`, `/users/:id` | List users; set `{role}` (owner; the last owner cannot be demoted) |
+| GET | `/roles`, `/audit?entity=user&id=` | Roles and their permissions; history of role changes (owner) |
 | GET | `/stations`, `/stations/:bucketId` | Station cards (`StationView`), open alerts |
 | POST/PATCH | `/stations`, `/stations/:bucketId` | Add or edit a station (name, location, target lbs, sensor id) |
 | GET | `/dashboard` | Production totals and the 7-day collection chart |
@@ -72,7 +122,8 @@ missing HX711, and a station goes offline after 15 minutes of silence.
 `worker/migrations/*.sql` run automatically when the worker starts, once each, in order
 (tracked in `schema_migrations`). `001_baseline.sql` is the shared class DDL; `002_tbd_core.sql` adds
 readings, raw packets, collections, batches and alert de-duplication. Never edit a migration that has
-run on the VM; add `003_...sql` instead. Weights are stored in kg and converted to lbs for the UI.
+run on the VM; add a new numbered file instead. `003_google_login.sql` adds roles, Google ids on
+`users` and the `sessions` table. Weights are stored in kg and converted to lbs for the UI.
 
 ## Deploying on the VM
 
@@ -98,4 +149,4 @@ http://localhost:3100 on the VM. To switch to the shared stack later, create `de
 `COMPOSE_FILE=/srv/msdocker/docker-compose.yml`, `WEB_SERVICE=tbd-web`, `WORKER_SERVICE=tbd-worker`.
 
 Worker environment: `DATABASE_URL` (set by compose), optional `INGEST_KEY`, `OFFLINE_AFTER_MINUTES`,
-`FULL_PERCENT`, `METRIC_INTERVAL_MINUTES`. Web environment: `WORKER_URL` (set by compose).
+`FULL_PERCENT`, `METRIC_INTERVAL_MINUTES`, and the sign-in settings in `worker/.env.example`. Web environment: `WORKER_URL` (set by compose).

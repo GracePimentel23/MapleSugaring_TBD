@@ -10,7 +10,7 @@
   "scripts": {
     "build": "node scripts/check.mjs",
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "dev": "node --env-file-if-exists=.env --watch src/server.js",
     "migrate": "node scripts/migrate.mjs",
     "seed": "node scripts/seed.mjs",
     "simulate": "node scripts/simulate-node.mjs",

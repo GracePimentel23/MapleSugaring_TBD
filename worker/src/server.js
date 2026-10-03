@@ -22,6 +22,9 @@ if (config.migrateOnBoot) await runMigrations(pool);
 
 const server = createApp().listen(config.port, () => {
   console.log(`worker listening on :${config.port}${config.ingestKey ? "" : " (ingest is open: INGEST_KEY not set)"}`);
+  console.log(config.auth.enabled
+    ? `sign-in: Google, domains ${config.auth.allowedDomains.join(", ") || "(none)"}, redirect ${config.auth.publicUrl}/api/auth/google/callback`
+    : "sign-in: off (AUTH_PROVIDER not set), the API is open");
 });
 
 const sweeper = setInterval(() => {

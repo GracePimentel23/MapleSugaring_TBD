@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { useShows } from "@/components/auth/AccessContext";
 import LiveRefresh from "@/components/common/LiveRefresh";
-import { useFormSubmit } from "@/components/common/useFormSubmit";
-import StationModal from "@/components/stations/StationModal";
-import { cardProgressFill } from "@/lib/selectors/stations";
+import AddStationModal from "@/components/stations/AddStationModal";
+import EditBucketModal from "@/components/stations/EditBucketModal";
+import StationCard from "@/components/stations/StationCard";
+import StationDetailsModal from "@/components/stations/StationDetailsModal";
+import { EditIcon } from "@/components/ui/icons";
 import type { DataSource } from "@/lib/data/source";
 import type { Alert, StationDisplayStatus, StationView } from "@/lib/types/schema";
-import { formatLbsNumber } from "@/lib/units";
 
 type TabFilter = "all" | StationDisplayStatus;
 
@@ -17,283 +19,6 @@ const tabs: { id: TabFilter; label: string }[] = [
   { id: "in_progress", label: "In Progress" },
   { id: "offline", label: "Offline" },
 ];
-
-const displayMeta: Record<
-  StationDisplayStatus,
-  { label: string; color: string; bg: string }
-> = {
-  complete: { label: "Complete", color: "#16A34A", bg: "rgba(34,197,94,0.12)" },
-  in_progress: { label: "In Progress", color: "#2563EB", bg: "rgba(59,130,246,0.12)" },
-  offline: { label: "Offline", color: "#DC2626", bg: "rgba(239,68,68,0.12)" },
-};
-
-function EditIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <path
-        d="M9.5 2.5l2 2-7 7H2.5v-2l7-7z"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function StatusChip({ station }: { station: StationView }) {
-  const meta = displayMeta[station.displayStatus];
-
-  return (
-    <span
-      className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
-      style={{ color: meta.color, background: meta.bg }}
-    >
-      <span style={{ fontSize: 7 }}>●</span>
-      {meta.label}
-    </span>
-  );
-}
-
-function StationCard({
-  station,
-  onOpenDetails,
-}: {
-  station: StationView;
-  onOpenDetails: () => void;
-}) {
-  const isOffline = station.displayStatus === "offline";
-  const percent = Math.min(station.fillPercent, 100);
-  const fill = cardProgressFill(station.displayStatus);
-
-  return (
-    <div
-      className="rounded-2xl bg-white p-4 shadow-sm"
-      style={{ border: "1px solid var(--color-border)" }}
-    >
-      <div className="mb-2.5 flex items-start justify-between">
-        <button
-          type="button"
-          onClick={onOpenDetails}
-          className="flex items-center gap-2.5 text-left transition-opacity"
-          style={{ opacity: isOffline ? 0.45 : 1 }}
-        >
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path d="M10 2C10 2 5 8 5 12a5 5 0 0010 0c0-4-5-10-5-10z" fill="#1C1C1E" />
-          </svg>
-          <div>
-            <div className="font-sans text-sm leading-tight font-semibold">
-              {station.name}
-            </div>
-            <div className="mt-0.5 text-xs text-muted">
-              Updated {station.lastUpdated}
-            </div>
-          </div>
-        </button>
-
-        <StatusChip station={station} />
-      </div>
-
-      <div style={{ opacity: isOffline ? 0.45 : 1 }}>
-        <div
-          className="h-2 overflow-hidden rounded-full"
-          style={{ background: "var(--color-progress-track)" }}
-        >
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${percent}%`, background: fill }}
-          />
-        </div>
-        <div className="mt-1.5 flex items-center justify-between">
-          <span className="text-xs text-muted">
-            <span className="font-semibold text-text">
-              {formatLbsNumber(station.currentLbs)}
-            </span>
-            {" / "}
-            {formatLbsNumber(station.capacityLbs)} lbs
-          </span>
-          <span
-            className="text-xs font-medium"
-            style={{ color: isOffline ? "#9CA3AF" : fill }}
-          >
-            {Math.round(percent)}%
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AddStationModal({ onClose }: { onClose: () => void }) {
-  const { onSubmit, error, saving } = useFormSubmit(onClose, (values) => ({
-    method: "POST",
-    path: "/stations",
-    body: {
-      name: values.name,
-      location: values.location,
-      capacityLbs: values.capacityLbs,
-      nodeCode: values.nodeCode,
-    },
-  }));
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default bg-black/40"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div className="relative z-10 w-full rounded-t-3xl bg-white p-5 shadow-2xl md:max-w-md md:rounded-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-sans text-base font-semibold">Add Station</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1.5 hover:bg-gray-100"
-            aria-label="Close"
-          >
-            <CloseIcon />
-          </button>
-        </div>
-        <form onSubmit={onSubmit}>
-        <div className="space-y-3">
-          {[
-            { name: "name", label: "Bucket Name", placeholder: "e.g. Bucket #06", type: "text" },
-            { name: "location", label: "Location", placeholder: "e.g. East Slope", type: "text" },
-            { name: "capacityLbs", label: "Target Weight (lbs)", placeholder: "12", type: "number" },
-            { name: "nodeCode", label: "Sensor ID (optional)", placeholder: "e.g. LC02", type: "text" },
-          ].map((field) => (
-            <div key={field.label}>
-              <label className="mb-1 block text-xs font-medium text-muted">
-                {field.label}
-              </label>
-              <input
-                name={field.name}
-                type={field.type}
-                step={field.type === "number" ? "any" : undefined}
-                required={field.name === "name"}
-                placeholder={field.placeholder}
-                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                style={{ borderColor: "var(--color-border)" }}
-              />
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl border py-2.5 font-sans text-sm font-semibold"
-            style={{ borderColor: "var(--color-border)" }}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex-1 rounded-xl py-2.5 font-sans text-sm font-semibold text-white disabled:opacity-60"
-            style={{ background: "var(--color-accent)" }}
-          >
-            Add Station
-          </button>
-        </div>
-        {error ? <p className="mt-3 text-xs text-red-600">{error}</p> : null}
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function EditBucketModal({
-  station,
-  onClose,
-}: {
-  station: StationView;
-  onClose: () => void;
-}) {
-  const { onSubmit, error, saving } = useFormSubmit(onClose, (values) => ({
-    method: "PATCH",
-    path: `/stations/${station.bucketId}`,
-    body: { name: values.name, location: values.location, capacityLbs: values.capacityLbs },
-  }));
-  const location = (station as StationView & { location?: string | null }).location ?? "";
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default bg-black/40"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div className="relative z-10 w-full rounded-t-3xl bg-white p-5 shadow-2xl md:max-w-md md:rounded-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-sans text-base font-semibold">Edit Bucket</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1.5 hover:bg-gray-100"
-            aria-label="Close"
-          >
-            <CloseIcon />
-          </button>
-        </div>
-        <form onSubmit={onSubmit}>
-        <div className="space-y-3">
-          {[
-            { name: "name", label: "Bucket Name", value: station.name, type: "text" },
-            { name: "location", label: "Location", value: location, type: "text" },
-            { name: "capacityLbs", label: "Target Weight (lbs)", value: station.capacityLbs, type: "number" },
-            { name: "currentLbs", label: "Current Weight (lbs, from the sensor)", value: station.currentLbs, type: "number" },
-          ].map((field) => (
-            <div key={field.label}>
-              <label className="mb-1 block text-xs font-medium text-muted">
-                {field.label}
-              </label>
-              <input
-                name={field.name}
-                type={field.type}
-                step={field.type === "number" ? "any" : undefined}
-                readOnly={field.name === "currentLbs"}
-                defaultValue={field.value}
-                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                style={{ borderColor: "var(--color-border)" }}
-              />
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl border py-2.5 font-sans text-sm font-semibold"
-            style={{ borderColor: "var(--color-border)" }}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex-1 rounded-xl py-2.5 font-sans text-sm font-semibold text-white disabled:opacity-60"
-            style={{ background: "var(--color-accent)" }}
-          >
-            Save Changes
-          </button>
-        </div>
-        {error ? <p className="mt-3 text-xs text-red-600">{error}</p> : null}
-        </form>
-      </div>
-    </div>
-  );
-}
 
 export default function StationsPage({
   stations,
@@ -308,7 +33,8 @@ export default function StationsPage({
   const [showAdd, setShowAdd] = useState(false);
   const [editBucketId, setEditBucketId] = useState<number | null>(null);
   const [details, setDetails] = useState<number | null>(null);
-  const isAdmin = true;
+  // Who sees "Add station" and the edit pencil: worker/src/rbac.config.js COMPONENTS.
+  const isAdmin = useShows("stations.manage");
 
   const counts: Record<TabFilter, number> = {
     all: stations.length,
@@ -416,7 +142,7 @@ export default function StationsPage({
         <EditBucketModal station={editStation} onClose={() => setEditBucketId(null)} />
       ) : null}
       {detailStation ? (
-        <StationModal
+        <StationDetailsModal
           station={detailStation}
           alerts={alerts.filter(
             (alert) => !alert.is_resolved && alert.node_id === detailStation.nodeId,

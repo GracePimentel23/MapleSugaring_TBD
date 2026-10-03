@@ -13,7 +13,7 @@ const displayMeta: Record<StationDisplayStatus, { label: string; color: string }
   offline: { label: "Offline", color: "#DC2626" },
 };
 
-export default function StationModal({
+export default function StationDetailsModal({
   station,
   alerts,
   onClose,

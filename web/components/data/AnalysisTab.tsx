@@ -35,7 +35,7 @@ const tooltipStyle = {
   padding: "8px 12px",
 };
 
-export default function Analysis() {
+export default function AnalysisTab() {
   const { seasons } = useRecords();
   const [primarySeason, setPrimarySeason] = useState(seasons[0]!.season);
   const [compareA, setCompareA] = useState(seasons[0]!.season);

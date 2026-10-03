@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Analysis from "@/components/data/Analysis";
-import Batches from "@/components/data/Batches";
-import Collections from "@/components/data/Collections";
-import Overview from "@/components/data/Overview";
+import { shows, useAccess } from "@/components/auth/AccessContext";
+import AnalysisTab from "@/components/data/AnalysisTab";
+import BatchesTab from "@/components/data/batches/BatchesTab";
+import CollectionsTab from "@/components/data/collections/CollectionsTab";
+import OverviewTab from "@/components/data/OverviewTab";
 import LiveRefresh from "@/components/common/LiveRefresh";
 import type { DataSource } from "@/lib/data/source";
 
@@ -17,8 +18,12 @@ const tabs: { id: DataTab; label: string }[] = [
   { id: "analysis", label: "Analysis" },
 ];
 
-export default function DataTabs({ source }: { source: DataSource }) {
-  const [activeTab, setActiveTab] = useState<DataTab>("overview");
+export default function DataPage({ source }: { source: DataSource }) {
+  // Tabs each role may see: "data.<id>" in worker/src/rbac.config.js.
+  const access = useAccess();
+  const visibleTabs = tabs.filter((tab) => shows(access, `data.${tab.id}`));
+  const [selectedTab, setActiveTab] = useState<DataTab>(visibleTabs[0]?.id ?? "overview");
+  const activeTab = visibleTabs.some((tab) => tab.id === selectedTab) ? selectedTab : visibleTabs[0]?.id;
 
   return (
     <div className="flex h-full flex-col">
@@ -33,7 +38,7 @@ export default function DataTabs({ source }: { source: DataSource }) {
             className="no-scrollbar flex gap-1 overflow-x-auto"
             style={{ borderBottom: "1.5px solid var(--color-border)" }}
           >
-            {tabs.map((tab) => {
+            {visibleTabs.map((tab) => {
               const active = activeTab === tab.id;
               return (
                 <button
@@ -59,10 +64,10 @@ export default function DataTabs({ source }: { source: DataSource }) {
       </div>
 
       <div className="flex-1">
-        {activeTab === "overview" ? <Overview /> : null}
-        {activeTab === "collections" ? <Collections role="admin" /> : null}
-        {activeTab === "batches" ? <Batches role="admin" /> : null}
-        {activeTab === "analysis" ? <Analysis /> : null}
+        {activeTab === "overview" ? <OverviewTab /> : null}
+        {activeTab === "collections" ? <CollectionsTab /> : null}
+        {activeTab === "batches" ? <BatchesTab /> : null}
+        {activeTab === "analysis" ? <AnalysisTab /> : null}
       </div>
     </div>
   );
