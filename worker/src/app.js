@@ -9,18 +9,27 @@ import express from "express";
 import { authRouter, identify } from "./auth.js";
 import { config } from "./config.js";
 import { pool, withTransaction } from "./db.js";
-import { ingestBatch } from "./domain/ingest.js";
+import { ingestBatch, sweepOffline } from "./domain/ingest.js";
 import { resolveAlerts } from "./domain/alerts.js";
 import { lbsToKg } from "./domain/units.js";
+import { checkIngestKey, gatewayKeysRouter } from "./gatewayKeys.js";
 import { HttpError, idParam, optionalDate, optionalNumber, optionalText, wrap } from "./http.js";
 import { requirePermission as can } from "./rbac.js";
 import { usersRouter } from "./users.js";
-import { getAlerts, getBatches, getCollections, getDashboard, getSeasons, getStations } from "./views.js";
+import { getAlerts, getBatches, getCollections, getDashboard, getLiveVersion, getSeasons, getStations } from "./views.js";
 
-function requireIngestKey(req) {
-  if (!config.ingestKey) return;
-  if (req.get("x-ingest-key") !== config.ingestKey) throw new HttpError(401, "missing or wrong X-Ingest-Key");
-}
+/**
+ * Marks silent nodes offline before a read. server.js also does this on a timer, but on Vercel there
+ * is no long-lived process, so reads do it, at most every 30 s per instance.
+ */
+let lastSweep = 0;
+const sweepBeforeRead = wrap(async (_req, _res, next) => {
+  if (Date.now() - lastSweep > 30_000) {
+    lastSweep = Date.now();
+    await sweepOffline(pool).catch((error) => console.error("offline sweep failed", error.message));
+  }
+  next();
+});
 
 export function createApp() {
   const app = express();
@@ -38,20 +47,27 @@ export function createApp() {
 
   // ---- ingest (gateway bridge) ----------------------------------------------------------------
   app.post("/ingest", wrap(async (req, res) => {
-    requireIngestKey(req);
+    const { gatewayCode } = await checkIngestKey(req);
     const lines = Array.isArray(req.body?.lines) ? req.body.lines : req.body?.packet ? [req.body.packet] : null;
     if (!lines) throw new HttpError(400, 'send {"gateway": "...", "lines": [...]} or {"gateway": "...", "packet": {...}}');
     if (lines.length > 500) throw new HttpError(413, "at most 500 lines per request");
-    res.json(await ingestBatch(req.body));
+    res.json(await ingestBatch(gatewayCode ? { ...req.body, gateway: gatewayCode } : req.body));
   }));
 
   // ---- sign-in and people (everything below checks the caller's permissions) ---------------------
   app.use(identify());
   app.use(authRouter());
   app.use(usersRouter());
+  app.use(gatewayKeysRouter());
+
+  // ---- live updates -----------------------------------------------------------------------------
+  /** A short string that changes whenever a reading, alert, collection or node status changes. */
+  app.get("/live", can("stations:view"), sweepBeforeRead, wrap(async (_req, res) => {
+    res.json({ version: await getLiveVersion() });
+  }));
 
   // ---- stations ---------------------------------------------------------------------------------
-  app.get("/stations", can("stations:view"), wrap(async (_req, res) => res.json(await getStations())));
+  app.get("/stations", can("stations:view"), sweepBeforeRead, wrap(async (_req, res) => res.json(await getStations())));
 
   app.get("/stations/:bucketId", can("stations:view"), wrap(async (req, res) => {
     const bucketId = idParam(req.params.bucketId);
@@ -275,7 +291,7 @@ export function createApp() {
 
   // ---- summaries ------------------------------------------------------------------------------
   app.get("/seasons", can("dashboard:view"), wrap(async (_req, res) => res.json(await getSeasons())));
-  app.get("/dashboard", can("dashboard:view"), wrap(async (_req, res) => res.json(await getDashboard())));
+  app.get("/dashboard", can("dashboard:view"), sweepBeforeRead, wrap(async (_req, res) => res.json(await getDashboard())));
 
   // ---- errors ---------------------------------------------------------------------------------
   app.use((_req, _res, next) => next(new HttpError(404, "not found")));
@@ -288,3 +304,6 @@ export function createApp() {
 
   return app;
 }
+
+// Vercel's Express support runs the default export of src/app.js as one function (no listen()).
+export default createApp();

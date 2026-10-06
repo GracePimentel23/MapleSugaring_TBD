@@ -126,4 +126,6 @@ test("View as: the cookie picks a role only while sign-in is off", () => {
   assert.equal(previewRole(req("tbd_view_as=root"), { authEnabled: false, devRole: "member" }), "member");
   assert.equal(previewRole(req(undefined), { authEnabled: false, devRole: null }), null);
   assert.equal(previewRole(req("tbd_view_as=owner"), { authEnabled: true, devRole: null }), null);
+  // A public Vercel deployment ignores the cookie: DEV_ROLE (guest by default there) applies.
+  assert.equal(previewRole(req("tbd_view_as=all"), { authEnabled: false, devRole: "guest", onVercel: true }), "guest");
 });

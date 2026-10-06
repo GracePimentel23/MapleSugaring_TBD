@@ -56,7 +56,9 @@ function authConfig() {
  * Ignored when sign-in is on. It can only take permissions away, so it is safe to leave set.
  */
 function devRole(authEnabled) {
-  const role = (process.env.DEV_ROLE ?? "").trim().toLowerCase();
+  // A public Vercel deployment without sign-in is read-only (guest) unless DEV_ROLE says otherwise.
+  const fallback = process.env.VERCEL ? "guest" : "";
+  const role = (process.env.DEV_ROLE ?? fallback).trim().toLowerCase();
   if (!role || authEnabled) return null;
   const choices = ["guest", ...Object.keys(ROLES)];
   if (!choices.includes(role)) throw new Error(`DEV_ROLE must be one of ${choices.join(", ")}, got "${role}"`);
@@ -68,8 +70,13 @@ const auth = authConfig();
 export const config = {
   port: number("PORT", 4000),
   databaseUrl: process.env.DATABASE_URL ?? "postgres://tbd:tbd@127.0.0.1:5433/tbd",
-  // Gateways must send this in X-Ingest-Key. Unset means ingest is open (local dev only).
+  // A shared bridge key accepted in X-Ingest-Key, besides the per-gateway keys in gateway_keys.
   ingestKey: process.env.INGEST_KEY || null,
+  // When true, /ingest refuses requests without a valid key even if no key is configured yet.
+  // Always on for Vercel deployments; locally ingest stays open until a key exists.
+  requireIngestKey: process.env.REQUIRE_INGEST_KEY === "true" || Boolean(process.env.VERCEL),
+  // Running as a Vercel function: no long-lived process, so no timers or migrate-on-boot.
+  onVercel: Boolean(process.env.VERCEL),
   // Browser timezone for "Updated 9:30AM" labels and day buckets.
   timeZone: process.env.TZ_DISPLAY ?? "America/New_York",
   offlineAfterMinutes: number("OFFLINE_AFTER_MINUTES", 15),

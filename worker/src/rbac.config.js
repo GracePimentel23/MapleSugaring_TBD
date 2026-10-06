@@ -27,6 +27,7 @@ export const PERMISSIONS = {
   "sensors:view": "See raw readings, LoRa packets, nodes and gateways",
   "users:manage": "See everyone who signed in and change their role",
   "audit:view": "See the history of role changes",
+  "gateways:manage": "Make and revoke the keys gateway bridges use to send readings",
 };
 
 // ---- 2. GUEST AND ROLES ------------------------------------------------------------------------------

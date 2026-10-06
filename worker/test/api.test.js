@@ -126,3 +126,34 @@ test("batches and seasons", { skip }, async () => {
   const seasons = (await call("GET", "/seasons")).body;
   assert.ok(seasons.some((season) => season.season === "Season 2026" && season.totalSyrupLbs === 1));
 });
+
+test("live version changes when a reading lands", { skip }, async () => {
+  const before = (await call("GET", "/live")).body.version;
+  assert.match(before, /^\d+(\.\d+){4}$/);
+  const raw = JSON.stringify({ id: "LCV", k: "live", s: 1, w: 1.5, r: 1, hx: 1 });
+  await call("POST", "/ingest", { gateway: "GW-TEST", lines: [{ type: "packet", n: 1, crc: true, raw }] });
+  assert.notEqual((await call("GET", "/live")).body.version, before);
+});
+
+// Runs last: once a gateway key exists, ingest without a key is refused.
+test("a gateway key is required once one exists, and it names the gateway", { skip }, async () => {
+  const created = await call("POST", "/gateway-keys", { gateway: "GW-KEYED" });
+  assert.equal(created.status, 201);
+  assert.match(created.body.key, /^tbdgw_/);
+
+  const ingest = (key, gateway = "GW-SPOOF") => fetch(`${api}/ingest`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(key ? { "x-ingest-key": key } : {}) },
+    body: JSON.stringify({ gateway, lines: [{ type: "status", role: "gateway" }] }),
+  });
+  assert.equal((await ingest(null)).status, 401);
+  assert.equal((await ingest("tbdgw_wrong")).status, 401);
+  const ok = await ingest(created.body.key);
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).gateway, "GW-KEYED");
+
+  const listed = (await call("GET", "/gateway-keys")).body;
+  assert.ok(listed.some((row) => row.gateway_code === "GW-KEYED" && row.last_used_at && !("key_hash" in row)));
+  assert.equal((await call("DELETE", `/gateway-keys/${created.body.id}`)).status, 200);
+  assert.equal((await ingest(created.body.key)).status, 401);
+});

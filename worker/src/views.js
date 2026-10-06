@@ -130,6 +130,19 @@ export async function getStations() {
   };
 }
 
+/** See GET /live: cheap to compute (primary-key maxima and two small counts). */
+export async function getLiveVersion() {
+  const { rows } = await pool.query(
+    `select (select coalesce(max(id), 0) from readings) as readings,
+            (select coalesce(max(id), 0) from alerts) as alerts,
+            (select count(*) from alerts where is_resolved = false) as open_alerts,
+            (select coalesce(max(id), 0) from collection_logs) as collections,
+            (select count(*) from node where status = 'offline') as offline`,
+  );
+  const row = rows[0];
+  return [row.readings, row.alerts, row.open_alerts, row.collections, row.offline].join(".");
+}
+
 // ---------------------------------------------------------------------------------------------
 // Collections and batches
 // ---------------------------------------------------------------------------------------------

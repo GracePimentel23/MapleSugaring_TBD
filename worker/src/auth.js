@@ -214,7 +214,7 @@ export function authRouter() {
       authEnabled: config.auth.enabled,
       user: req.user,
       ...describeAccess(req.access),
-      viewAs: config.auth.enabled ? null : VIEW_AS_CHOICES,
+      viewAs: config.auth.enabled || config.onVercel ? null : VIEW_AS_CHOICES,
     });
   });
 
@@ -331,9 +331,11 @@ export function identify() {
 /**
  * With sign-in off, which role to act as: the "View as" cookie if set, else DEV_ROLE, else none (all).
  * With sign-in on it is always null, so the cookie can never change what a signed-in person may do.
+ * On Vercel the site is public, so the cookie is ignored there and DEV_ROLE (default guest) applies.
  */
-export function previewRole(req, { authEnabled = config.auth.enabled, devRole = config.devRole } = {}) {
+export function previewRole(req, { authEnabled = config.auth.enabled, devRole = config.devRole, onVercel = config.onVercel } = {}) {
   if (authEnabled) return null;
+  if (onVercel) return devRole;
   const chosen = parseCookies(req.get("cookie"))[VIEW_AS_COOKIE];
   if (chosen === "all") return null;
   return VIEW_AS_CHOICES.includes(chosen) ? chosen : devRole;
