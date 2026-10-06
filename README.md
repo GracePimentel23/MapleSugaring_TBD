@@ -7,14 +7,15 @@ over LoRa. This repo is a small monorepo:
 |---|---|---|
 | `web/` | Next.js dashboard (Dashboard, Stations, Data) | 3000 local, 3100 on the VM |
 | `worker/` | API + sensor ingest (Express, Postgres) | 4000 |
+| `bridge/` | Gateway bridge: reads the gateway board over USB and sends readings to the API (Python) | |
 | `scripts/` | Local dev helpers (a real Postgres 17 from npm, run-everything script) | Postgres on 5433 |
 
 ```
-[load cell] -> HX711 -> LoRa32 node ~~LoRa~~> LoRa32 gateway -USB-> server.py --forward
+[load cell] -> HX711 -> LoRa32 node ~~LoRa~~> LoRa32 gateway -USB-> bridge/bridge.py
      -> POST /ingest -> worker -> Postgres <- worker <- /api/* <- web (Next.js) <- browser
 ```
 
-Deploying to the VM: see [docs/DEPLOY.md](docs/DEPLOY.md).
+Deploying on Vercel (free): see [docs/VERCEL.md](docs/VERCEL.md). On the VM: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 The gateway side (firmware, `server.py`) lives in [JassV9/maplebackend](https://github.com/JassV9/maplebackend).
 
@@ -38,9 +39,9 @@ npm run simulate                  # the PRG-button test loop: ramps LC01 to 9.25
 npm run simulate -- --live        # slow live readings that creep up
 ```
 
-With the real gateway plugged in, run the gateway dashboard with forwarding
-(`python server.py --forward http://localhost:4000` from maplebackend's `frontend/`). A new node id
-(e.g. `LC01`) creates its own station card on first packet.
+With the real gateway plugged in, run the bridge (`cd bridge`, `copy bridge.example.env bridge.env`,
+`python bridge.py`; see [bridge/README.md](bridge/README.md)). A new node id (e.g. `LC01`) creates its
+own station card on first packet, and open pages update within a few seconds of each reading.
 
 Other commands: `npm run db` (just Postgres), `npm run seed` (demo data into an empty database;
 `npm --prefix worker run seed -- --force` wipes and reseeds), `npm test` (worker tests; set
@@ -98,7 +99,9 @@ Browser calls go to `/api/<path>` on the web app, which forwards to the worker.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/health` | 200 when Postgres answers, 503 otherwise |
-| POST | `/ingest` | Gateway lines `{gateway, lines: [...]}` (header `X-Ingest-Key` when `INGEST_KEY` is set) |
+| POST | `/ingest` | Gateway lines `{gateway, lines: [...]}`, header `X-Ingest-Key` (see "Ingest keys" below) |
+| GET | `/live` | `{version}`: changes whenever a reading, alert, collection or node status changes; pages poll it |
+| GET/POST/DELETE | `/gateway-keys`, `/gateway-keys/:id` | Per-gateway bridge keys: list, make (`{gateway}`, key shown once), revoke (owner) |
 | GET | `/auth/me` | `{authEnabled, user, role, permissions, components}`: who is looking and which cards they see |
 | GET | `/auth/google`, `/auth/google/callback` | Google sign-in redirect and callback |
 | POST | `/auth/logout` | End the session |
@@ -112,6 +115,10 @@ Browser calls go to `/api/<path>` on the web app, which forwards to the worker.
 | GET | `/seasons` | Season summaries for Overview / Analysis |
 | GET/PATCH | `/alerts` | Open alerts; resolve one |
 | GET | `/readings`, `/packets`, `/nodes`, `/gateways` | Raw sensor data and radio health (RSSI, SNR, lost packets) |
+
+Ingest keys: `/ingest` accepts the shared `INGEST_KEY` or a per-gateway key (`npm --prefix worker run
+gateway-key -- create GW-LAB`; stored hashed in `gateway_keys`, and it fixes the gateway's name). With
+neither set up, ingest is open for local dev, unless `REQUIRE_INGEST_KEY=true`, which is always the case on Vercel.
 
 Ingest rules (same thresholds as maplebackend's parser): bucket full at 90 % (critical alert), sudden drop
 of at least 1 kg and half the weight (logged as an automatic collection), weight outside -1 to 55 kg,
@@ -148,5 +155,5 @@ stack (containers `TBD_PREVIEW_*`, its own database volume) with the site on
 http://localhost:3100 on the VM. To switch to the shared stack later, create `deploy/.env` with
 `COMPOSE_FILE=/srv/msdocker/docker-compose.yml`, `WEB_SERVICE=tbd-web`, `WORKER_SERVICE=tbd-worker`.
 
-Worker environment: `DATABASE_URL` (set by compose), optional `INGEST_KEY`, `OFFLINE_AFTER_MINUTES`,
+Worker environment: `DATABASE_URL` (set by compose), optional `INGEST_KEY`, `REQUIRE_INGEST_KEY`, `OFFLINE_AFTER_MINUTES`,
 `FULL_PERCENT`, `METRIC_INTERVAL_MINUTES`, and the sign-in settings in `worker/.env.example`. Web environment: `WORKER_URL` (set by compose).

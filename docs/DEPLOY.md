@@ -1,5 +1,7 @@
 # Getting changes onto the VM
 
+> The VM is on hold; the app currently deploys to Vercel instead: see [VERCEL.md](VERCEL.md).
+
 VM: `maplesugaring01.webdev.gccis.rit.edu`, SSH port `22010`, user `student` (ask the team for the password).
 The app lives in `/srv/TBD`. Branch: `backend-api`.
 
