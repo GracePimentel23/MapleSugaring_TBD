@@ -5,8 +5,10 @@ import { useEffect } from "react";
 import type { DataSource } from "@/lib/data/source";
 
 /**
- * Re-renders the page's server data every few seconds while it is showing live data, so new
- * load cell readings appear without a reload. Shows a small badge saying which data is on screen.
+ * Keeps the page live: every few seconds it asks the worker for GET /live (a short version string)
+ * and re-renders the page's server data only when that changed, so new load cell readings appear
+ * without a reload and an idle page costs one tiny request per tick. If /live is not available it
+ * falls back to re-rendering every tick. Shows a small badge saying which data is on screen.
  */
 export default function LiveRefresh({
   source,
@@ -19,9 +21,26 @@ export default function LiveRefresh({
 
   useEffect(() => {
     if (source !== "live") return;
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible") router.refresh();
-    }, seconds * 1000);
+    let version: string | null = null;
+    let first = true; // the page was just rendered, so the first answer only sets the baseline
+    let busy = false;
+    const tick = async () => {
+      if (busy || document.visibilityState !== "visible") return;
+      busy = true;
+      try {
+        const response = await fetch("/api/live", { cache: "no-store" });
+        const next = response.ok ? ((await response.json()) as { version?: string }).version ?? null : null;
+        if (!first && (next === null || next !== version)) router.refresh();
+        version = next;
+      } catch {
+        if (!first) router.refresh();
+      } finally {
+        first = false;
+        busy = false;
+      }
+    };
+    void tick();
+    const timer = setInterval(tick, seconds * 1000);
     return () => clearInterval(timer);
   }, [router, seconds, source]);
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { headers } from "next/headers";
+import { cache } from "react";
 
 /**
  * Server-side calls to the worker API (WORKER_URL, e.g. http://tbd-worker:4000 in Docker or
@@ -12,7 +13,13 @@ export function workerUrl(): string | null {
   return url ? url.replace(/\/+$/, "") : null;
 }
 
-export async function fetchWorker<T>(path: string): Promise<T | null> {
+export function fetchWorker<T>(path: string): Promise<T | null> {
+  return fetchWorkerOnce(path) as Promise<T | null>;
+}
+
+// The layout and the page both ask for /stations and /dashboard; cache() makes that one call per
+// render instead of two (each is a function call on Vercel).
+const fetchWorkerOnce = cache(async (path: string): Promise<unknown> => {
   const base = workerUrl();
   if (!base) return null;
   try {
@@ -21,19 +28,20 @@ export async function fetchWorker<T>(path: string): Promise<T | null> {
     const response = await fetch(`${base}${path}`, {
       headers: cookie ? { cookie } : undefined,
       cache: "no-store",
-      signal: AbortSignal.timeout(4000),
+      // Room for a cold start of the worker and the database waking up on the free tiers.
+      signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) {
       // 401/403 mean this role may not read it (rbac.config.js); the UI hides those parts.
       if (response.status !== 401 && response.status !== 403) console.error(`worker ${path} -> ${response.status}`);
       return null;
     }
-    return (await response.json()) as T;
+    return await response.json();
   } catch (error) {
     console.error(`worker ${path} unreachable: ${(error as Error).message}`);
     return null;
   }
-}
+});
 
 export interface SessionUser {
   id: number;
