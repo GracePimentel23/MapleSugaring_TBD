@@ -12,6 +12,10 @@ LC01 ~LoRa~> gateway -USB-> bridge/bridge.py (any laptop) --HTTPS + X-Ingest-Key
 browser -> tbd (Next.js) -> tbd-api -> Neon        browser polls /api/live every 5 s, re-renders on change
 ```
 
+Live now (team **TBD** on Vercel): dashboard https://tbd-iota.vercel.app, API https://tbd-api.vercel.app.
+`worker/vercel.json` and `web/vercel.json` pin the framework (Express, Next.js), so new projects don't need
+the preset picked by hand.
+
 What is different from the VM: migrations run during the `tbd-api` build (there is no boot step), the
 "node offline after 15 min" check runs when someone reads the stations instead of on a timer, and the
 worker's database pool is small. Local `npm run dev` and the VM Docker setup are unchanged.
@@ -49,6 +53,7 @@ Deploy it:
 npx vercel --prod          # still in worker/
 ```
 
+If a deploy fails with "Resource provisioning timed out", that is Vercel's build machine; run it again.
 The build log should say `applying migration 001_baseline.sql` ... `worker build check ok`.
 Check `https://<tbd-api domain>/health` answers `{"ok":true,"db":"up"}`.
 
