@@ -9,7 +9,7 @@ import { pool, withTransaction } from "./db.js";
 import { calibrationFactor, currentMode, MODES, netKg } from "./domain/rules.js";
 import { kgToLbs, lbsToKg } from "./domain/units.js";
 import { HttpError, idParam, optionalNumber, wrap } from "./http.js";
-import { emailConfigured, sendEmail } from "./notify.js";
+import { emailConfigured, lastEmailError, sendEmail } from "./notify.js";
 import { requirePermission } from "./rbac.js";
 
 /** Readings this recent count as "on the scale now"; the node sends one every 5 s. */
@@ -201,7 +201,8 @@ export function demoRouter() {
       subject: "Maple Sugaring: test alert email",
       text: "This is a test from the Demo tab. Bucket tipped alerts will arrive like this.",
     });
-    if (!sent) throw new HttpError(502, "the email service refused it; check the API logs");
+    // 409, not 5xx: the error handler hides 5xx messages, and this one tells you what to fix.
+    if (!sent) throw new HttpError(409, `the email service refused it: ${lastEmailError() ?? "see the API logs"}`);
     res.json({ ok: true });
   }));
 

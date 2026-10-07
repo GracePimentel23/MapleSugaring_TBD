@@ -5,6 +5,13 @@
  */
 import { config } from "./config.js";
 
+let lastError = null;
+
+/** Why the last email failed (e.g. Resend only mails its own address without a verified domain). */
+export function lastEmailError() {
+  return lastError;
+}
+
 export function emailConfigured() {
   return Boolean(config.email.apiKey && config.email.to.length);
 }
@@ -20,11 +27,21 @@ export async function sendEmail({ subject, text }) {
       signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) {
-      console.error(`alert email refused: ${response.status} ${(await response.text()).slice(0, 200)}`);
+      const body = await response.text();
+      let detail = body.slice(0, 300);
+      try {
+        detail = JSON.parse(body).message ?? detail;
+      } catch {
+        // not JSON: keep the raw text
+      }
+      lastError = detail;
+      console.error(`alert email refused: ${response.status} ${detail}`);
       return false;
     }
+    lastError = null;
     return true;
   } catch (error) {
+    lastError = error.message;
     console.error(`alert email failed: ${error.message}`);
     return false;
   }
