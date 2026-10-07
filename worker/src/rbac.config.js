@@ -28,6 +28,7 @@ export const PERMISSIONS = {
   "users:manage": "See everyone who signed in and change their role",
   "audit:view": "See the history of role changes",
   "gateways:manage": "Make and revoke the keys gateway bridges use to send readings",
+  "demo:use": "Use the temporary Demo tab: tare, modes, reset history, clear alerts, calibration",
 };
 
 // ---- 2. GUEST AND ROLES ------------------------------------------------------------------------------
@@ -37,7 +38,8 @@ export const PERMISSIONS = {
 export const GUEST = {
   label: "Guest",
   description: "Not signed in. The public view of today's sap activity.",
-  can: ["dashboard:view", "stations:view"],
+  // demo:use is temporary (sponsor video): remove it here to hide the Demo tab from signed-out visitors.
+  can: ["dashboard:view", "stations:view", "demo:use"],
 };
 
 // The order here is the order an owner sees in a role picker.
@@ -77,6 +79,7 @@ export const COMPONENTS = {
   "nav.stations": "stations:view",
   "nav.data": "collections:view",
   "nav.settings": "users:manage",
+  "nav.demo": "demo:use", // temporary Demo tab
 
   // Dashboard page (/)
   "dashboard.conditions": "dashboard:view", // weather and sap-condition cards

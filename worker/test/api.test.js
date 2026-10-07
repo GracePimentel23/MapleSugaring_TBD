@@ -58,7 +58,7 @@ test("health reports the database", { skip }, async () => {
   assert.equal(body.db, "up");
 });
 
-test("a new node shows up as a station, and a drop is logged as a collection", { skip }, async () => {
+test("a new node shows up as a station, and an unannounced drop is a bucket tipped alert", { skip }, async () => {
   const start = Date.now();
   const line = (seq, w) => ({
     type: "packet", n: seq, rssi: -50, snr: 9, crc: true, received_at: new Date(start + seq * 1000).toISOString(),
@@ -67,7 +67,7 @@ test("a new node shows up as a station, and a drop is logged as a collection", {
   const first = await call("POST", "/ingest", { gateway: "GW-TEST", lines: [line(1, 4.0), line(2, 10.5), line(5, 0.2)] });
   assert.equal(first.status, 200);
   assert.equal(first.body.stored, 3);
-  assert.deepEqual(first.body.results[2].events, ["sudden_drop"]);
+  assert.deepEqual(first.body.results[2].events, ["tipped"]);
 
   // Retrying the same lines (same received_at) stores nothing new.
   const again = await call("POST", "/ingest", { gateway: "GW-TEST", lines: [line(5, 0.2)] });
@@ -78,10 +78,10 @@ test("a new node shows up as a station, and a drop is logged as a collection", {
   assert.ok(station, "station created for the new node");
   assert.equal(station.currentLbs, 0.4);
   assert.equal(station.packetsLost, 2);
-  assert.equal(station.status, "online");
+  assert.equal(station.status, "attention"); // the tipped alert is open
 
   const alerts = await call("GET", "/alerts");
-  assert.ok(alerts.body.some((alert) => alert.alert_type === "sudden_drop"));
+  assert.ok(alerts.body.some((alert) => alert.alert_type === "bucket_tipped" && alert.severity === "critical"));
   // 10.5 kg filled the bucket past 90%; the drop that followed cleared that alert.
   assert.ok(!alerts.body.some((alert) => alert.alert_type === "bucket_full" && alert.node_id === station.nodeId));
 
@@ -133,6 +133,48 @@ test("live version changes when a reading lands", { skip }, async () => {
   const raw = JSON.stringify({ id: "LCV", k: "live", s: 1, w: 1.5, r: 1, hx: 1 });
   await call("POST", "/ingest", { gateway: "GW-TEST", lines: [{ type: "packet", n: 1, crc: true, raw }] });
   assert.notEqual((await call("GET", "/live")).body.version, before);
+});
+
+test("demo: modes decide what a drop means, and tare and calibration change the weight", { skip }, async () => {
+  let seq = 0;
+  const send = (w) => {
+    seq += 1;
+    const raw = JSON.stringify({ id: "LCD", k: "live", s: seq, w, r: 1, hx: 1 });
+    return call("POST", "/ingest", { gateway: "GW-TEST", lines: [{ type: "packet", n: seq, crc: true, raw }] });
+  };
+  await send(6);
+  const bucketId = (await call("GET", "/stations")).body.stations.find((s) => s.nodeCode === "LCD").bucketId;
+
+  assert.equal((await call("POST", "/demo/mode", { bucketId, mode: "collection" })).status, 200);
+  assert.deepEqual((await send(0.5)).body.results[0].events, ["collected"]);
+  await send(6);
+  assert.equal((await call("POST", "/demo/mode", { bucketId, mode: "maintenance" })).status, 200);
+  assert.deepEqual((await send(0.5)).body.results[0].events, ["maintenance"]);
+  await call("POST", "/demo/mode", { bucketId, mode: "normal" });
+  await send(6);
+  assert.deepEqual((await send(0.5)).body.results[0].events, ["tipped"]);
+  const demo = (await call("GET", `/demo?bucket=${bucketId}`)).body;
+  assert.equal(demo.station.mode, "normal");
+  assert.ok(demo.alerts.some((alert) => alert.alert_type === "bucket_tipped"));
+
+  // Tare: three settled readings of 2 kg, then the scale reads 0 lbs.
+  await send(2); await send(2); await send(2);
+  assert.equal((await call("POST", "/demo/tare", { bucketId })).status, 200);
+  assert.equal((await call("GET", `/demo?bucket=${bucketId}`)).body.station.weightLbs, 0);
+
+  // A "25 lb plate" that the node reads as 11.0 kg net (true 11.34 kg): calibrating fixes it.
+  await send(13); await send(13); await send(13);
+  assert.equal((await call("POST", "/demo/calibration/points", { bucketId, knownLbs: 25 })).status, 201);
+  const applied = await call("POST", "/demo/calibration/apply", { bucketId });
+  assert.ok(Math.abs(applied.body.factor - 11.3398 / 11) < 0.001);
+  assert.equal((await call("GET", `/demo?bucket=${bucketId}`)).body.station.weightLbs, 25);
+
+  assert.ok((await call("POST", "/demo/clear-alerts", {})).body.cleared >= 1);
+  assert.equal((await call("POST", "/demo/reset", { bucketId })).status, 200);
+  const after = (await call("GET", `/demo?bucket=${bucketId}`)).body;
+  assert.equal(after.station.weightLbs, null);
+  assert.equal(after.alerts.length, 0);
+  assert.equal((await call("POST", "/demo/test-email", {})).status, 409); // not set up in tests
 });
 
 // Runs last: once a gateway key exists, ingest without a key is refused.

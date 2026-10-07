@@ -139,7 +139,7 @@ test("signed out is the guest view: dashboard and stations only; health, ingest 
   assert.equal(me.body.viewAs, null);
   assert.equal(me.body.user, null);
   assert.equal(me.body.role, "guest");
-  assert.deepEqual(me.body.permissions, ["dashboard:view", "stations:view"]);
+  assert.deepEqual(me.body.permissions, ["dashboard:view", "stations:view", "demo:use"]);
   assert.equal(me.body.components["dashboard.sapChart"], true);
   assert.equal(me.body.components["nav.data"], false);
   assert.equal(me.body.components["data.collections.add"], false);

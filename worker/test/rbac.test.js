@@ -32,8 +32,8 @@ test("roles inherit, and each one can do strictly more than the one before", () 
   assert.equal(permissionsFor("nobody").size, 0);
 });
 
-test("guests can only read the dashboard and stations; only owners manage people", () => {
-  assert.deepEqual(sorted(permissionsFor("guest")), ["dashboard:view", "stations:view"]);
+test("guests can only read the dashboard and stations (and the temporary demo); only owners manage people", () => {
+  assert.deepEqual(sorted(permissionsFor("guest")), ["dashboard:view", "demo:use", "stations:view"]);
   for (const role of ["guest", "member", "manager"]) assert.equal(permissionsFor(role).has("users:manage"), false, role);
 });
 

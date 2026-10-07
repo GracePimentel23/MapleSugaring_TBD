@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseGatewayLine, parseNodePacket } from "../src/domain/packet.js";
-import { fillPercent, flowRateLph, isOutOfRange, isSuddenDrop, lostBetween } from "../src/domain/rules.js";
+import { fillPercent, flowRateLph, isOutOfRange, isSuddenDrop, lostBetween, netKg, currentMode, calibrationFactor } from "../src/domain/rules.js";
 import { kgToLbs, lbsToKg } from "../src/domain/units.js";
 
 test("parses a gateway packet line from the README", () => {
@@ -59,4 +59,26 @@ test("fill, range, packet loss and flow", () => {
 test("units round-trip", () => {
   assert.equal(kgToLbs(lbsToKg(12)), 12);
   assert.equal(kgToLbs(1), 2.2);
+});
+
+test("net weight applies tare and calibration", () => {
+  assert.equal(netKg(5, { tare_kg: 1, calibration_factor: 1.5 }), 6);
+  assert.equal(netKg(null, {}), null);
+  assert.equal(netKg(2, null), 2);
+});
+
+test("collection and maintenance mode end by themselves", () => {
+  const now = new Date("2026-10-07T12:00:00Z");
+  assert.equal(currentMode({ mode: "collection", mode_until: "2026-10-07T12:30:00Z" }, now), "collection");
+  assert.equal(currentMode({ mode: "maintenance", mode_until: "2026-10-07T11:59:00Z" }, now), "normal");
+  assert.equal(currentMode({ mode: "normal" }, now), "normal");
+  assert.equal(currentMode({ mode: "bogus", mode_until: "2026-10-08T00:00:00Z" }, now), "normal");
+});
+
+test("calibration factor from known weights", () => {
+  // The scale reads 2% low on every plate.
+  const points = [5, 10, 25, 45].map((lbs) => ({ knownKg: lbs * 0.4536, measuredKg: lbs * 0.4536 * 0.98 }));
+  assert.ok(Math.abs(calibrationFactor(points) - 1 / 0.98) < 0.0001);
+  assert.equal(calibrationFactor([]), null);
+  assert.equal(calibrationFactor([{ knownKg: 10, measuredKg: 1 }]), null); // 10x off: a mistake, not a calibration
 });

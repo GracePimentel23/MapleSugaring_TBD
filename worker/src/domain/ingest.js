@@ -5,8 +5,10 @@
 import { config } from "../config.js";
 import { withTransaction } from "../db.js";
 import { parseGatewayLine, parseNodePacket } from "./packet.js";
-import { fillPercent, flowRateLph, isOutOfRange, isSuddenDrop, lostBetween } from "./rules.js";
+import { currentMode, fillPercent, flowRateLph, isOutOfRange, isSuddenDrop, lostBetween, netKg } from "./rules.js";
 import { openAlert, resolveAlerts } from "./alerts.js";
+import { sendAlertEmail } from "../notify.js";
+import { kgToLbs } from "./units.js";
 
 function receivedAt(value) {
   const date = value ? new Date(value) : new Date();
@@ -124,9 +126,16 @@ async function ingestPacket(client, gatewayId, line) {
   await resolveAlerts(client, [`range:node:${node.id}`]);
 
   const events = [];
+  const notify = [];
   if (bucket) {
-    const fill = fillPercent(packet.weightKg, bucket.tare_kg, bucket.capacity_liters);
-    if (fill >= config.fullPercent) {
+    const mode = currentMode(bucket, at);
+    const factor = Number(bucket.calibration_factor ?? 1);
+    const fill = fillPercent(packet.weightKg, bucket.tare_kg, bucket.capacity_liters, factor);
+    const label = bucket.label ?? node.node_code;
+    if (mode === "maintenance") {
+      // Someone is working on the station: weight changes count for nothing and raise no alerts.
+      events.push("maintenance");
+    } else if (fill >= config.fullPercent) {
       await openAlert(client, {
         ...alertBase, key: `full:bucket:${bucket.id}`, type: "bucket_full", severity: "critical",
         message: `${bucket.label ?? node.node_code} is ${fill}% full and ready to empty${tag}`,
@@ -135,25 +144,35 @@ async function ingestPacket(client, gatewayId, line) {
       await resolveAlerts(client, [`full:bucket:${bucket.id}`]);
     }
 
-    if (isSuddenDrop(previous?.weight_kg, packet.weightKg)) {
-      events.push("sudden_drop");
-      const droppedKg = previous.weight_kg - packet.weightKg;
-      await client.query(
-        `insert into collection_logs (node_id, bucket_id, volume_collected_liters, weight_kg, collected_at, source)
-         values ($1, $2, $3, $4, $5, 'auto')`,
-        [node.id, bucket.id, droppedKg, droppedKg, at],
-      );
-      await openAlert(client, {
-        ...alertBase, key: `drop:bucket:${bucket.id}:${at.getTime()}`, type: "sudden_drop", severity: "info",
-        message: `${bucket.label ?? node.node_code} dropped ${droppedKg.toFixed(2)} kg: collected or knocked over${tag}`,
-      });
-      await resolveAlerts(client, [`full:bucket:${bucket.id}`]);
+    const previousNet = netKg(previous?.weight_kg, bucket);
+    const currentNet = netKg(packet.weightKg, bucket);
+    if (mode !== "maintenance" && isSuddenDrop(previousNet, currentNet)) {
+      const droppedKg = previousNet - currentNet;
+      if (mode === "collection") {
+        // Emptying the bucket on purpose: log it as a collection, no alert.
+        events.push("collected");
+        await client.query(
+          `insert into collection_logs (node_id, bucket_id, volume_collected_liters, weight_kg, collected_at, source)
+           values ($1, $2, $3, $4, $5, 'auto')`,
+          [node.id, bucket.id, droppedKg, droppedKg, at],
+        );
+        await resolveAlerts(client, [`full:bucket:${bucket.id}`]);
+      } else {
+        // A sudden drop nobody announced: the bucket probably tipped over.
+        events.push("tipped");
+        const alert = await openAlert(client, {
+          ...alertBase, key: `tipped:bucket:${bucket.id}:${at.getTime()}`, type: "bucket_tipped", severity: "critical",
+          message: `${label} may have tipped over: it lost ${kgToLbs(droppedKg).toFixed(1)} lbs at once${tag}`,
+        });
+        if (alert) notify.push({ ...alert, station: label, lostLbs: kgToLbs(droppedKg), nowLbs: kgToLbs(Math.max(currentNet, 0)) });
+        await resolveAlerts(client, [`full:bucket:${bucket.id}`]);
+      }
     }
 
     await maybeWriteMetric(client, node.id, bucket, packet.weightKg, at);
   }
 
-  return { status: "stored", node: packet.nodeCode, kind: packet.kind, events };
+  return { status: "stored", node: packet.nodeCode, kind: packet.kind, events, notify };
 }
 
 /** Keeps the baseline metrics table (fill %, flow rate) at one row per bucket per interval. */
@@ -174,11 +193,11 @@ async function maybeWriteMetric(client, nodeId, bucket, weightKg, at) {
       [bucket.id, at],
     )
   ).rows[0];
-  const flow = hourAgo ? flowRateLph(hourAgo.weight_kg, hourAgo.measured_at, weightKg, at) : 0;
+  const flow = hourAgo ? flowRateLph(netKg(hourAgo.weight_kg, bucket), hourAgo.measured_at, netKg(weightKg, bucket), at) : 0;
   await client.query(
     `insert into metrics (node_id, bucket_id, fill_level_percent, sap_flow_rate_lph, recorded_at)
      values ($1, $2, least($3::numeric, 999), $4, $5)`,
-    [nodeId, bucket.id, fillPercent(weightKg, bucket.tare_kg, bucket.capacity_liters), flow, at],
+    [nodeId, bucket.id, fillPercent(weightKg, bucket.tare_kg, bucket.capacity_liters, Number(bucket.calibration_factor ?? 1)), flow, at],
   );
 }
 
@@ -212,7 +231,10 @@ export async function ingestBatch(body) {
 
     if (result.status === "status") summary.status += 1;
     else summary[result.status] += 1;
-    summary.results.push(result);
+    const { notify = [], ...rest } = result;
+    summary.results.push(rest);
+    // After the commit, so an email never goes out for an alert that was rolled back.
+    for (const alert of notify) summary.emailed = (await sendAlertEmail(alert)) || summary.emailed;
   }
   return summary;
 }

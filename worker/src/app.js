@@ -11,7 +11,9 @@ import { config } from "./config.js";
 import { pool, withTransaction } from "./db.js";
 import { ingestBatch, sweepOffline } from "./domain/ingest.js";
 import { resolveAlerts } from "./domain/alerts.js";
+import { netKg } from "./domain/rules.js";
 import { lbsToKg } from "./domain/units.js";
+import { demoRouter } from "./demo.js";
 import { checkIngestKey, gatewayKeysRouter } from "./gatewayKeys.js";
 import { HttpError, idParam, optionalDate, optionalNumber, optionalText, wrap } from "./http.js";
 import { requirePermission as can } from "./rbac.js";
@@ -59,6 +61,7 @@ export function createApp() {
   app.use(authRouter());
   app.use(usersRouter());
   app.use(gatewayKeysRouter());
+  app.use(demoRouter());
 
   // ---- live updates -----------------------------------------------------------------------------
   /** A short string that changes whenever a reading, alert, collection or node status changes. */
@@ -218,7 +221,7 @@ export function createApp() {
         const bucketId = idParam(entry.bucketId);
         const bucket = (
           await client.query(
-            `select b.id, b.node_id, b.tare_kg,
+            `select b.id, b.node_id, b.tare_kg, b.calibration_factor,
                     (select weight_kg from readings r where r.bucket_id = b.id and r.kind <> 'nohx'
                       order by measured_at desc limit 1) as current_kg
                from buckets b where b.id = $1`,
@@ -227,7 +230,7 @@ export function createApp() {
         ).rows[0];
         if (!bucket) throw new HttpError(400, `no bucket ${bucketId}`);
         const lbs = optionalNumber(entry.lbs, "lbs", { min: 0, max: 500 });
-        const kg = lbs !== null ? lbsToKg(lbs) : Math.max((bucket.current_kg ?? 0) - (bucket.tare_kg ?? 0), 0);
+        const kg = lbs !== null ? lbsToKg(lbs) : Math.max(netKg(bucket.current_kg ?? 0, bucket), 0);
         await client.query(
           `insert into collection_logs (collection_id, node_id, bucket_id, volume_collected_liters, weight_kg,
                                         collected_by, collected_at, source)

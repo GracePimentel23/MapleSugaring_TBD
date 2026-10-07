@@ -6,6 +6,7 @@ import { config } from "./config.js";
 import { pool } from "./db.js";
 import { KG_TO_LBS, cToF, kgToLbs, round } from "./domain/units.js";
 import { clockLabel, localDate, sapSeason } from "./domain/time.js";
+import { currentMode, netKg } from "./domain/rules.js";
 
 const SHORT_DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -40,6 +41,7 @@ export async function getAlerts({ openOnly = true } = {}) {
 export async function getStations() {
   const { rows } = await pool.query(
     `select b.id as bucket_id, b.label, b.location, b.tree_species, b.capacity_liters, b.tare_kg,
+            b.calibration_factor, b.mode, b.mode_until,
             n.id as node_id, n.node_code, n.node_name, n.status as node_status, n.battery_level, n.battery_v,
             n.last_seen, n.last_rssi, n.last_snr, n.packets_received, n.packets_lost, n.hx_ok, n.calibrated,
             r.weight_kg, r.measured_at, r.kind as reading_kind,
@@ -79,7 +81,7 @@ export async function getStations() {
     const readingIsNewer =
       row.measured_at && (!row.metric_at || new Date(row.measured_at) >= new Date(row.metric_at));
     const currentKg = readingIsNewer
-      ? Math.max(row.weight_kg - (row.tare_kg ?? 0), 0)
+      ? Math.max(netKg(row.weight_kg, row), 0)
       : ((row.fill_level_percent ?? 0) / 100) * capacityKg;
     const fillPercent = capacityKg ? round((currentKg / capacityKg) * 100, 1) : 0;
     const offline = row.node_status === "offline";
@@ -115,6 +117,7 @@ export async function getStations() {
       sensorOk: row.hx_ok,
       calibrated: row.calibrated,
       isTestReading: row.reading_kind === "test",
+      mode: currentMode(row),
     };
   });
 

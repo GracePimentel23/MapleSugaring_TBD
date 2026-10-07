@@ -83,6 +83,16 @@ export const config = {
   metricIntervalMinutes: number("METRIC_INTERVAL_MINUTES", 15),
   fullPercent: number("FULL_PERCENT", 90),
   migrateOnBoot: process.env.MIGRATE_ON_BOOT !== "false",
+  // Where people open the web app, for links in emails.
+  siteUrl: (process.env.SITE_URL || process.env.PUBLIC_URL || "").trim().replace(/\/+$/, "") || null,
+  // Urgent alert emails through Resend; off until RESEND_API_KEY and ALERT_EMAIL_TO are set.
+  email: {
+    apiKey: process.env.RESEND_API_KEY?.trim() || null,
+    to: list("ALERT_EMAIL_TO"),
+    from: process.env.ALERT_EMAIL_FROM?.trim() || "Maple Sugaring <onboarding@resend.dev>",
+  },
+  // How long collection and maintenance mode last before switching back to normal by themselves.
+  modeMinutes: number("MODE_MINUTES", 30),
   auth,
   devRole: devRole(auth.enabled),
 };
