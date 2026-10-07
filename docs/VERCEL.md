@@ -113,8 +113,17 @@ Delete `worker/.env` afterwards if you don't want production credentials on that
 ## Free plan limits to keep in mind
 
 Hobby includes 1,000,000 function calls and 4 hours of active CPU a month; going over pauses the projects
-until the month is up. Rough use: the bridge sends one request every 5 s while packets arrive and one a
+until the month is up. Rough use: the bridge sends one request per packet (one every 5 s) while the node is on, and one a
 minute otherwise; an open dashboard tab asks `/api/live` every 5 s (an edge rewrite, not a function in
 `tbd`) and re-renders only when a reading or alert changed. A bridge running all month plus a few people
-watching stays under the limit. For long unattended runs, set `FORWARD_INTERVAL=15` in `bridge.env`.
+watching stays under the limit. For long unattended runs, set `FORWARD_INTERVAL=15` in `bridge.env` to batch readings.
 Watch **Usage** in the Vercel dashboard. Neon's free tier is 0.5 GB, roughly a few months of one node.
+
+## Alert emails (bucket tipped)
+
+Uses [Resend](https://resend.com) (free: 100 emails a day). Sign up, create an API key, then add to **tbd-api**
+(Production): `RESEND_API_KEY=<key>` and `ALERT_EMAIL_TO=<the address you signed up with>`, and redeploy
+tbd-api. Until you verify a domain in Resend, mail comes from `onboarding@resend.dev` and can only go to your
+own Resend address; with a domain, set `ALERT_EMAIL_FROM` too and any address works. Add `SITE_URL=https://tbd-iota.vercel.app`
+so the email links to the stations page. The Demo tab's "Send test email" button checks it.
+

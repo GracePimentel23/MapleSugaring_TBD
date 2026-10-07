@@ -43,7 +43,7 @@ Close the maplebackend `server.py` or any serial monitor first: only one program
 | `INGEST_KEY` | The bridge key: the app's `INGEST_KEY`, or a per-gateway key from `npm run gateway-key -- create GW-NAME` (see docs/VERCEL.md) |
 | `GATEWAY_ID` | Optional name for this gateway (default `GW-<computer name>`; a per-gateway key overrides it) |
 | `SERIAL_PORT` | Optional, e.g. `COM6` |
-| `FORWARD_INTERVAL` | Optional seconds between sends, default 5 |
+| `FORWARD_INTERVAL` | Optional seconds between checks for readings to send, default 1 (a request only goes out when there is something to send) |
 
 `bridge.env` is gitignored; never commit a key. Environment variables and command line flags
 (`--url`, `--key`, ...) override it.

@@ -155,8 +155,10 @@ def main(argv=None):
     ap.add_argument("--key", default=setting("INGEST_KEY"), help="bridge key (INGEST_KEY)")
     ap.add_argument("--gateway-id", default=setting("GATEWAY_ID", "GW-" + socket.gethostname().upper()[:40]))
     ap.add_argument("--port", default=setting("SERIAL_PORT"), help="gateway serial port (default: auto-detect)")
-    ap.add_argument("--interval", type=float, default=float(setting("FORWARD_INTERVAL", "5")),
-                    help="seconds between sends (default 5)")
+    # Sends only happen when something is queued (a packet every 5 s, a status line a minute), so a
+    # short interval only cuts the delay; it does not add requests.
+    ap.add_argument("--interval", type=float, default=float(setting("FORWARD_INTERVAL", "1")),
+                    help="seconds between checks for new lines to send (default 1)")
     ap.add_argument("--dry-run", action="store_true", help="read and print only, send nothing")
     ap.add_argument("--demo", action="store_true", help="fake node LC-DEMO, no boards needed")
     ap.add_argument("--list", action="store_true", help="list serial ports and exit")

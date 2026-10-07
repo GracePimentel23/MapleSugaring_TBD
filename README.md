@@ -101,6 +101,7 @@ Browser calls go to `/api/<path>` on the web app, which forwards to the worker.
 | GET | `/health` | 200 when Postgres answers, 503 otherwise |
 | POST | `/ingest` | Gateway lines `{gateway, lines: [...]}`, header `X-Ingest-Key` (see "Ingest keys" below) |
 | GET | `/live` | `{version}`: changes whenever a reading, alert, collection or node status changes; pages poll it |
+| GET/POST | `/demo`, `/demo/tare`, `/demo/mode`, `/demo/reset`, `/demo/clear-alerts`, `/demo/test-email`, `/demo/calibration/*` | The temporary Demo tab (open to guests via `demo:use`) |
 | GET/POST/DELETE | `/gateway-keys`, `/gateway-keys/:id` | Per-gateway bridge keys: list, make (`{gateway}`, key shown once), revoke (owner) |
 | GET | `/auth/me` | `{authEnabled, user, role, permissions, components}`: who is looking and which cards they see |
 | GET | `/auth/google`, `/auth/google/callback` | Google sign-in redirect and callback |
@@ -120,8 +121,13 @@ Ingest keys: `/ingest` accepts the shared `INGEST_KEY` or a per-gateway key (`np
 gateway-key -- create GW-LAB`; stored hashed in `gateway_keys`, and it fixes the gateway's name). With
 neither set up, ingest is open for local dev, unless `REQUIRE_INGEST_KEY=true`, which is always the case on Vercel.
 
-Ingest rules (same thresholds as maplebackend's parser): bucket full at 90 % (critical alert), sudden drop
-of at least 1 kg and half the weight (logged as an automatic collection), weight outside -1 to 55 kg,
+Station modes: **normal** (a sudden drop of at least 1 kg and half the weight is a critical "bucket tipped"
+alert, emailed when `RESEND_API_KEY` and `ALERT_EMAIL_TO` are set), **collection** (the drop is logged as an
+automatic collection, no alert) and **maintenance** (weight changes count for nothing, no alerts). Collection
+and maintenance switch back to normal after `MODE_MINUTES` (30). Weights shown are the node's reading minus
+the station's tare, times its calibration factor (set from known weights on the Demo tab).
+
+Ingest rules (same thresholds as maplebackend's parser): bucket full at 90 % (critical alert), weight outside -1 to 55 kg,
 missing HX711, and a station goes offline after 15 minutes of silence.
 
 ## Database
