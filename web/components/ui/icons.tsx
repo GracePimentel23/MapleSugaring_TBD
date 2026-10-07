@@ -106,7 +106,26 @@ export function DropletIcon({ fill = "currentColor", size = 16 }: { fill?: strin
   );
 }
 
-export function MobileNavIcon({ id }: { id: "dashboard" | "stations" | "data" }) {
+/** Play button for the temporary Demo tab. */
+export function DemoIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="10" cy="10" r="7.5" stroke={active ? "#fff" : "rgba(255,255,255,0.6)"} strokeWidth="1.5" />
+      <path d="M8.5 7v6l5-3-5-3z" fill={active ? "#fff" : "rgba(255,255,255,0.6)"} />
+    </svg>
+  );
+}
+
+export function MobileNavIcon({ id }: { id: "dashboard" | "stations" | "data" | "demo" }) {
+  if (id === "demo") {
+    return (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M8.5 7v6l5-3-5-3z" fill="currentColor" />
+      </svg>
+    );
+  }
+
   if (id === "dashboard") {
     return (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">

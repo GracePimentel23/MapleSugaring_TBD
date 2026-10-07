@@ -10,13 +10,14 @@ import {
   BellIcon,
   DashboardIcon,
   DataIcon,
+  DemoIcon,
   MapleLeafLogo,
   MobileNavIcon,
   SettingsIcon,
   StationsIcon,
 } from "@/components/ui/icons";
 
-type PageId = "dashboard" | "stations" | "data";
+type PageId = "dashboard" | "stations" | "data" | "demo";
 
 const navItems: {
   id: PageId;
@@ -27,11 +28,14 @@ const navItems: {
   { id: "dashboard", href: "/", label: "Dashboard", Icon: DashboardIcon },
   { id: "stations", href: "/stations", label: "Stations", Icon: StationsIcon },
   { id: "data", href: "/data", label: "Data", Icon: DataIcon },
+  // Temporary (sponsor video); "nav.demo" in rbac.config.js decides who sees it.
+  { id: "demo", href: "/demo", label: "Demo", Icon: DemoIcon },
 ];
 
 function activePage(pathname: string): PageId {
   if (pathname.startsWith("/stations")) return "stations";
   if (pathname.startsWith("/data")) return "data";
+  if (pathname.startsWith("/demo")) return "demo";
   return "dashboard";
 }
 
