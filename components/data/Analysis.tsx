@@ -76,7 +76,7 @@ export default function Analysis({ day }: { day: DemoDay }) {
     : 0;
 
   return (
-    <div className="max-w-4xl space-y-6 p-4 md:p-6">
+    <div className="w-full space-y-6 p-4 md:p-6">
       <section>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-sans text-base font-semibold">Season Summary</h2>

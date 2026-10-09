@@ -1,17 +1,17 @@
 import Link from "next/link";
 import { panelProgressFill } from "@/lib/selectors/stations";
-import type { StationUiStatus, StationView } from "@/lib/types/schema";
+import type { StationStatus, StationView } from "@/lib/types/schema";
 import { formatLbsNumber } from "@/lib/units";
 
-const statusColor: Record<StationUiStatus, string> = {
+const statusColor: Record<StationStatus, string> = {
   online: "var(--color-status-online)",
-  attention: "var(--color-status-attention)",
+  maintenance: "var(--color-status-attention)",
   offline: "var(--color-status-offline)",
 };
 
-const statusLabel: Record<StationUiStatus, string> = {
+const statusLabel: Record<StationStatus, string> = {
   online: "Online",
-  attention: "Attention",
+  maintenance: "Maintenance",
   offline: "Offline",
 };
 
@@ -23,18 +23,13 @@ export default function StationsPanel({
   summaryLabel: string;
 }) {
   return (
-    <aside className="hidden shrink-0 flex-col lg:flex" style={{ width: 333 }}>
+    <aside className="hidden w-[333px] shrink-0 flex-col self-start lg:flex">
       <div
-        className="overflow-hidden rounded-2xl bg-white shadow-sm"
-        style={{
-          border: "1px solid var(--color-border)",
-          width: 333,
-          height: 650,
-          maxHeight: "100%",
-        }}
+        className="flex max-h-[calc(100vh-12rem)] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm"
+        style={{ border: "1px solid var(--color-border)" }}
       >
         <div
-          className="flex items-center justify-between border-b px-4 py-3.5"
+          className="flex shrink-0 items-center justify-between border-b px-4 py-3.5"
           style={{ borderColor: "var(--color-border)" }}
         >
           <div>
@@ -51,10 +46,7 @@ export default function StationsPanel({
             <div key={station.bucketId} className="px-4 py-3.5">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-                    style={{ background: "var(--color-accent-light)" }}
-                  >
+                  <div className="flex h-7 w-5 shrink-0 items-center justify-center">
                     <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                       <path
                         d="M10 2C10 2 5 8 5 12a5 5 0 0010 0c0-4-5-10-5-10z"

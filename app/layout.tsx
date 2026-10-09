@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { DM_Sans, Inter } from "next/font/google";
 import DemoProvider from "@/components/demo/DemoProvider";
+import BatchStateProvider from "@/components/data/BatchStateProvider";
 import AppShell from "@/components/layout/AppShell";
+import StationStateProvider from "@/components/stations/StationStateProvider";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -32,7 +34,11 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <DemoProvider>
-          <AppShell>{children}</AppShell>
+          <StationStateProvider>
+            <BatchStateProvider>
+              <AppShell>{children}</AppShell>
+            </BatchStateProvider>
+          </StationStateProvider>
         </DemoProvider>
       </body>
     </html>

@@ -5,18 +5,17 @@ import ProductionSummary from "@/components/dashboard/ProductionSummary";
 import SapCollectedChart from "@/components/dashboard/SapCollectedChart";
 import StationsPanel from "@/components/dashboard/StationsPanel";
 import { useDemo } from "@/components/demo/DemoProvider";
+import { useStationState } from "@/components/stations/StationStateProvider";
 import { getDashboardView } from "@/lib/selectors/dashboard";
 
 export default function Home() {
   const { day } = useDemo();
-  const dashboard = getDashboardView(day);
+  const { maintenance, notes } = useStationState();
+  const dashboard = getDashboardView(day, { maintenance, notes });
 
   return (
-    <div
-      className="flex w-full"
-      style={{ padding: "24px 27px", rowGap: 24, columnGap: 86, flexWrap: "wrap" }}
-    >
-      <div style={{ flexGrow: 0, flexBasis: "auto", width: 596, minWidth: 0, maxWidth: "100%" }}>
+    <div className="flex min-h-full w-full flex-wrap gap-6 p-4 md:p-6 xl:flex-nowrap">
+      <div className="w-full min-w-0 flex-1">
         <h1 className="mb-5 font-sans text-2xl font-semibold md:text-3xl">
           Today&apos;s Sap Activity.
         </h1>

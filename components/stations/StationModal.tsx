@@ -1,27 +1,23 @@
 "use client";
 
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
-import { cardProgressFill } from "@/lib/selectors/stations";
-import type { Alert, StationDisplayStatus, StationView } from "@/lib/types/schema";
+import { NotesList } from "@/components/stations/StationForms";
+import { cardProgressFill, stationStatusMeta } from "@/lib/selectors/stations";
+import type { StationView } from "@/lib/types/schema";
 import { formatLbsNumber } from "@/lib/units";
-
-const displayMeta: Record<StationDisplayStatus, { label: string; color: string }> = {
-  complete: { label: "Complete", color: "#16A34A" },
-  in_progress: { label: "In Progress", color: "#2563EB" },
-  offline: { label: "Offline", color: "#DC2626" },
-};
 
 export default function StationModal({
   station,
-  alerts,
   onClose,
+  onEdit,
 }: {
   station: StationView;
-  alerts: Alert[];
   onClose: () => void;
+  onEdit?: () => void;
 }) {
-  const meta = displayMeta[station.displayStatus];
-  const fill = cardProgressFill(station.displayStatus);
+  const meta = stationStatusMeta[station.status];
+  const alerts = station.alerts;
+  const fill = cardProgressFill(station.status);
 
   const chartData = station.trend.map((value, index) => ({
     day: `Day ${index + 1}`,
@@ -190,6 +186,13 @@ export default function StationModal({
             </div>
           </div>
 
+          {station.notes.length > 0 ? (
+            <div className="mt-5">
+              <h3 className="mb-3 font-sans text-sm font-semibold">Notes</h3>
+              <NotesList notes={station.notes} />
+            </div>
+          ) : null}
+
           <div className="mt-5 flex flex-col gap-2">
             <button
               type="button"
@@ -198,13 +201,16 @@ export default function StationModal({
             >
               Log Collection
             </button>
-            <button
-              type="button"
-              className="w-full rounded-xl py-2.5 font-sans text-sm font-semibold text-text transition-colors"
-              style={{ border: "1.5px solid var(--color-border)" }}
-            >
-              Edit Station
-            </button>
+            {onEdit ? (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="w-full rounded-xl py-2.5 font-sans text-sm font-semibold text-text transition-colors hover:bg-bg"
+                style={{ border: "1.5px solid var(--color-border)" }}
+              >
+                Edit Station
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

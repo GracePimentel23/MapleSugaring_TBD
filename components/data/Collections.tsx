@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { batchStatusLabel } from "@/lib/batchStatus";
 import { bucketProfiles } from "@/lib/demo/profiles";
 import type { DemoDay } from "@/lib/demo/timeline";
 import type { Collection, CollectionEntry, UserRole } from "@/lib/types/schema";
@@ -259,7 +260,7 @@ function EditCollectionSheet({
               <option value="">— Unassigned —</option>
               {day.batches.map((batch) => (
                 <option key={batch.id} value={batch.batchNumber}>
-                  {batch.batchNumber} ({batch.status})
+                  {batch.batchNumber} ({batchStatusLabel[batch.status]})
                 </option>
               ))}
             </select>
@@ -466,11 +467,10 @@ export default function Collections({
       ?.entries.find((entry) => entry.bucketId === editRowKey?.bucketId) ?? null;
 
   return (
-    <div className="max-w-3xl p-4 md:p-6">
+    <div className="w-full p-4 md:p-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-sans text-xl font-semibold">Collections</h2>
-          <p className="mt-0.5 text-xs text-muted">
+          <p className="text-xs text-muted">
             {day.collections.length} collection
             {day.collections.length === 1 ? "" : "s"} · most recent first
           </p>

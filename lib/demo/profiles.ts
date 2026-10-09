@@ -43,7 +43,7 @@ export const bucketProfiles: BucketProfile[] = [
     yieldFactor: 1,
     startBatteryPercent: 88.5,
     batteryDrainPerDay: 0.45,
-    reportTime: "9:30AM",
+    reportTime: "9:30 AM",
   },
   {
     bucketId: 2,
@@ -54,7 +54,7 @@ export const bucketProfiles: BucketProfile[] = [
     yieldFactor: 0.88,
     startBatteryPercent: 91,
     batteryDrainPerDay: 0.4,
-    reportTime: "9:28AM",
+    reportTime: "9:28 AM",
   },
   {
     bucketId: 3,
@@ -65,7 +65,7 @@ export const bucketProfiles: BucketProfile[] = [
     yieldFactor: 1.22,
     startBatteryPercent: 84.25,
     batteryDrainPerDay: 0.5,
-    reportTime: "9:31AM",
+    reportTime: "9:31 AM",
   },
   {
     bucketId: 4,
@@ -76,7 +76,7 @@ export const bucketProfiles: BucketProfile[] = [
     yieldFactor: 0.8,
     startBatteryPercent: 76.5,
     batteryDrainPerDay: 0.9,
-    reportTime: "8:15AM",
+    reportTime: "8:15 AM",
   },
   {
     bucketId: 5,
@@ -87,9 +87,9 @@ export const bucketProfiles: BucketProfile[] = [
     yieldFactor: 0.62,
     startBatteryPercent: 41,
     batteryDrainPerDay: 1.75,
-    reportTime: "9:12AM",
+    reportTime: "9:12 AM",
   },
 ];
 
 /** Shown instead of the normal report time once a node stops checking in. */
-export const OFFLINE_REPORT_TIME = "6:02AM";
+export const OFFLINE_REPORT_TIME = "6:02 AM";

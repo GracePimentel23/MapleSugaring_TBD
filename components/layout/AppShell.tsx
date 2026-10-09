@@ -3,17 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { dataSections } from "@/components/data/sections";
 import DemoControls from "@/components/demo/DemoControls";
 import { useDemo } from "@/components/demo/DemoProvider";
+import HeaderActions from "@/components/layout/HeaderActions";
 import {
-  BellIcon,
   DashboardIcon,
   DataIcon,
   MapleLeafLogo,
   MobileNavIcon,
-  SettingsIcon,
   StationsIcon,
-  UserIcon,
 } from "@/components/icons";
 
 type PageId = "dashboard" | "stations" | "data";
@@ -26,22 +25,20 @@ const navItems: {
 }[] = [
   { id: "dashboard", href: "/", label: "Dashboard", Icon: DashboardIcon },
   { id: "stations", href: "/stations", label: "Stations", Icon: StationsIcon },
-  { id: "data", href: "/data", label: "Data", Icon: DataIcon },
+  { id: "data", href: "/data/overview", label: "Data", Icon: DataIcon },
 ];
 
-function activePage(pathname: string): PageId {
+function activePage(pathname: string): PageId | null {
   if (pathname.startsWith("/stations")) return "stations";
   if (pathname.startsWith("/data")) return "data";
-  return "dashboard";
+  if (pathname === "/") return "dashboard";
+  return null;
 }
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const active = activePage(pathname);
   const { day } = useDemo();
-
-  const hasUnreadAlerts =
-    day.alerts.some((alert) => !alert.is_resolved) || Boolean(day.meta.weatherAlert);
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg text-text">
@@ -55,33 +52,45 @@ export default function AppShell({ children }: { children: ReactNode }) {
           {navItems.map(({ id, href, label, Icon }) => {
             const isActive = active === id;
             return (
-              <Link
-                key={id}
-                href={href}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors"
-                style={{
-                  background: isActive ? "rgba(255,255,255,0.15)" : "transparent",
-                  color: isActive ? "#fff" : "rgba(255,255,255,0.6)",
-                }}
-              >
-                <Icon active={isActive} />
-                <span className="font-sans text-sm font-medium">{label}</span>
-              </Link>
+              <div key={id}>
+                <Link
+                  href={href}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors"
+                  style={{
+                    background: isActive ? "rgba(255,255,255,0.15)" : "transparent",
+                    color: isActive ? "#fff" : "rgba(255,255,255,0.6)",
+                  }}
+                >
+                  <Icon active={isActive} />
+                  <span className="font-sans text-sm font-medium">{label}</span>
+                </Link>
+
+                {id === "data" ? (
+                  <div className="mt-1 ml-8 flex flex-col gap-0.5">
+                    {dataSections.map((section) => {
+                      const sectionActive = pathname === section.href;
+                      return (
+                        <Link
+                          key={section.id}
+                          href={section.href}
+                          className="rounded-lg px-3 py-1.5 text-left text-xs transition-colors"
+                          style={{
+                            color: sectionActive ? "#fff" : "rgba(255,255,255,0.48)",
+                            background: sectionActive
+                              ? "rgba(255,255,255,0.1)"
+                              : "transparent",
+                          }}
+                        >
+                          {section.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
             );
           })}
         </nav>
-
-        <div className="border-t border-white/10 px-3 py-4">
-          <button
-            type="button"
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-white/10"
-          >
-            <SettingsIcon />
-            <span className="font-sans text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Settings
-            </span>
-          </button>
-        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -92,25 +101,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </span>
             <span className="text-sm text-muted">{day.meta.currentDateLabel}</span>
           </div>
-          <div className="flex items-center gap-2 text-muted">
-            <button
-              type="button"
-              className="relative rounded-lg p-1.5 transition-colors hover:bg-black/5"
-              aria-label="Notifications"
-            >
-              <BellIcon />
-              {hasUnreadAlerts ? (
-                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
-              ) : null}
-            </button>
-            <button
-              type="button"
-              className="rounded-lg p-1.5 transition-colors hover:bg-black/5"
-              aria-label="Account"
-            >
-              <UserIcon />
-            </button>
-          </div>
+          <HeaderActions />
         </header>
 
         <header className="flex items-center justify-between border-b border-border bg-bg px-4 py-3 md:hidden">
@@ -123,17 +114,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </span>
             <span className="text-xs text-muted">{day.meta.currentDateShortLabel}</span>
           </div>
-          <div className="flex items-center gap-1 text-muted">
-            <button type="button" className="relative p-1.5" aria-label="Notifications">
-              <BellIcon />
-              {hasUnreadAlerts ? (
-                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-red-500" />
-              ) : null}
-            </button>
-            <button type="button" className="p-1.5" aria-label="Account">
-              <UserIcon />
-            </button>
-          </div>
+          <HeaderActions />
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>

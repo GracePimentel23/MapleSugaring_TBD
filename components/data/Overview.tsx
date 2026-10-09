@@ -23,12 +23,13 @@ export default function Overview({ day }: { day: DemoDay }) {
     Temp: point.temp,
   }));
 
-  const peakLbs = season.weeklyFlow.length
-    ? Math.max(...season.weeklyFlow.map((point) => point.lbs))
-    : 0;
+  const peakPoint = season.weeklyFlow.reduce<(typeof season.weeklyFlow)[number] | null>(
+    (best, point) => (best === null || point.lbs > best.lbs ? point : best),
+    null,
+  );
 
   return (
-    <div className="max-w-4xl space-y-5 p-4 md:p-6">
+    <div className="w-full space-y-5 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-muted">Full season summary and sap flow</p>
         <select
@@ -86,31 +87,7 @@ export default function Overview({ day }: { day: DemoDay }) {
         className="rounded-2xl bg-white p-4 shadow-sm"
         style={{ border: "1px solid var(--color-border)" }}
       >
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
-          <h3 className="font-sans text-sm font-semibold">{season.season} Sap Flow</h3>
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
-              style={{
-                background: "var(--color-bg)",
-                border: "1px solid var(--color-border)",
-              }}
-            >
-              <span className="text-muted">Avg Temp</span>
-              <span className="font-semibold">{season.avgTempF}°F</span>
-            </span>
-            <span
-              className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
-              style={{
-                background: "var(--color-bg)",
-                border: "1px solid var(--color-border)",
-              }}
-            >
-              <span className="text-muted">Peak</span>
-              <span className="font-semibold">{peakLbs} lbs</span>
-            </span>
-          </div>
-        </div>
+        <h3 className="mb-4 font-sans text-sm font-semibold">{season.season} Sap Flow</h3>
 
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={chartData}>
@@ -173,21 +150,32 @@ export default function Overview({ day }: { day: DemoDay }) {
           </LineChart>
         </ResponsiveContainer>
 
-        <div className="mt-2 flex items-center gap-4 text-xs text-muted">
-          <span className="flex items-center gap-1.5">
+        <div
+          className="mt-3 grid grid-cols-2 gap-3 border-t pt-3"
+          style={{ borderColor: "var(--color-border)" }}
+        >
+          <div className="flex items-center gap-2.5">
             <span
-              className="inline-block h-0.5 w-4 rounded"
+              className="inline-block h-0.5 w-4 shrink-0"
+              style={{ borderTop: "2px dashed #F59E0B" }}
+            />
+            <div>
+              <p className="text-[11px] text-muted">Avg Temp (°F)</p>
+              <p className="font-sans text-sm font-semibold">{season.avgTempF}°F</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <span
+              className="inline-block h-0.5 w-4 shrink-0 rounded"
               style={{ background: "#2B4A1E" }}
             />
-            Sap (lbs)
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span
-              className="inline-block h-0.5 w-4 rounded"
-              style={{ background: "#F59E0B" }}
-            />
-            Temp (°F)
-          </span>
+            <div>
+              <p className="text-[11px] text-muted">Peak Sap (lbs)</p>
+              <p className="font-sans text-sm font-semibold">
+                {peakPoint ? `${peakPoint.lbs} lbs · ${peakPoint.week}` : "—"}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

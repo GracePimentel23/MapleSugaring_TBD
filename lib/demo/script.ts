@@ -106,7 +106,7 @@ export const demoScript: DemoDayScript[] = [
     narration: {
       title: "The release - and our first full bucket",
       script:
-        "Now watch this. It thawed all the way to 46 after two frozen days, and everything that was backed up let go at once. Twenty pounds in a single day. And Bucket #03 is pegged at capacity, twelve of twelve. That is the alert firing in the header, and over on Stations that bucket has flipped to Complete.",
+        "Now watch this. It thawed all the way to 46 after two frozen days, and everything that was backed up let go at once. Twenty pounds in a single day. And Bucket #03 is pegged at capacity, twelve of twelve. That is the alert firing in the bell, and over on Stations that bucket jumps to the top with a warning under its bar.",
       beats: [
         "20.5 lbs - biggest day of the season so far",
         "Bucket #03 sitting at 12 of 12 lbs, high-fill alert raised",
@@ -173,7 +173,7 @@ export const demoScript: DemoDayScript[] = [
       script:
         "This is the one I really wanted to show you. Snow moving in, so the club goes out, empties the three fullest buckets and carries them into the shed. Now watch the whole dashboard react. Those three nodes stop reporting and go Offline, the cards grey out, the Offline filter jumps to three, and the summary drops from five online down to two.",
       beats: [
-        "#02, #04 and #05 go Offline - cards grey out to 45%",
+        "#02, #04 and #05 go Offline - cards grey out with a hardware warning",
         "Emptied before they were carried in, so they hold their last reading of 0",
         "Biggest collection of the season logged: 27 lbs",
         "Only #01 and #03 are still out in the grove collecting",
@@ -227,10 +227,10 @@ export const demoScript: DemoDayScript[] = [
     narration: {
       title: "Best run yet, and we boil",
       script:
-        "Best freeze-thaw of the whole stretch, 26 up to 47. Before the run they collected #01 and #03 to feed the evaporator, so Batch #02 goes into processing today. You can watch it move from Waiting to Processing over in the Batches tab, and Batch #01 has already finished.",
+        "Best freeze-thaw of the whole stretch, 26 up to 47. Before the run they collected #01 and #03 to feed the evaporator, so Batch #02 goes on to boil today. You can watch it move from Waiting to Boiling over in the Batches tab, and Batch #01 has already finished.",
       beats: [
         "Third collection logged: 16.7 lbs",
-        "Batch #02 moves from Waiting to Processing",
+        "Batch #02 moves from Waiting to Boiling",
         "15.4 lbs collected on top of that",
         "Batch #01 already completed - 0.9 lbs of syrup at 66.4 Brix",
       ],
@@ -281,7 +281,7 @@ export const demoScript: DemoDayScript[] = [
       beats: [
         "26.4 lbs - season high by a wide margin",
         "#02, #03 and #04 all at 12 of 12 - three high-fill alerts at once",
-        "Complete filter on Stations shows 3",
+        "Three Stations cards jump to the top with capacity warnings",
         "Season total 121.7 lbs, ahead of both 2021 and 2020",
       ],
     },

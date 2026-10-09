@@ -65,12 +65,21 @@ export interface Metric {
   recorded_at: string;
 }
 
-export type StationUiStatus = "online" | "attention" | "offline";
-
-/** Derived for the card UI: a full bucket reads Complete, offline always wins. */
-export type StationDisplayStatus = "complete" | "in_progress" | "offline";
+/**
+ * Online unless the hardware stopped reporting (offline) or an admin flipped
+ * the maintenance toggle. Maintenance wins over offline so a station being
+ * worked on reads as such. Problems on an online station show up as alerts,
+ * not as a separate status.
+ */
+export type StationStatus = "online" | "maintenance" | "offline";
 
 export type UserRole = "admin" | "student" | "guest";
+
+export interface StationNote {
+  text: string;
+  author: string;
+  createdAt: string;
+}
 
 export interface StationView {
   bucketId: number;
@@ -78,8 +87,14 @@ export interface StationView {
   name: string;
   location: string;
   treeSpecies: string;
-  status: StationUiStatus;
-  displayStatus: StationDisplayStatus;
+  status: StationStatus;
+  /** Hardware state, independent of the maintenance toggle */
+  isOffline: boolean;
+  inMaintenance: boolean;
+  /** Unresolved alerts for this station's node */
+  alerts: Alert[];
+  /** Newest first */
+  notes: StationNote[];
   lastUpdated: string;
   currentLbs: number;
   capacityLbs: number;
