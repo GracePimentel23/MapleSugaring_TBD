@@ -1,206 +1,152 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WrenchIcon } from "@/components/icons";
-import { AddStationModal, EditBucketModal } from "@/components/stations/StationForms";
-import StationModal from "@/components/stations/StationModal";
+import { FilterIcon, InfoIcon } from "@/components/icons";
+import { useClubSettings } from "@/components/session/ClubSettingsProvider";
+import { useSession } from "@/components/session/SessionProvider";
+import { AddStationModal } from "@/components/stations/StationForms";
+import StationDialogs from "@/components/stations/StationSheet";
+import StationsMap from "@/components/stations/StationsMap";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
-import { canManage, currentUser } from "@/lib/data/stationNotes";
+import { Button, Card, cx, FilterPill, PageHeader, ProgressBar, Toggle } from "@/components/ui/ui";
 import {
-  alertWarning,
-  cardProgressFill,
-  needsAttention,
+  byUrgency,
+  getStationSummary,
+  matchesFilter,
   stationStatusMeta,
+  type StationFilter,
 } from "@/lib/selectors/stations";
-import type { StationStatus, StationView } from "@/lib/types/schema";
-import { formatLbsNumber } from "@/lib/units";
+import type { StationView } from "@/lib/types/schema";
 
-type TabFilter = "all" | StationStatus;
-
-const tabs: { id: TabFilter; label: string }[] = [
+const filters: { id: StationFilter; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "online", label: "Online" },
+  { id: "filling", label: "Filling" },
+  { id: "due", label: "Due" },
+  { id: "problems", label: "Problems" },
   { id: "maintenance", label: "Maintenance" },
-  { id: "offline", label: "Offline" },
 ];
 
-/** How long a station stays highlighted after jumping to it from the bell. */
+/** How long a station stays highlighted after jumping to it from an alert. */
 const FOCUS_HIGHLIGHT_MS = 2500;
 
-function MaintenanceToggle({
-  station,
-  onToggle,
-}: {
-  station: StationView;
-  onToggle: () => void;
-}) {
-  const on = station.inMaintenance;
-
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={`Maintenance mode for ${station.name}`}
-      title={on ? "Take out of maintenance" : "Put in maintenance"}
-      onClick={(event) => {
-        // The card itself opens bucket info; the toggle must not.
-        event.stopPropagation();
-        onToggle();
-      }}
-      className="h-5 w-9 shrink-0 rounded-full p-0.5 transition-colors"
-      style={{
-        background: on ? "var(--color-status-attention)" : "var(--color-progress-track)",
-      }}
-    >
-      <span
-        className="flex h-4 w-4 items-center justify-center rounded-full bg-white shadow-sm transition-transform"
-        style={{
-          transform: on ? "translateX(16px)" : "none",
-          color: on ? "#1C1C1E" : "#9CA3AF",
-        }}
-      >
-        <WrenchIcon />
-      </span>
-    </button>
-  );
+/** "North Grove, tree 2" -> "North Grove · tree 2" */
+function treeLine(station: StationView): string {
+  return station.treeLabel.replace(", ", " · ");
 }
 
 function StationCard({
   station,
-  canToggleMaintenance,
   highlighted,
-  onToggleMaintenance,
-  onOpenDetails,
+  onOpen,
 }: {
   station: StationView;
-  canToggleMaintenance: boolean;
   highlighted: boolean;
-  onToggleMaintenance: () => void;
-  onOpenDetails: () => void;
+  onOpen: () => void;
 }) {
-  const inactive = station.status !== "online";
-  const percent = Math.min(station.fillPercent, 100);
-  const fill = cardProgressFill(station.status);
+  const { can } = useSession();
+  const { weight } = useClubSettings();
+  const { toggleMaintenance } = useStationState();
   const meta = stationStatusMeta[station.status];
+  const percent = Math.round(Math.min(station.fillPercent, 100));
+  const inactive = station.status === "maintenance" || station.status === "offline";
 
   return (
     <article
       id={`station-${station.bucketId}`}
-      onClick={onOpenDetails}
-      className="group scroll-mt-6 cursor-pointer rounded-2xl p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
-      style={{
-        background: inactive ? "#ECEAE6" : "white",
-        border: `1px solid ${inactive ? "#D9D6CF" : "var(--color-border)"}`,
-        boxShadow: highlighted ? "0 0 0 3px rgba(245,158,11,0.55)" : undefined,
-      }}
+      onClick={onOpen}
+      className={cx(
+        "group scroll-mt-6 cursor-pointer rounded-2xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-md",
+        inactive ? "border-[#DAD9D1] bg-[#EFEFE9]" : "border-border bg-white",
+      )}
+      style={{ boxShadow: highlighted ? "0 0 0 3px rgba(223,168,0,0.55)" : undefined }}
     >
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2">
         <button
           type="button"
-          // The article handles the click; this keeps the card reachable by keyboard.
           onClick={(event) => {
             event.stopPropagation();
-            onOpenDetails();
+            onOpen();
           }}
-          aria-label={`Open ${station.name} info`}
-          className="-m-1.5 flex items-center gap-2.5 rounded-xl p-1.5 text-left transition-colors group-hover:bg-black/[0.04] focus-visible:outline-2 focus-visible:outline-accent"
-          style={{ opacity: inactive ? 0.55 : 1 }}
+          className="text-left font-sans text-lg font-semibold focus-visible:underline focus-visible:outline-none"
         >
-          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path d="M10 2C10 2 5 8 5 12a5 5 0 0010 0c0-4-5-10-5-10z" fill="#1C1C1E" />
-          </svg>
-          <div>
-            <div className="font-sans text-sm leading-tight font-semibold">
-              {station.name}
-            </div>
-            <div className="mt-0.5 text-xs text-muted">
-              {station.location} · Updated {station.lastUpdated}
-            </div>
-          </div>
+          {station.name}
         </button>
-
-        {canToggleMaintenance ? (
-          <MaintenanceToggle station={station} onToggle={onToggleMaintenance} />
-        ) : null}
-      </div>
-
-      {/* The status tag stays at full strength even when the rest of the card is greyed out */}
-      <div className="mb-2 flex items-center justify-between">
-        <span
-          className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
-          style={{ color: meta.color, background: meta.bg }}
-        >
-          <span style={{ fontSize: 7 }}>●</span>
+        {/* The status stays at full strength even when the card is greyed out */}
+        <span className="pt-1 font-sans text-sm font-semibold" style={{ color: meta.color }}>
           {meta.label}
         </span>
-        <span
-          className="text-xs font-medium"
-          style={{
-            color: inactive ? "var(--color-muted)" : "var(--color-accent)",
-            opacity: inactive ? 0.7 : 1,
-          }}
-        >
-          {Math.round(percent)}%
+      </div>
+      <p className="text-sm text-muted">{treeLine(station)}</p>
+
+      <div className={cx(inactive && "opacity-60")}>
+        <div className="mt-4 mb-2">
+          <span className="font-sans text-3xl font-bold">{weight(station.currentLbs, false, true)}</span>
+          <span className="ml-1.5 text-sm text-muted">
+            / {weight(station.capacityLbs)} · {percent}%
+          </span>
+        </div>
+        <ProgressBar percent={percent} color={meta.bar} height={8} />
+        <div className="mt-4 flex gap-6 text-sm text-muted">
+          <span>Sap age {station.sapAgeHours} h</span>
+          <span>Battery {Math.round(station.batteryLevel)}%</span>
+        </div>
+        <p className="mt-3 text-sm text-muted">Last reading {station.lastUpdated}</p>
+      </div>
+
+      <div className="mt-4 flex items-center gap-3 border-t border-border pt-4">
+        <Toggle
+          checked={station.inMaintenance}
+          onChange={() => toggleMaintenance(station.bucketId)}
+          label={`Maintenance mode for ${station.name}`}
+          disabled={!can("maintenance")}
+        />
+        <span className="text-sm text-muted">
+          Maintenance mode {can("maintenance") ? "(Manager)" : "(Manager only)"}
         </span>
       </div>
-
-      <div style={{ opacity: inactive ? 0.55 : 1 }}>
-        <div
-          className="h-2 overflow-hidden rounded-full"
-          style={{ background: "var(--color-progress-track)" }}
-        >
-          <div
-            className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${percent}%`, background: fill }}
-          />
-        </div>
-      </div>
-
-      <div className="mt-1.5 flex items-center justify-between">
-        <span className="text-xs text-muted" style={{ opacity: inactive ? 0.7 : 1 }}>
-          <span className="font-semibold text-text">{formatLbsNumber(station.currentLbs)}</span>
-          {" / "}
-          {formatLbsNumber(station.capacityLbs)} lbs
-        </span>
-      </div>
-
-      {station.isOffline ? (
-        <div className="mt-3 flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-          <span className="font-bold">!</span>
-          <span>Please check station. Hardware error.</span>
-        </div>
-      ) : (
-        station.alerts.map((alert) => (
-          <div
-            key={alert.id}
-            className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800"
-          >
-            <span className="font-bold">!</span>
-            <span>{alertWarning(alert, station)}</span>
-          </div>
-        ))
-      )}
     </article>
+  );
+}
+
+function StatusLegend() {
+  const items: [string, string][] = [
+    ["Filling", "Collecting sap normally."],
+    ["Due", "Nearly full, or the sap has waited too long. Collect it."],
+    ["Full", "At the full mark. Empty it now."],
+    ["Low battery", "Replace the sensor battery soon."],
+    ["No signal", "The sensor stopped reporting. Check the hardware."],
+    ["Maintenance", "Alerts are paused while someone services it."],
+  ];
+  return (
+    <div className="absolute top-full right-0 z-30 mt-2 w-72 rounded-2xl border border-border bg-white p-4 text-left shadow-xl">
+      <p className="mb-2 font-sans text-sm font-semibold">What the statuses mean</p>
+      <dl className="space-y-1.5 text-sm">
+        {items.map(([term, text]) => (
+          <div key={term}>
+            <dt className="inline font-semibold">{term}: </dt>
+            <dd className="inline text-muted">{text}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
 export default function StationsPage() {
   const stations = useStationCards();
-  const { toggleMaintenance, focusedBucketId, clearFocus } = useStationState();
-  const [activeTab, setActiveTab] = useState<TabFilter>("all");
+  const { can } = useSession();
+  const { focusedBucketId, clearFocus } = useStationState();
+  const [filter, setFilter] = useState<StationFilter>("all");
+  const [urgentFirst, setUrgentFirst] = useState(true);
+  const [showLegend, setShowLegend] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [editBucketId, setEditBucketId] = useState<number | null>(null);
-  const [details, setDetails] = useState<number | null>(null);
+  const [openBucket, setOpenBucket] = useState<number | null>(null);
   const [handledFocus, setHandledFocus] = useState<number | null>(null);
-  const isAdmin = true;
-  const canToggle = canManage(currentUser.role);
 
-  // Arriving from a notification: make sure the station is in view by showing
-  // every station, then scroll to it and flash a highlight.
+  // Arriving from an alert: show every station, then scroll to it and flash it.
   if (focusedBucketId !== handledFocus) {
     setHandledFocus(focusedBucketId);
-    if (focusedBucketId !== null) setActiveTab("all");
+    if (focusedBucketId !== null) setFilter("all");
   }
 
   useEffect(() => {
@@ -212,127 +158,129 @@ export default function StationsPage() {
     return () => clearTimeout(timer);
   }, [focusedBucketId, clearFocus]);
 
-  const attentionCount = stations.filter(needsAttention).length;
-  const counts: Record<TabFilter, number> = {
-    all: stations.length,
-    online: stations.filter((station) => station.status === "online").length,
-    maintenance: stations.filter((station) => station.status === "maintenance").length,
-    offline: stations.filter((station) => station.status === "offline").length,
-  };
+  const { onlineCount, attentionCount } = getStationSummary(stations);
+  const counts = Object.fromEntries(
+    filters.map((item) => [item.id, stations.filter((station) => matchesFilter(station, item.id)).length]),
+  ) as Record<StationFilter, number>;
 
-  // Stations that need attention come first; otherwise keep bucket order.
-  const filtered = stations
-    .filter((station) => activeTab === "all" || station.status === activeTab)
-    .sort((a, b) => Number(needsAttention(b)) - Number(needsAttention(a)));
-
-  // Resolved from the current day, so an open modal follows the replay instead
-  // of holding a stale snapshot.
-  const detailStation = stations.find((station) => station.bucketId === details) ?? null;
-  const editStation = stations.find((station) => station.bucketId === editBucketId) ?? null;
+  const visible = stations.filter((station) => matchesFilter(station, filter));
+  const sorted = urgentFirst ? [...visible].sort(byUrgency) : visible;
+  const byBucket = [...stations].sort(byUrgency);
 
   return (
-    <div className="min-h-full w-full p-4 md:p-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-sans text-2xl font-semibold md:text-3xl">Stations</h1>
-          <p className="mt-0.5 text-sm text-muted">
-            {counts.online} online · {attentionCount} need
-            {attentionCount === 1 ? "s" : ""} attention
-          </p>
-        </div>
-        {isAdmin ? (
+    <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
+      <PageHeader
+        title="Stations"
+        subtitle={`${onlineCount} online · ${attentionCount} need${attentionCount === 1 ? "s" : ""} attention`}
+        actions={
+          can("editTrees") ? <Button onClick={() => setShowAdd(true)}>Add Station</Button> : null
+        }
+      />
+
+      <div className="mb-6 flex items-center gap-3">
+        <div className="no-scrollbar -mx-4 flex flex-1 gap-2 overflow-x-auto px-4 py-1 md:mx-0 md:px-0">
+          {filters.map((item) => (
+            <FilterPill
+              key={item.id}
+              label={item.label}
+              count={counts[item.id]}
+              active={filter === item.id}
+              onClick={() => setFilter(item.id)}
+            />
+          ))}
           <button
             type="button"
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 rounded-xl px-4 py-2 font-sans text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: "var(--color-accent)" }}
+            onClick={() => setUrgentFirst(!urgentFirst)}
+            aria-pressed={urgentFirst}
+            title={urgentFirst ? "Sorted: most urgent first" : "Sorted: bucket order"}
+            className={cx(
+              "shrink-0 rounded-full p-2 transition-colors hover:bg-white",
+              urgentFirst ? "text-accent" : "text-muted",
+            )}
           >
-            <span className="text-base leading-none">+</span> Add Station
+            <FilterIcon size={20} />
           </button>
-        ) : null}
-      </div>
-
-      <div className="mb-5 -mx-4 px-4 md:mx-0 md:px-0">
-        <div className="no-scrollbar flex gap-2 overflow-x-auto pt-1.5 pr-1.5 pb-1">
-          {tabs.map((tab) => {
-            const active = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className="relative flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 font-sans text-sm font-medium whitespace-nowrap transition-all"
-                style={{
-                  background: active ? "var(--color-accent)" : "white",
-                  color: active ? "#fff" : "var(--color-muted)",
-                  border: active
-                    ? "1.5px solid var(--color-accent)"
-                    : "1.5px solid var(--color-border)",
-                }}
-              >
-                {tab.label}
-                <span
-                  className="rounded-full px-1.5 py-0.5 text-xs font-semibold"
-                  style={{
-                    background: active ? "rgba(255,255,255,0.25)" : "var(--color-bg)",
-                    color: active ? "#fff" : "var(--color-muted)",
-                  }}
-                >
-                  {counts[tab.id]}
-                </span>
-                {tab.id === "all" && attentionCount > 0 ? (
-                  <span
-                    className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-amber-950"
-                    style={{ background: "var(--color-status-attention)" }}
-                    aria-label={`${attentionCount} stations need attention`}
-                  >
-                    {attentionCount}
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
+        </div>
+        <div className="relative hidden md:block">
+          <button
+            type="button"
+            onClick={() => setShowLegend(!showLegend)}
+            aria-label="What the statuses mean"
+            aria-expanded={showLegend}
+            className="rounded-full p-2 text-muted transition-colors hover:bg-white hover:text-text"
+          >
+            <InfoIcon size={20} />
+          </button>
+          {showLegend ? <StatusLegend /> : null}
         </div>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="py-16 text-center text-muted">
-          <div className="mb-3 text-4xl">🍁</div>
-          <p className="text-sm font-medium">No stations in this category</p>
-        </div>
+      {sorted.length === 0 ? (
+        <Card className="py-14 text-center text-muted">No stations in this group right now.</Card>
       ) : (
-        <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((station) => (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {sorted.map((station) => (
             <StationCard
               key={station.bucketId}
               station={station}
-              canToggleMaintenance={canToggle}
               highlighted={focusedBucketId === station.bucketId}
-              onToggleMaintenance={() => toggleMaintenance(station.bucketId)}
-              onOpenDetails={() => setDetails(station.bucketId)}
+              onOpen={() => setOpenBucket(station.bucketId)}
             />
           ))}
         </div>
       )}
 
+      <hr className="my-10 border-border" />
+
+      <h2 className="font-sans text-2xl font-bold">Sugarbush Map</h2>
+      <p className="mt-1 mb-5 max-w-2xl text-sm text-muted">
+        Where each bucket sits around the Lobozzo Alumni House. Ring color shows its status. Drag to
+        move, tap a pin to open that station.
+      </p>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
+        <Card className="p-4">
+          <StationsMap
+            stations={visible}
+            highlightedId={focusedBucketId}
+            onSelect={(bucketId) => setOpenBucket(bucketId)}
+          />
+        </Card>
+
+        <Card className="self-start">
+          <h3 className="border-b border-border pb-3 font-sans text-base font-semibold">By Bucket</h3>
+          <ul>
+            {byBucket.map((station) => {
+              const meta = stationStatusMeta[station.status];
+              return (
+                <li key={station.bucketId} className="border-b border-border last:border-0">
+                  <button
+                    type="button"
+                    onClick={() => setOpenBucket(station.bucketId)}
+                    className="flex w-full items-start justify-between gap-3 py-3 text-left hover:opacity-80"
+                  >
+                    <span>
+                      <span className="block font-sans text-base font-semibold">{station.name}</span>
+                      <span className="block text-sm text-muted">{station.location}</span>
+                    </span>
+                    <span className="text-right">
+                      <span className="block font-sans text-sm font-semibold" style={{ color: meta.color }}>
+                        {meta.label}
+                      </span>
+                      <span className="block text-sm text-muted">
+                        {Math.round(Math.min(station.fillPercent, 100))}% full
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
+      </div>
+
       {showAdd ? <AddStationModal onClose={() => setShowAdd(false)} /> : null}
-      {editStation ? (
-        <EditBucketModal station={editStation} onClose={() => setEditBucketId(null)} />
-      ) : null}
-      {detailStation && !editStation ? (
-        <StationModal
-          station={detailStation}
-          onClose={() => setDetails(null)}
-          onEdit={
-            isAdmin
-              ? () => {
-                  setEditBucketId(detailStation.bucketId);
-                  setDetails(null);
-                }
-              : undefined
-          }
-        />
-      ) : null}
+      <StationDialogs bucketId={openBucket} onClose={() => setOpenBucket(null)} />
     </div>
   );
 }

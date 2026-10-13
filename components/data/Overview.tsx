@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { PageHeader } from "@/components/ui/ui";
 import type { DemoDay } from "@/lib/demo/timeline";
 
 export default function Overview({ day }: { day: DemoDay }) {
@@ -29,22 +30,24 @@ export default function Overview({ day }: { day: DemoDay }) {
   );
 
   return (
-    <div className="w-full space-y-5 p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-muted">Full season summary and sap flow</p>
-        <select
-          value={selectedSeason}
-          onChange={(event) => setSelectedSeason(event.target.value)}
-          className="rounded-xl border bg-white px-3 py-2 font-sans text-sm text-text outline-none"
-          style={{ borderColor: "var(--color-border)" }}
-        >
-          {seasons.map((item) => (
-            <option key={item.season} value={item.season}>
-              {item.season}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="w-full space-y-5 px-4 pt-2 pb-10 md:px-6 lg:px-10">
+      <PageHeader
+        title="Overview"
+        subtitle="Full season summary and sap flow."
+        actions={
+          <select
+            value={selectedSeason}
+            onChange={(event) => setSelectedSeason(event.target.value)}
+            className="rounded-xl border-2 border-accent bg-white px-3 py-2 font-sans text-sm font-semibold text-text outline-none"
+          >
+            {seasons.map((item) => (
+              <option key={item.season} value={item.season}>
+                {item.season}
+              </option>
+            ))}
+          </select>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3">
         {[

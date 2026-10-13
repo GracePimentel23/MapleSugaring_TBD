@@ -1,31 +1,5 @@
 import type { StationNote } from "@/lib/types/schema";
 
-export type AccountRole = "manager" | "it" | "member";
-
-const roleLabels: Record<AccountRole, string> = {
-  manager: "Manager",
-  it: "IT",
-  member: "Member",
-};
-
-/** Only managers and IT can switch stations into maintenance or edit finished batches. */
-export function canManage(role: AccountRole): boolean {
-  return role === "manager" || role === "it";
-}
-
-/** The signed-in account. There is no auth yet, so this stands in for it. */
-export const currentUser: {
-  name: string;
-  role: AccountRole;
-  roleLabel: string;
-  email: string;
-} = {
-  name: "Mr. Adams",
-  role: "manager",
-  roleLabel: roleLabels.manager,
-  email: "adams@school.edu",
-};
-
 /**
  * Notes left on buckets before the demo window opens, newest first. Buckets
  * without an entry have no notes yet.

@@ -4,6 +4,8 @@ import { DM_Sans, Inter } from "next/font/google";
 import DemoProvider from "@/components/demo/DemoProvider";
 import BatchStateProvider from "@/components/data/BatchStateProvider";
 import AppShell from "@/components/layout/AppShell";
+import ClubSettingsProvider from "@/components/session/ClubSettingsProvider";
+import SessionProvider from "@/components/session/SessionProvider";
 import StationStateProvider from "@/components/stations/StationStateProvider";
 import "./globals.css";
 
@@ -34,11 +36,15 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <DemoProvider>
-          <StationStateProvider>
-            <BatchStateProvider>
-              <AppShell>{children}</AppShell>
-            </BatchStateProvider>
-          </StationStateProvider>
+          <SessionProvider>
+            <ClubSettingsProvider>
+              <StationStateProvider>
+                <BatchStateProvider>
+                  <AppShell>{children}</AppShell>
+                </BatchStateProvider>
+              </StationStateProvider>
+            </ClubSettingsProvider>
+          </SessionProvider>
         </DemoProvider>
       </body>
     </html>

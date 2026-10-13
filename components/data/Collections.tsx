@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import LogCollectionModal from "@/components/stations/LogCollectionModal";
+import { Button, PageHeader } from "@/components/ui/ui";
 import { batchStatusLabel } from "@/lib/batchStatus";
 import { bucketProfiles } from "@/lib/demo/profiles";
 import type { DemoDay } from "@/lib/demo/timeline";
@@ -331,114 +333,6 @@ function EditCollectionSheet({
   );
 }
 
-function AddCollectionSheet({ day, onClose }: { day: DemoDay; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default bg-black/40"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div className="relative z-10 w-full rounded-t-3xl bg-white p-5 shadow-2xl md:max-w-md md:rounded-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-sans text-base font-semibold">Add Collection</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1.5 hover:bg-gray-100"
-            aria-label="Close"
-          >
-            <CloseIcon />
-          </button>
-        </div>
-        <div className="space-y-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Date</label>
-            <input
-              type="date"
-              defaultValue={day.date}
-              className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">
-              Buckets (select all that apply)
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {bucketProfiles.map((profile) => (
-                <label
-                  key={profile.bucketId}
-                  className="flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs"
-                  style={{
-                    background: "var(--color-bg)",
-                    border: "1px solid var(--color-border)",
-                  }}
-                >
-                  <input type="checkbox" className="accent-green-800" /> {profile.name}
-                </label>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Batch</label>
-            <select
-              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            >
-              <option>— Unassigned —</option>
-              {day.batches.map((batch) => (
-                <option key={batch.id}>{batch.batchNumber}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Logged By</label>
-            <select
-              className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            >
-              {PEOPLE.map((person) => (
-                <option key={person}>{person}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">
-              Notes (optional)
-            </label>
-            <textarea
-              rows={2}
-              placeholder="Weather, observations…"
-              className="w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            />
-          </div>
-        </div>
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl border py-2.5 font-sans text-sm font-semibold"
-            style={{ borderColor: "var(--color-border)" }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl py-2.5 font-sans text-sm font-semibold text-white"
-            style={{ background: "var(--color-accent)" }}
-          >
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Collections({
   day,
   role,
@@ -467,25 +361,12 @@ export default function Collections({
       ?.entries.find((entry) => entry.bucketId === editRowKey?.bucketId) ?? null;
 
   return (
-    <div className="w-full p-4 md:p-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs text-muted">
-            {day.collections.length} collection
-            {day.collections.length === 1 ? "" : "s"} · most recent first
-          </p>
-        </div>
-        {canAdd ? (
-          <button
-            type="button"
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 rounded-xl px-4 py-2 font-sans text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: "var(--color-accent)" }}
-          >
-            <span className="text-base leading-none">+</span> Add Collection
-          </button>
-        ) : null}
-      </div>
+    <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
+      <PageHeader
+        title="Collections"
+        subtitle={`${day.collections.length} collection${day.collections.length === 1 ? "" : "s"} · most recent first`}
+        actions={canAdd ? <Button onClick={() => setShowAdd(true)}>Log Collection</Button> : null}
+      />
 
       {day.collections.length === 0 ? (
         <div className="py-16 text-center text-muted">
@@ -615,7 +496,9 @@ export default function Collections({
         </div>
       )}
 
-      {showAdd ? <AddCollectionSheet day={day} onClose={() => setShowAdd(false)} /> : null}
+      {showAdd ? (
+        <LogCollectionModal bucketId={day.buckets[0]?.bucketId ?? 1} onClose={() => setShowAdd(false)} />
+      ) : null}
       {editCollection ? (
         <EditCollectionSheet
           collection={editCollection}

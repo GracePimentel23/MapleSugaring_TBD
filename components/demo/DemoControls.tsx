@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useDemo } from "@/components/demo/DemoProvider";
+import { useSession } from "@/components/session/SessionProvider";
+import { roleLabels, type Role } from "@/lib/data/people";
 import { demoTimeline } from "@/lib/demo/timeline";
 
 /** Days worth flagging on the scrubber so the presenter can see what is coming. */
@@ -41,12 +43,13 @@ function ChevronRight() {
 export default function DemoControls() {
   const { day, dayIndex, totalDays, canGoNext, canGoPrev, next, prev, jumpTo, reset } =
     useDemo();
+  const { user, viewAs } = useSession();
   const [scriptOpen, setScriptOpen] = useState(true);
 
   return (
     <div
       className="shrink-0 pb-[68px] md:pb-0"
-      style={{ background: "#2B4A1E", borderTop: "1px solid rgba(255,255,255,0.12)" }}
+      style={{ background: "#16290F", borderTop: "1px solid rgba(255,255,255,0.12)" }}
     >
       {scriptOpen ? (
         <div
@@ -146,9 +149,24 @@ export default function DemoControls() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <span className="hidden text-xs text-white/45 lg:inline">
+          <span className="hidden text-xs text-white/45 xl:inline">
             Arrow keys to step
           </span>
+          {/* Presenter control: see the app as each role would. */}
+          <label className="flex items-center gap-1.5 text-xs text-white/70">
+            View as
+            <select
+              value={user.role}
+              onChange={(event) => viewAs(event.target.value as Role)}
+              className="rounded-lg border border-white/20 bg-white/10 px-2 py-1 font-sans text-xs font-medium text-white outline-none"
+            >
+              {(Object.keys(roleLabels) as Role[]).map((role) => (
+                <option key={role} value={role} className="text-text">
+                  {roleLabels[role]}
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             type="button"
             onClick={() => setScriptOpen((open) => !open)}

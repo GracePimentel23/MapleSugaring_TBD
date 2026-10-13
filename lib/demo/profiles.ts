@@ -24,7 +24,20 @@ export interface BucketProfile {
   batteryDrainPerDay: number;
   /** Time of day this node normally reports in */
   reportTime: string;
+  /** "North Grove, tree 2" */
+  treeLabel: string;
+  sensorId: string;
+  /** Where the tree is, for the Stations map */
+  lat: number;
+  lon: number;
 }
+
+/**
+ * RIT taps trees on the grounds of the Joseph M. Lobozzo Alumni House (west side
+ * of campus, Andrews Memorial Drive). The bucket positions around it are
+ * placeholders until the club records where each tapped tree actually is.
+ */
+export const GROVE_CENTER = { lat: 43.08272, lon: -77.68595 };
 
 export const CAPACITY_LBS = 12;
 
@@ -37,6 +50,8 @@ export const bucketProfiles: BucketProfile[] = [
   {
     bucketId: 1,
     nodeId: 1,
+    treeLabel: "North Grove, tree 1",
+    sensorId: "SN-0141",
     name: "Bucket #01",
     location: "North Grove",
     treeSpecies: "Sugar Maple",
@@ -44,10 +59,14 @@ export const bucketProfiles: BucketProfile[] = [
     startBatteryPercent: 88.5,
     batteryDrainPerDay: 0.45,
     reportTime: "9:30 AM",
+    lat: 43.08309,
+    lon: -77.68641,
   },
   {
     bucketId: 2,
     nodeId: 2,
+    treeLabel: "North Grove, tree 2",
+    sensorId: "SN-0142",
     name: "Bucket #02",
     location: "North Grove",
     treeSpecies: "Sugar Maple",
@@ -55,10 +74,14 @@ export const bucketProfiles: BucketProfile[] = [
     startBatteryPercent: 91,
     batteryDrainPerDay: 0.4,
     reportTime: "9:28 AM",
+    lat: 43.08319,
+    lon: -77.68617,
   },
   {
     bucketId: 3,
     nodeId: 3,
+    treeLabel: "South Ridge, tree 1",
+    sensorId: "SN-0143",
     name: "Bucket #03",
     location: "South Ridge",
     treeSpecies: "Red Maple",
@@ -66,10 +89,14 @@ export const bucketProfiles: BucketProfile[] = [
     startBatteryPercent: 84.25,
     batteryDrainPerDay: 0.5,
     reportTime: "9:31 AM",
+    lat: 43.08232,
+    lon: -77.6859,
   },
   {
     bucketId: 4,
     nodeId: 4,
+    treeLabel: "East Slope, tree 1",
+    sensorId: "SN-0144",
     name: "Bucket #04",
     location: "East Slope",
     treeSpecies: "Sugar Maple",
@@ -77,10 +104,14 @@ export const bucketProfiles: BucketProfile[] = [
     startBatteryPercent: 76.5,
     batteryDrainPerDay: 0.9,
     reportTime: "8:15 AM",
+    lat: 43.08268,
+    lon: -77.68545,
   },
   {
     bucketId: 5,
     nodeId: 5,
+    treeLabel: "West Field, tree 1",
+    sensorId: "SN-0145",
     name: "Bucket #05",
     location: "West Field",
     treeSpecies: "Black Maple",
@@ -88,6 +119,8 @@ export const bucketProfiles: BucketProfile[] = [
     startBatteryPercent: 41,
     batteryDrainPerDay: 1.75,
     reportTime: "9:12 AM",
+    lat: 43.08262,
+    lon: -77.68646,
   },
 ];
 

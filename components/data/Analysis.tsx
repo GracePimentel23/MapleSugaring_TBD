@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   Bar,
-  BarChart,
   CartesianGrid,
   Cell,
-  Legend,
+  ComposedChart,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -14,394 +13,459 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useBatchState } from "@/components/data/BatchStateProvider";
+import { useClubSettings } from "@/components/session/ClubSettingsProvider";
+import { useSession } from "@/components/session/SessionProvider";
+import { Button, Card, DataTable, StatCard } from "@/components/ui/ui";
+import {
+  bucketYields,
+  cycleDays,
+  overduePickups,
+  seasonStats,
+  TREE_COUNT,
+} from "@/lib/selectors/analysis";
 import type { DemoDay } from "@/lib/demo/timeline";
-
-const SEASON_COLORS: Record<string, string> = {
-  "Season 2022": "#2B4A1E",
-  "Season 2021": "#F59E0B",
-  "Season 2020": "#6B7280",
-};
-
-function seasonColor(season: string, fallback: string): string {
-  return SEASON_COLORS[season] ?? fallback;
-}
+import { daysBetween, monthDay } from "@/lib/time";
+import type { SeasonSummary } from "@/lib/types/schema";
 
 const tooltipStyle = {
   fontSize: 12,
   borderRadius: 10,
   border: "none",
-  background: "#1C1C1E",
+  background: "#1A2318",
   color: "#fff",
   padding: "8px 12px",
 };
+const axisTick = { fontSize: 11, fill: "#8A8F86" };
+
+function year(season: SeasonSummary): string {
+  return season.season.replace("Season ", "");
+}
+
+/** "15% below 2021" / "0.3° above 2021" */
+function versus(value: number, other: number, compareYear: string, format: (diff: number) => string): string {
+  const diff = value - other;
+  if (Math.abs(diff) < 0.05) return `same as ${compareYear}`;
+  return `${format(Math.abs(diff))} ${diff < 0 ? "below" : "above"} ${compareYear}`;
+}
+
+function Panel({
+  title,
+  subtitle,
+  children,
+  className,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <Card className={className}>
+      <h3 className="font-sans text-base font-semibold">{title}</h3>
+      {subtitle ? <p className="mb-4 text-sm text-muted">{subtitle}</p> : <div className="mb-4" />}
+      {children}
+    </Card>
+  );
+}
+
+function SeasonSelect({
+  label,
+  value,
+  seasons,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  seasons: SeasonSummary[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-muted">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="rounded-xl border-2 border-accent bg-white px-3 py-2 font-sans text-sm font-semibold text-text outline-none"
+      >
+        {seasons.map((season) => (
+          <option key={season.season} value={season.season}>
+            {year(season)}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 export default function Analysis({ day }: { day: DemoDay }) {
   const seasons = day.seasons;
-  const [primarySeason, setPrimarySeason] = useState(seasons[0]!.season);
-  const [compareA, setCompareA] = useState(seasons[0]!.season);
-  const [compareB, setCompareB] = useState(seasons[1]!.season);
+  const { weight, temp, thresholds, seasons: seasonRecords } = useClubSettings();
+  const { user } = useSession();
+  const { viewBatch } = useBatchState();
+  const [primaryName, setPrimaryName] = useState(seasons[0]!.season);
+  const [compareName, setCompareName] = useState(seasons[1]!.season);
 
-  const primary = seasons.find((item) => item.season === primarySeason) ?? seasons[0]!;
-  const seasonA = seasons.find((item) => item.season === compareA) ?? seasons[0]!;
-  const resolvedB =
-    compareB === compareA
-      ? (seasons.find((item) => item.season !== compareA) ?? seasons[1]!)
-      : (seasons.find((item) => item.season === compareB) ?? seasons[1]!);
+  const current = seasons[0]!;
+  const primary = seasons.find((season) => season.season === primaryName) ?? current;
+  const compare =
+    seasons.find((season) => season.season === compareName && season.season !== primaryName) ??
+    seasons.find((season) => season.season !== primary.season)!;
+  const isCurrent = primary.season === current.season;
+  const py = year(primary);
+  const cy = year(compare);
 
-  const primaryChart = primary.weeklyFlow.map((point) => ({
-    week: point.week,
-    Sap: point.lbs,
-    Temp: point.temp,
+  const pStats = seasonStats(primary, isCurrent);
+  const cStats = seasonStats(compare, compare.season === current.season);
+
+  const batches = day.batches.map(viewBatch).map((view) => view.batch);
+  const boiled = batches.filter((batch) => batch.status === "completed" || batch.status === "processing");
+  const closed = batches.filter((batch) => batch.status === "completed" && batch.syrupOutLbs > 0);
+  const closedSyrup = closed.reduce((sum, batch) => sum + batch.syrupOutLbs, 0);
+  // Ratio from closed batches only: a batch still boiling has sap in but no syrup yet.
+  const ratioFor = (season: SeasonSummary) =>
+    season.season === current.season
+      ? closedSyrup
+        ? closed.reduce((sum, batch) => sum + batch.sapInLbs, 0) / closedSyrup
+        : 0
+      : season.sapToSyrupRatio;
+  const boilSessions = (season: SeasonSummary) =>
+    season.season === current.season ? boiled.length : season.totalBatches;
+
+  const seasonDays = (season: SeasonSummary) => {
+    const record = seasonRecords.find((item) => item.name === season.season);
+    return record ? daysBetween(record.start, record.end) + 1 : season.weeklyFlow.length;
+  };
+
+  // Both series lined up by day of March.
+  const frame = primary.weeklyFlow.length >= compare.weeklyFlow.length ? primary.weeklyFlow : compare.weeklyFlow;
+  const dailyData = frame.map((point, index) => ({
+    day: point.week,
+    [py]: primary.weeklyFlow[index]?.lbs ?? null,
+    [cy]: compare.weeklyFlow[index]?.lbs ?? null,
   }));
 
-  // Compare against the longer of the two series so neither gets truncated.
-  const frame =
-    seasonA.weeklyFlow.length >= resolvedB.weeklyFlow.length
-      ? seasonA.weeklyFlow
-      : resolvedB.weeklyFlow;
-
-  const compareFlowData = frame.map((point, index) => ({
-    week: point.week,
-    [seasonA.season]: seasonA.weeklyFlow[index]?.lbs ?? null,
-    [resolvedB.season]: resolvedB.weeklyFlow[index]?.lbs ?? null,
+  const cycles = cycleDays(primary, isCurrent);
+  const cycleData = primary.weeklyFlow.map((point, index) => ({
+    day: point.week,
+    lbs: point.lbs,
+    cycle: cycles[index],
+    compare: compare.weeklyFlow[index]?.lbs ?? null,
   }));
 
-  const ratioData = [seasonA, resolvedB].map((season) => ({
-    season: season.season.replace("Season ", ""),
-    ratio: season.sapToSyrupRatio,
-  }));
+  const yields = isCurrent ? bucketYields(day) : [];
+  const maxYield = Math.max(1, ...yields.map((item) => item.total));
+  const overdue = isCurrent ? overduePickups(day, thresholds) : [];
+  const canExport = user.role !== "member";
 
-  const peakLbs = primary.weeklyFlow.length
-    ? Math.max(...primary.weeklyFlow.map((point) => point.lbs))
-    : 0;
+  const openBatches = batches.filter((batch) => batch.status !== "completed");
+  const weakest = yields[yields.length - 1];
+  const notes = [
+    {
+      note: `Sap total is ${primary.totalSapLbs < compare.totalSapLbs ? "down" : "up"} ${Math.round(
+        (Math.abs(primary.totalSapLbs - compare.totalSapLbs) / Math.max(compare.totalSapLbs, 1)) * 100,
+      )}%`,
+      detail: `${pStats.cycleDays < cStats.cycleDays ? "Fewer" : "More"} freeze-thaw cycle days recorded than in ${cy} (${pStats.cycleDays} vs ${cStats.cycleDays}).`,
+    },
+    ...(isCurrent && openBatches.length
+      ? [
+          {
+            note: "Ratio uses closed batches only",
+            detail: `${openBatches.map((batch) => batch.batchNumber).join(" and ")} ${
+              openBatches.length === 1 ? "has" : "have"
+            } no syrup yet, so ${openBatches.length === 1 ? "it is" : "they are"} excluded. Update them when boiling finishes.`,
+          },
+        ]
+      : []),
+    ...(weakest
+      ? [
+          {
+            note: `Bucket ${weakest.label} yields least`,
+            detail: `Battery is at ${Math.round(weakest.battery)}% and it sits in the ${weakest.location}. Check the sensor and the tree location.`,
+          },
+        ]
+      : []),
+  ];
+
+  function exportCsv() {
+    const rows = [["day", `${py} lbs`, `${cy} lbs`, `${py} temp F`]];
+    frame.forEach((point, index) =>
+      rows.push([
+        point.week,
+        String(primary.weeklyFlow[index]?.lbs ?? ""),
+        String(compare.weeklyFlow[index]?.lbs ?? ""),
+        String(primary.weeklyFlow[index]?.temp ?? ""),
+      ]),
+    );
+    const blob = new Blob([rows.map((row) => row.join(",")).join("\n")], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `sap-analysis-${py}-vs-${cy}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
 
   return (
-    <div className="w-full space-y-6 p-4 md:p-6">
-      <section>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-sans text-base font-semibold">Season Summary</h2>
-          <select
-            value={primarySeason}
-            onChange={(event) => setPrimarySeason(event.target.value)}
-            className="rounded-xl border bg-white px-3 py-2 font-sans text-sm outline-none"
-            style={{ borderColor: "var(--color-border)" }}
-          >
-            {seasons.map((season) => (
-              <option key={season.season} value={season.season}>
-                {season.season}
-              </option>
-            ))}
-          </select>
+    <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-sans text-3xl font-bold tracking-tight md:text-[40px] md:leading-tight">Analysis</h1>
+          <p className="mt-1 text-sm text-muted">
+            Compares with the season before by default. Pick any past season.
+          </p>
         </div>
-
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: "Total Sap", value: `${primary.totalSapLbs} lbs` },
-            { label: "Total Syrup", value: `${primary.totalSyrupLbs} lbs` },
-            { label: "Avg Brix", value: primary.avgBrix > 0 ? `${primary.avgBrix}°` : "—" },
-            {
-              label: "Sap→Syrup",
-              value:
-                primary.sapToSyrupRatio > 0 ? `${primary.sapToSyrupRatio}:1` : "—",
-            },
-          ].map((card) => (
-            <div
-              key={card.label}
-              className="rounded-xl bg-white px-3 py-3 shadow-sm"
-              style={{ border: "1px solid var(--color-border)" }}
-            >
-              <div className="mb-0.5 text-xs text-muted">{card.label}</div>
-              <div className="font-sans text-lg font-bold">{card.value}</div>
-            </div>
-          ))}
+        <div className="flex flex-wrap items-end gap-3">
+          <SeasonSelect label="Season" value={primary.season} seasons={seasons} onChange={setPrimaryName} />
+          <SeasonSelect
+            label="Compare with"
+            value={compare.season}
+            seasons={seasons.filter((season) => season.season !== primary.season)}
+            onChange={setCompareName}
+          />
+          {canExport ? (
+            <>
+              <Button variant="outline" className="border-border text-text" onClick={exportCsv}>
+                Export CSV
+              </Button>
+              <Button onClick={() => window.print()}>Export PDF Report</Button>
+            </>
+          ) : null}
         </div>
+      </div>
 
-        <div
-          className="rounded-2xl bg-white p-4 shadow-sm"
-          style={{ border: "1px solid var(--color-border)" }}
-        >
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
-            <h3 className="font-sans text-sm font-semibold">
-              {primary.season} Sap Flow
-            </h3>
-            <div className="flex items-center gap-2">
-              <span
-                className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
-                style={{
-                  background: "var(--color-bg)",
-                  border: "1px solid var(--color-border)",
-                }}
-              >
-                <span className="text-muted">Avg Temp</span>
-                <span className="font-semibold">{primary.avgTempF}°F</span>
-              </span>
-              <span
-                className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
-                style={{
-                  background: "var(--color-bg)",
-                  border: "1px solid var(--color-border)",
-                }}
-              >
-                <span className="text-muted">Peak</span>
-                <span className="font-semibold">{peakLbs} lbs</span>
-              </span>
-            </div>
-          </div>
+      <h2 className="mb-3 font-sans text-base font-semibold">Season Metrics</h2>
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          dark
+          label="Total sap"
+          value={weight(primary.totalSapLbs)}
+          note={versus(primary.totalSapLbs, compare.totalSapLbs, cy, (diff) =>
+            `${Math.round((diff / Math.max(compare.totalSapLbs, 1)) * 100)}%`,
+          )}
+        />
+        <StatCard
+          label="Syrup"
+          value={weight(primary.totalSyrupLbs)}
+          note={versus(primary.totalSyrupLbs, compare.totalSyrupLbs, cy, (diff) => weight(diff))}
+        />
+        <StatCard
+          label="Avg Brix"
+          value={primary.avgBrix ? `${primary.avgBrix}°` : "—"}
+          note={primary.avgBrix ? versus(primary.avgBrix, compare.avgBrix, cy, (diff) => `${diff.toFixed(1)}°`) : "no batch finished yet"}
+        />
+        <StatCard
+          label="Sap to syrup"
+          value={ratioFor(primary) ? `${ratioFor(primary).toFixed(1)} : 1` : "—"}
+          note="closed batches only"
+        />
+        <StatCard
+          label="Season length"
+          value={`${pStats.days} days`}
+          note={`${isCurrent ? "so far; " : ""}${cy} ran ${seasonDays(compare)}`}
+        />
+        <StatCard label="Boil sessions" value={String(boilSessions(primary))} note={`${cy}: ${boilSessions(compare)}`} />
+        <StatCard
+          label="Sap per tree"
+          value={weight(Math.round((primary.totalSapLbs / TREE_COUNT) * 10) / 10)}
+          note={`${cy}: ${weight(Math.round((compare.totalSapLbs / TREE_COUNT) * 10) / 10)}`}
+        />
+        <StatCard
+          label="Syrup per tree"
+          value={weight(Math.round((primary.totalSyrupLbs / TREE_COUNT) * 100) / 100)}
+          note={`${cy}: ${weight(Math.round((compare.totalSyrupLbs / TREE_COUNT) * 100) / 100)}`}
+        />
+      </div>
 
-          <ResponsiveContainer width="100%" height={190}>
-            <LineChart data={primaryChart}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0EAD6" />
-              <XAxis
-                dataKey="week"
-                tick={{ fontSize: 11, fill: "#9CA3AF" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                yAxisId="sap"
-                tick={{ fontSize: 11, fill: "#9CA3AF" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(value: number) => `${value} lbs`}
-                width={48}
-              />
-              <YAxis
-                yAxisId="temp"
-                orientation="right"
-                tick={{ fontSize: 11, fill: "#9CA3AF" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(value: number) => `${value}°`}
-                width={32}
-              />
-              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#9CA3AF", marginBottom: 4 }} />
+      <div className="mb-6 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+        <Panel title="Daily Sap Collected (lbs)" subtitle={`Season ${py} against ${cy}, by day of March.`}>
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={dailyData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+              <CartesianGrid vertical={false} stroke="#ECECE6" />
+              <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
+              <YAxis tick={axisTick} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#B9C8B3" }} />
+              <Line type="linear" dataKey={py} stroke="#1A2318" strokeWidth={2} dot={false} isAnimationActive={false} />
               <Line
-                yAxisId="sap"
-                type="monotone"
-                dataKey="Sap"
-                name="Sap (lbs)"
-                stroke="#2B4A1E"
-                strokeWidth={2.5}
-                dot={{ r: 4, fill: "#2B4A1E" }}
-                isAnimationActive={false}
-              />
-              <Line
-                yAxisId="temp"
-                type="monotone"
-                dataKey="Temp"
-                name="Temp (°F)"
-                stroke="#F59E0B"
+                type="linear"
+                dataKey={cy}
+                stroke="var(--color-slate)"
                 strokeWidth={2}
-                strokeDasharray="5 3"
+                strokeDasharray="5 4"
                 dot={false}
                 isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>
-        </div>
-      </section>
-
-      <div style={{ height: 1, background: "var(--color-border)" }} />
-
-      <section>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-sans text-base font-semibold">Compare Seasons</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={compareA}
-              onChange={(event) => setCompareA(event.target.value)}
-              className="rounded-xl border bg-white px-3 py-2 font-sans text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            >
-              {seasons.map((season) => (
-                <option key={season.season} value={season.season}>
-                  {season.season}
-                </option>
-              ))}
-            </select>
-            <span className="text-sm text-muted">vs</span>
-            <select
-              value={resolvedB.season}
-              onChange={(event) => setCompareB(event.target.value)}
-              className="rounded-xl border bg-white px-3 py-2 font-sans text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            >
-              {seasons
-                .filter((season) => season.season !== compareA)
-                .map((season) => (
-                  <option key={season.season} value={season.season}>
-                    {season.season}
-                  </option>
-                ))}
-            </select>
+          <div className="mt-2 flex gap-5 text-xs text-muted">
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-0.5 w-4 bg-text" /> {py}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block w-4 border-t-2 border-dashed border-slate" /> {cy}
+            </span>
           </div>
-        </div>
+        </Panel>
 
-        <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {[
-            {
-              label: "Total Sap",
-              a: `${seasonA.totalSapLbs} lbs`,
-              b: `${resolvedB.totalSapLbs} lbs`,
-            },
-            {
-              label: "Total Syrup",
-              a: `${seasonA.totalSyrupLbs} lbs`,
-              b: `${resolvedB.totalSyrupLbs} lbs`,
-            },
-            {
-              label: "Avg Brix",
-              a: seasonA.avgBrix > 0 ? `${seasonA.avgBrix}°` : "—",
-              b: resolvedB.avgBrix > 0 ? `${resolvedB.avgBrix}°` : "—",
-            },
-            {
-              label: "Ratio",
-              a: seasonA.sapToSyrupRatio > 0 ? `${seasonA.sapToSyrupRatio}:1` : "—",
-              b: resolvedB.sapToSyrupRatio > 0 ? `${resolvedB.sapToSyrupRatio}:1` : "—",
-            },
-          ].map((item) => (
-            <div
-              key={item.label}
-              className="rounded-xl bg-white p-3 shadow-sm"
-              style={{ border: "1px solid var(--color-border)" }}
-            >
-              <div className="mb-1.5 text-xs text-muted">{item.label}</div>
-              <div className="flex flex-wrap items-baseline gap-1.5">
-                <span
-                  className="text-sm font-bold"
-                  style={{ color: seasonColor(seasonA.season, "#2B4A1E") }}
-                >
-                  {item.a}
-                </span>
-                <span className="text-xs text-muted">vs</span>
-                <span
-                  className="text-sm font-bold"
-                  style={{ color: seasonColor(resolvedB.season, "#F59E0B") }}
-                >
-                  {item.b}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+        <Panel title="Season Totals">
+          <DataTable
+            columns={[
+              { key: "label", label: "" },
+              { key: "p", label: py, align: "right" },
+              { key: "c", label: cy, align: "right" },
+            ]}
+            rows={[
+              ["Total sap", weight(primary.totalSapLbs), weight(compare.totalSapLbs)],
+              ["Peak day", weight(pStats.peakLbs), weight(cStats.peakLbs)],
+              ["Best day", pStats.bestDay, cStats.bestDay],
+              ["Avg temp", temp(primary.avgTempF), temp(compare.avgTempF)],
+              ["Collections", String(primary.totalCollections), String(compare.totalCollections)],
+              ["Freeze-thaw days", String(pStats.cycleDays), String(cStats.cycleDays)],
+            ].map(([label, p, c]) => ({ key: label!, cells: { label, p, c } }))}
+          />
+        </Panel>
 
-        <div
-          className="mb-4 rounded-2xl bg-white p-4 shadow-sm"
-          style={{ border: "1px solid var(--color-border)" }}
+        <Panel
+          title="Freeze-Thaw Days vs Sap per Day"
+          subtitle={`Dark bars had a hard freeze overnight and a thaw by midday. The dashed line is ${cy}.`}
         >
-          <h3 className="mb-4 font-sans text-sm font-semibold">
-            Daily Sap Flow Comparison
-          </h3>
-          <ResponsiveContainer width="100%" height={190}>
-            <LineChart data={compareFlowData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0EAD6" />
-              <XAxis
-                dataKey="week"
-                tick={{ fontSize: 11, fill: "#9CA3AF" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "#9CA3AF" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(value: number) => `${value} lbs`}
-                width={48}
-              />
-              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#9CA3AF", marginBottom: 4 }} />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-              <Line
-                type="monotone"
-                dataKey={seasonA.season}
-                stroke={seasonColor(seasonA.season, "#2B4A1E")}
-                strokeWidth={2.5}
-                dot={{ r: 3 }}
-                connectNulls
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey={resolvedB.season}
-                stroke={seasonColor(resolvedB.season, "#F59E0B")}
-                strokeWidth={2}
-                strokeDasharray="5 3"
-                dot={{ r: 3 }}
-                connectNulls
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div
-          className="rounded-2xl bg-white p-4 shadow-sm"
-          style={{ border: "1px solid var(--color-border)" }}
-        >
-          <h3 className="mb-1 font-sans text-sm font-semibold">
-            Sap-to-Syrup Efficiency
-          </h3>
-          <p className="mb-4 text-xs text-muted">
-            Lower ratio = more syrup per pound of sap
-          </p>
-          <ResponsiveContainer width="100%" height={120}>
-            <BarChart data={ratioData} layout="vertical" barSize={32}>
-              <XAxis
-                type="number"
-                tick={{ fontSize: 11, fill: "#9CA3AF" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(value: number) => `${value}:1`}
-              />
-              <YAxis
-                type="category"
-                dataKey="season"
-                tick={{ fontSize: 12, fill: "#4B5563" }}
-                axisLine={false}
-                tickLine={false}
-                width={44}
-              />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                formatter={(value) => [`${value}:1 ratio`, ""]}
-              />
-              <Bar dataKey="ratio" radius={[0, 6, 6, 0]} isAnimationActive={false}>
-                {ratioData.map((entry, index) => (
-                  <Cell
-                    key={entry.season}
-                    fill={
-                      index === 0
-                        ? seasonColor(seasonA.season, "#2B4A1E")
-                        : seasonColor(resolvedB.season, "#F59E0B")
-                    }
-                  />
+          <ResponsiveContainer width="100%" height={220}>
+            <ComposedChart data={cycleData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+              <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
+              <YAxis tick={axisTick} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#B9C8B3" }} />
+              <Bar dataKey="lbs" name={py} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                {cycleData.map((point) => (
+                  <Cell key={point.day} fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"} />
                 ))}
               </Bar>
-            </BarChart>
+              <Line
+                type="monotone"
+                dataKey="compare"
+                name={cy}
+                stroke="var(--color-slate)"
+                strokeWidth={2}
+                strokeDasharray="4 4"
+                dot={false}
+                isAnimationActive={false}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
-        </div>
+        </Panel>
 
-        <div
-          className="mt-4 rounded-2xl p-4"
-          style={{
-            background: "rgba(245,158,11,0.08)",
-            border: "1px solid rgba(245,158,11,0.2)",
-          }}
-        >
-          <div className="flex items-start gap-3">
-            <span className="text-2xl">🌡️</span>
-            <div>
-              <p className="mb-1 font-sans text-sm font-semibold">
-                What affects sap flow?
-              </p>
-              <p className="text-xs leading-relaxed text-muted">
-                Freeze-thaw cycles - nights below 28°F and days between 38-45°F - create
-                pressure differentials that drive sap through the tree. Cloudy days and
-                wind can reduce flow even when temperatures are ideal.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+        <Panel title="Freeze-Thaw Summary">
+          <DataTable
+            columns={[
+              { key: "label", label: "" },
+              { key: "p", label: py, align: "right" },
+              { key: "c", label: cy, align: "right" },
+            ]}
+            rows={[
+              ["Cycle days", String(pStats.cycleDays), String(cStats.cycleDays)],
+              ["Avg lbs, cycle day", pStats.avgCycleLbs.toFixed(1), cStats.avgCycleLbs.toFixed(1)],
+              ["Avg lbs, other day", pStats.avgOtherLbs.toFixed(1), cStats.avgOtherLbs.toFixed(1)],
+              ["Sap from cycle days", `${Math.round(pStats.cycleShare * 100)}%`, `${Math.round(cStats.cycleShare * 100)}%`],
+            ].map(([label, p, c]) => ({ key: label!, cells: { label, p, c } }))}
+          />
+        </Panel>
+
+        {isCurrent ? (
+          <>
+            <Panel title="Yield by Bucket" subtitle="Season total in lbs, to spot weak trees.">
+              <div className="space-y-5 py-2">
+                {yields.map((item) => (
+                  <div key={item.bucketId} className="grid grid-cols-[44px_1fr_44px] items-center gap-4">
+                    <span className="text-sm">{item.label}</span>
+                    <div className="h-3 overflow-hidden rounded-full bg-progress-track">
+                      <div
+                        className="h-full rounded-full bg-accent-mid"
+                        style={{ width: `${(item.total / maxYield) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-right font-sans text-sm font-semibold">{item.total}</span>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+
+            <Panel title="Bucket Detail" subtitle="Scrolls when there are more trees.">
+              <div className="max-h-72 overflow-y-auto">
+                <DataTable
+                  columns={[
+                    { key: "bucket", label: "Bucket" },
+                    { key: "total", label: "Total", align: "right" },
+                    { key: "perDay", label: "Per day", align: "right" },
+                  ]}
+                  rows={yields.map((item) => ({
+                    key: String(item.bucketId),
+                    cells: { bucket: item.label, total: item.total, perDay: item.perDay },
+                  }))}
+                />
+              </div>
+            </Panel>
+
+            <Panel title="Batches: Sap in and Syrup Out" subtitle="Only boiled batches count toward the ratio.">
+              <DataTable
+                columns={[
+                  { key: "batch", label: "Batch" },
+                  { key: "date", label: "Date" },
+                  { key: "sapIn", label: "Sap in" },
+                  { key: "syrup", label: "Syrup out" },
+                  { key: "brix", label: "Brix" },
+                  { key: "ratio", label: "Ratio" },
+                  { key: "water", label: "Water removed" },
+                ]}
+                rows={batches.map((batch) => {
+                  const done = batch.status === "completed" && batch.syrupOutLbs > 0;
+                  return {
+                    key: batch.id,
+                    cells: {
+                      batch: batch.batchNumber.replace("Batch ", ""),
+                      date: monthDay(batch.date),
+                      sapIn: weight(batch.sapInLbs),
+                      syrup: done ? weight(batch.syrupOutLbs) : "—",
+                      brix: done ? `${batch.brix}°` : "—",
+                      ratio: done ? `${(batch.sapInLbs / batch.syrupOutLbs).toFixed(1)} : 1` : "—",
+                      water: done
+                        ? `${Math.round(((batch.sapInLbs - batch.syrupOutLbs) / batch.sapInLbs) * 100)}%`
+                        : "—",
+                    },
+                  };
+                })}
+              />
+            </Panel>
+
+            <Panel title="Overdue Pickups" subtitle="Collections made after the sap-age limit.">
+              <DataTable
+                empty="Every collection was on time."
+                columns={[
+                  { key: "date", label: "Date" },
+                  { key: "bucket", label: "Bucket" },
+                  { key: "hours", label: "Hours overdue", align: "right" },
+                ]}
+                rows={overdue.map((row) => ({
+                  key: `${row.date}-${row.bucket}`,
+                  cells: { date: monthDay(row.date), bucket: row.bucket, hours: row.hoursOver.toFixed(1) },
+                }))}
+              />
+            </Panel>
+          </>
+        ) : (
+          <Card className="text-sm text-muted xl:col-span-2">
+            Per-bucket yield, batch and pickup detail is kept for the current season only. Pick Season{" "}
+            {year(current)} to see it.
+          </Card>
+        )}
+      </div>
+
+      <Panel title="Season Notes" subtitle="Generated from the data. Check anything unusual before relying on it.">
+        <DataTable
+          columns={[
+            { key: "note", label: "Note", className: "w-1/3" },
+            { key: "detail", label: "Detail" },
+          ]}
+          rows={notes.map((row) => ({ key: row.note, cells: row }))}
+        />
+      </Panel>
     </div>
   );
 }

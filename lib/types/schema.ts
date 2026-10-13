@@ -66,12 +66,16 @@ export interface Metric {
 }
 
 /**
- * Online unless the hardware stopped reporting (offline) or an admin flipped
- * the maintenance toggle. Maintenance wins over offline so a station being
- * worked on reads as such. Problems on an online station show up as alerts,
- * not as a separate status.
+ * What a station card says about its bucket, most urgent first:
+ * maintenance (set by a manager) > offline > full > low battery > due > filling.
  */
-export type StationStatus = "online" | "maintenance" | "offline";
+export type StationStatus =
+  | "filling"
+  | "due"
+  | "full"
+  | "lowBattery"
+  | "offline"
+  | "maintenance";
 
 export type UserRole = "admin" | "student" | "guest";
 
@@ -81,18 +85,48 @@ export interface StationNote {
   createdAt: string;
 }
 
+export type AlertKind = "offline" | "full" | "due" | "sapAge" | "battery" | "weather";
+
+export type AlertSeverity = "warn" | "critical";
+
+/** A live condition that needs someone's attention. Derived from the day's readings. */
+export interface ClubAlert {
+  /** Stable across days for the same condition on the same bucket */
+  key: string;
+  kind: AlertKind;
+  severity: AlertSeverity;
+  /** null for grove-wide alerts such as weather */
+  bucketId: number | null;
+  /** "#02", or "All" */
+  bucketLabel: string;
+  title: string;
+  /** Short advice, for the dashboard */
+  advice: string;
+  /** Location and since, for the Alerts page */
+  context: string;
+  /** Status word shown in history tables: "Due", "Full", "No signal"... */
+  label: string;
+}
+
 export interface StationView {
   bucketId: number;
   nodeId: number;
   name: string;
+  /** "#02" */
+  shortName: string;
   location: string;
+  /** "North Grove, tree 2" */
+  treeLabel: string;
+  sensorId: string;
   treeSpecies: string;
+  lat: number;
+  lon: number;
   status: StationStatus;
   /** Hardware state, independent of the maintenance toggle */
   isOffline: boolean;
   inMaintenance: boolean;
-  /** Unresolved alerts for this station's node */
-  alerts: Alert[];
+  /** Live alerts for this bucket, before acknowledgement */
+  alerts: ClubAlert[];
   /** Newest first */
   notes: StationNote[];
   lastUpdated: string;
@@ -101,6 +135,10 @@ export interface StationView {
   fillPercent: number;
   batteryLevel: number;
   sapFlowLph: number;
+  /** Hours the sap has sat thawed since the last collection */
+  sapAgeHours: number;
+  /** Emptied by a collection logged in the app today */
+  loggedToday: boolean;
   trend: number[];
 }
 
@@ -176,6 +214,8 @@ export interface Batch {
   brix: number;
   createdBy: string;
   notes?: string;
+  /** Time on the evaporator, once finished */
+  boilMinutes?: number;
 }
 
 export interface SeasonFlowPoint {

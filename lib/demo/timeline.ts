@@ -25,6 +25,10 @@ export interface DemoBucketState {
   name: string;
   location: string;
   treeSpecies: string;
+  treeLabel: string;
+  sensorId: string;
+  lat: number;
+  lon: number;
   fillLbs: number;
   capacityLbs: number;
   fillPercent: number;
@@ -240,6 +244,10 @@ function buildTimeline(): DemoDay[] {
         name: profile.name,
         location: profile.location,
         treeSpecies: profile.treeSpecies,
+        treeLabel: profile.treeLabel,
+        sensorId: profile.sensorId,
+        lat: profile.lat,
+        lon: profile.lon,
         fillLbs,
         capacityLbs: CAPACITY_LBS,
         fillPercent: round1((after / CAPACITY_LBS) * 100),
@@ -347,6 +355,7 @@ function buildTimeline(): DemoDay[] {
           brix: stage.brix,
           createdBy: spec.createdBy,
           notes: stage.notes,
+          boilMinutes: stage.boilMinutes,
         };
       })
       .reverse();
@@ -416,7 +425,12 @@ function buildTimeline(): DemoDay[] {
       totalSyrupLbs: round1(syrupProducedLbs),
       avgBrix: round1(avgBrix),
       sapToSyrupRatio:
-        syrupProducedLbs > 0 ? round1(sapProcessedLbs / syrupProducedLbs) : 0,
+        // Closed batches only: a batch still boiling has sap in but no syrup yet.
+        syrupProducedLbs > 0
+          ? round1(
+              completedBatches.reduce((sum, batch) => sum + batch.sapInLbs, 0) / syrupProducedLbs,
+            )
+          : 0,
       totalCollections: collections.length,
       totalBatches: batches.length,
       avgTempF,

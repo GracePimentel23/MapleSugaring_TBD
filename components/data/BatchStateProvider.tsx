@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useStationState } from "@/components/stations/StationStateProvider";
 import type { Batch, StationNote } from "@/lib/types/schema";
 
 /** Fields a user can change from the batch Edit sheet. */
@@ -75,6 +76,7 @@ export default function BatchStateProvider({ children }: { children: ReactNode }
   const [edits, setEdits] = useState<Record<string, BatchEdit>>({});
   const [notes, setNotes] = useState<Record<string, StationNote[]>>({});
   const [stamps, setStamps] = useState<Record<string, BatchEditStamp>>({});
+  const { loggedCollections } = useStationState();
 
   const saveBatch = useCallback<BatchStateValue["saveBatch"]>(
     (batchNumber, edit, note, stamp) => {
@@ -94,13 +96,20 @@ export default function BatchStateProvider({ children }: { children: ReactNode }
     (batch: Batch): BatchView => {
       const edit = edits[batch.batchNumber];
       const seed = timelineNote(batch);
+      // Collections logged in the app add their sap to the batch they went into.
+      const loggedLbs = loggedCollections
+        .filter((entry) => entry.batchNumber === batch.batchNumber)
+        .reduce((sum, entry) => sum + entry.lbs, 0);
+      const merged = edit ? { ...batch, ...edit } : batch;
       return {
-        batch: edit ? { ...batch, ...edit } : batch,
+        batch: loggedLbs
+          ? { ...merged, sapInLbs: Math.round((merged.sapInLbs + loggedLbs) * 10) / 10 }
+          : merged,
         notes: [...(notes[batch.batchNumber] ?? []), ...(seed ? [seed] : [])],
         lastEdited: stamps[batch.batchNumber] ?? null,
       };
     },
-    [edits, notes, stamps],
+    [edits, notes, stamps, loggedCollections],
   );
 
   const value = useMemo(() => ({ saveBatch, viewBatch }), [saveBatch, viewBatch]);

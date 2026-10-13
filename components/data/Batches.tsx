@@ -6,85 +6,87 @@ import {
   type BatchEditStamp,
   type BatchView,
 } from "@/components/data/BatchStateProvider";
+import { MoreIcon, PencilIcon } from "@/components/icons";
+import { useClubSettings } from "@/components/session/ClubSettingsProvider";
+import { useSession } from "@/components/session/SessionProvider";
 import { NotesList } from "@/components/stations/StationForms";
-import { batchStatusStyles as statusStyles } from "@/lib/batchStatus";
-import { canManage, currentUser, formatNoteTimestamp } from "@/lib/data/stationNotes";
+import { Button, Card, cx, DataTable, Field, inputClass, Modal, PageHeader, StatCard } from "@/components/ui/ui";
+import { batchStatusLabel } from "@/lib/batchStatus";
 import type { DemoDay } from "@/lib/demo/timeline";
-import type { Batch, UserRole } from "@/lib/types/schema";
+import { monthDay, noteStamp, shortDate } from "@/lib/time";
+import type { Batch, BatchStatus } from "@/lib/types/schema";
 
-/** Notes shown on a batch before "See more". */
-const VISIBLE_NOTES = 2;
+const stages = ["Collecting", "Boiling", "Finishing", "Closed"] as const;
 
-function formatDate(iso: string): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  return new Date(Date.UTC(year!, month! - 1, day!)).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+/** Where each status sits on the four-stage track. Waiting is still before boiling. */
+const stageIndex: Record<BatchStatus, number> = {
+  waiting: 0,
+  active: 0,
+  processing: 1,
+  completed: 3,
+};
+
+function formatDuration(minutes?: number): string {
+  if (!minutes) return "—";
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
 
-function EditButton({ onClick }: { onClick: () => void }) {
+function StageTrack({ status }: { status: BatchStatus }) {
+  const current = stageIndex[status];
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-lg border px-2.5 py-1 text-xs text-muted transition-colors hover:bg-gray-50"
-      style={{ borderColor: "var(--color-border)" }}
-    >
-      Edit
-    </button>
+    <div className="grid grid-cols-4 gap-2 md:gap-4">
+      {stages.map((stage, index) => (
+        <div key={stage}>
+          <div
+            className="h-2.5 rounded-full"
+            style={{
+              // Stages already passed are pale green; the current one is stronger.
+              background:
+                index > current
+                  ? "var(--color-progress-track)"
+                  : index === current && current > 0
+                    ? "#6FA867"
+                    : "#A9C99F",
+            }}
+          />
+          <div
+            className={cx(
+              "mt-2 text-sm md:text-[15px]",
+              index === current ? "font-semibold text-text" : "text-muted",
+            )}
+          >
+            {stage}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
-function ChevronIcon({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }}
-      aria-hidden="true"
-    >
-      <path
-        d="M4 6l4 4 4-4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-/** The two newest notes, with the rest behind "See more". */
+/** The newest note as the batch's one-line status, with the full list behind a link. */
 function BatchNotes({ view }: { view: BatchView }) {
-  const [showAll, setShowAll] = useState(false);
-  const hidden = view.notes.length - VISIBLE_NOTES;
-
-  if (view.notes.length === 0 && !view.lastEdited) return null;
+  const [open, setOpen] = useState(false);
+  const latest = view.notes[0];
 
   return (
-    <div className="mt-3">
+    <div className="mt-4">
+      {latest ? <p className="text-[15px] text-muted">{latest.text}</p> : null}
       {view.notes.length > 0 ? (
-        <>
-          <p className="mb-2 text-xs font-semibold">Notes</p>
-          <NotesList notes={showAll ? view.notes : view.notes.slice(0, VISIBLE_NOTES)} />
-          {hidden > 0 ? (
-            <button
-              type="button"
-              onClick={() => setShowAll(!showAll)}
-              className="mt-2 text-xs font-medium text-accent hover:underline"
-            >
-              {showAll ? "Show less" : `See more (${hidden} older note${hidden === 1 ? "" : "s"})`}
-            </button>
-          ) : null}
-        </>
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="mt-2 text-sm font-medium text-accent-mid hover:underline"
+        >
+          {open ? "Hide notes" : `See all notes (${view.notes.length})`}
+        </button>
+      ) : null}
+      {open ? (
+        <div className="mt-3">
+          <NotesList notes={view.notes} />
+        </div>
       ) : null}
       {view.lastEdited ? (
-        <p className="mt-2 text-[11px] text-muted">
+        <p className="mt-2 text-xs text-muted">
           Last edited by {view.lastEdited.by} · {view.lastEdited.at}
         </p>
       ) : null}
@@ -92,135 +94,114 @@ function BatchNotes({ view }: { view: BatchView }) {
   );
 }
 
-function BatchDetails({ view }: { view: BatchView }) {
+function OpenBatchCard({ view, onEdit }: { view: BatchView; onEdit: (() => void) | null }) {
+  const { weight } = useClubSettings();
   const { batch } = view;
 
   return (
-    <>
-      <div className="grid grid-cols-3 gap-2">
-        {[
-          { label: "Sap In", value: `${batch.sapInLbs} lbs` },
-          {
-            label: "Syrup Out",
-            value: batch.syrupOutLbs > 0 ? `${batch.syrupOutLbs} lbs` : "—",
-          },
-          { label: "Brix", value: batch.brix > 0 ? `${batch.brix}°` : "—" },
-        ].map((item) => (
-          <div
-            key={item.label}
-            className="rounded-xl p-2.5"
-            style={{ background: "var(--color-bg)" }}
-          >
-            <div className="mb-0.5 text-xs text-muted">{item.label}</div>
-            <div className="font-sans text-sm font-bold">{item.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {batch.status === "completed" && batch.syrupOutLbs > 0 ? (
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-muted">
-          ⚖️ Ratio:{" "}
-          <strong className="text-text">
-            {(batch.sapInLbs / batch.syrupOutLbs).toFixed(1)}:1
-          </strong>
-        </div>
-      ) : null}
-
-      <BatchNotes view={view} />
-    </>
-  );
-}
-
-function BatchCard({ view, onEdit }: { view: BatchView; onEdit: (() => void) | null }) {
-  const { batch } = view;
-  const style = statusStyles[batch.status];
-
-  return (
-    <div
-      className="rounded-2xl bg-white px-4 py-4 shadow-sm"
-      style={{ border: "1px solid var(--color-border)" }}
-    >
-      <div className="mb-3 flex items-start justify-between">
+    <Card className="md:px-8 md:py-7">
+      <div className="mb-5 flex items-start justify-between gap-3">
         <div>
-          <div className="mb-0.5 flex items-center gap-2">
-            <span className="font-sans text-sm font-bold">{batch.batchNumber}</span>
-            <span
-              className="rounded-full px-2 py-0.5 text-xs font-medium"
-              style={{ background: style.bg, color: style.color }}
-            >
-              {style.label}
+          <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+            <span className="font-sans text-xl font-semibold md:text-2xl">{batch.batchNumber}</span>
+            <span className="font-sans text-lg font-semibold text-accent-mid md:text-xl">
+              {batchStatusLabel[batch.status]}
             </span>
           </div>
-          <div className="text-xs text-muted">
-            {formatDate(batch.date)} · {batch.createdBy}
+          <div className="mt-0.5 text-[15px] text-muted">
+            {monthDay(batch.date)} · {batch.createdBy}
           </div>
         </div>
-        {onEdit ? <EditButton onClick={onEdit} /> : null}
-      </div>
-
-      <BatchDetails view={view} />
-    </div>
-  );
-}
-
-/** Completed batches collapse to a summary row, like the Collections list. */
-function CompletedBatchRow({ view, onEdit }: { view: BatchView; onEdit: (() => void) | null }) {
-  const [open, setOpen] = useState(false);
-  const { batch } = view;
-  const style = statusStyles.completed;
-
-  return (
-    <div
-      className="overflow-hidden rounded-2xl bg-white shadow-sm"
-      style={{ border: "1px solid var(--color-border)" }}
-    >
-      <div className="flex w-full items-center justify-between px-4 py-3.5">
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          className="min-w-0 flex-1 text-left"
-          aria-expanded={open}
-        >
-          <div className="mb-0.5 flex items-center gap-2">
-            <span className="font-sans text-sm font-bold">{batch.batchNumber}</span>
-            <span
-              className="rounded-full px-2 py-0.5 text-xs font-medium"
-              style={{ background: style.bg, color: style.color }}
-            >
-              {style.label}
-            </span>
-          </div>
-          <div className="text-xs text-muted">
-            {formatDate(batch.date)} · {batch.sapInLbs} lbs in
-            {batch.syrupOutLbs > 0 ? ` · ${batch.syrupOutLbs} lbs syrup` : ""}
-          </div>
-        </button>
-        <div className="ml-3 flex shrink-0 items-center gap-3">
-          {onEdit ? <EditButton onClick={onEdit} /> : null}
+        {onEdit ? (
           <button
             type="button"
-            onClick={() => setOpen(!open)}
-            className="text-muted"
-            aria-label={open ? "Collapse" : "Expand"}
+            onClick={onEdit}
+            aria-label={`Edit ${batch.batchNumber}`}
+            className="rounded-lg p-2 text-text transition-colors hover:bg-bg"
           >
-            <ChevronIcon open={open} />
+            <PencilIcon size={22} />
           </button>
-        </div>
+        ) : null}
       </div>
 
+      <div className="mb-5">
+        <div className="text-[15px] text-muted">Sap in</div>
+        <div className="font-sans text-3xl font-bold md:text-4xl">{weight(batch.sapInLbs)}</div>
+      </div>
+
+      <StageTrack status={batch.status} />
+      <BatchNotes view={view} />
+    </Card>
+  );
+}
+
+function ClosedRowMenu({
+  view,
+  canEdit,
+  onEdit,
+}: {
+  view: BatchView;
+  canEdit: boolean;
+  onEdit: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-label={`More for ${view.batch.batchNumber}`}
+        className="rounded-lg p-1.5 hover:bg-bg"
+      >
+        <MoreIcon size={20} />
+      </button>
       {open ? (
-        <div className="border-t px-4 py-3" style={{ borderColor: "var(--color-border)" }}>
-          <div className="mb-2 text-xs text-muted">Created by {batch.createdBy}</div>
-          <BatchDetails view={view} />
-        </div>
+        <>
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="fixed inset-0 z-20 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute top-full right-0 z-30 mt-1 w-56 rounded-xl border border-border bg-white p-1.5 text-left shadow-xl">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setShowNotes(true);
+              }}
+              className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-bg"
+            >
+              View notes ({view.notes.length})
+            </button>
+            <button
+              type="button"
+              disabled={!canEdit}
+              onClick={() => {
+                setOpen(false);
+                onEdit();
+              }}
+              className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-bg disabled:cursor-not-allowed disabled:text-muted"
+            >
+              {canEdit ? "Edit (override lock)" : "Edit · Owner / IT only"}
+            </button>
+          </div>
+        </>
+      ) : null}
+      {showNotes ? (
+        <Modal title={`${view.batch.batchNumber} notes`} onClose={() => setShowNotes(false)}>
+          <div className="pb-6">
+            {view.notes.length ? <NotesList notes={view.notes} /> : <p className="text-muted">No notes yet.</p>}
+          </div>
+        </Modal>
       ) : null}
     </div>
   );
 }
 
-const fieldClass = "w-full rounded-xl border px-3 py-2 text-sm outline-none";
-
-/** Everything from Create Batch, plus a note. Each save is stamped with who and when. */
+/** Everything from New Batch, plus a note. Each save is stamped with who and when. */
 function EditBatchModal({
   view,
   day,
@@ -231,6 +212,7 @@ function EditBatchModal({
   onClose: () => void;
 }) {
   const { saveBatch } = useBatchState();
+  const { user, logAudit } = useSession();
   const { batch } = view;
   const [date, setDate] = useState(batch.date);
   const [sapIn, setSapIn] = useState(String(batch.sapInLbs));
@@ -244,413 +226,244 @@ function EditBatchModal({
   }
 
   function save() {
-    const stamp: BatchEditStamp = {
-      by: currentUser.name,
-      at: formatNoteTimestamp(day.date, new Date()),
-    };
+    const stamp: BatchEditStamp = { by: user.name, at: noteStamp(day.date) };
     const text = note.trim();
-    saveBatch(
-      batch.batchNumber,
-      {
-        date: date || batch.date,
-        sapInLbs: numberOr(sapIn, batch.sapInLbs),
-        syrupOutLbs: numberOr(syrupOut, batch.syrupOutLbs),
-        brix: numberOr(brix, batch.brix),
-      },
-      text ? { text, author: stamp.by, createdAt: stamp.at } : null,
-      stamp,
-    );
+    const next = {
+      date: date || batch.date,
+      sapInLbs: numberOr(sapIn, batch.sapInLbs),
+      syrupOutLbs: numberOr(syrupOut, batch.syrupOutLbs),
+      brix: numberOr(brix, batch.brix),
+    };
+    saveBatch(batch.batchNumber, next, text ? { text, author: user.name, createdAt: stamp.at } : null, stamp);
+
+    const changes = [
+      next.syrupOutLbs !== batch.syrupOutLbs && `Syrup out: ${batch.syrupOutLbs || "—"} to ${next.syrupOutLbs} lbs`,
+      next.brix !== batch.brix && `Brix: ${batch.brix || "—"}° to ${next.brix}°`,
+      next.sapInLbs !== batch.sapInLbs && `Sap in: ${batch.sapInLbs} to ${next.sapInLbs} lbs`,
+      text && "Added a note",
+    ].filter(Boolean);
+    logAudit({
+      when: `${shortDate(day.date)}, ${stamp.at.split(" at ")[1]}`,
+      action: batch.status === "completed" ? "Overrode closed batch" : "Edited batch",
+      record: batch.batchNumber,
+      change: changes.join("; ") || "No changes",
+    });
     onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default bg-black/40"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div
-        className="relative z-10 flex w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:max-w-md md:rounded-2xl"
-        style={{ maxHeight: "92vh" }}
-      >
-        <div className="flex shrink-0 items-center justify-between px-5 pt-5 pb-4">
-          <h3 className="font-sans text-base font-semibold">Edit {batch.batchNumber}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1.5 hover:bg-gray-100"
-            aria-label="Close"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M3 3l10 10M13 3L3 13"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-
-        <div className="space-y-3 overflow-y-auto px-5">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              className={fieldClass}
-              style={{ borderColor: "var(--color-border)" }}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Sap In (lbs)</label>
-            <input
-              type="number"
-              value={sapIn}
-              onChange={(event) => setSapIn(event.target.value)}
-              className={fieldClass}
-              style={{ borderColor: "var(--color-border)" }}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">
-                Syrup Out (lbs)
-              </label>
-              <input
-                type="number"
-                value={syrupOut}
-                onChange={(event) => setSyrupOut(event.target.value)}
-                className={fieldClass}
-                style={{ borderColor: "var(--color-border)" }}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Brix (°)</label>
-              <input
-                type="number"
-                value={brix}
-                onChange={(event) => setBrix(event.target.value)}
-                className={fieldClass}
-                style={{ borderColor: "var(--color-border)" }}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Add a note</label>
-            <textarea
-              rows={2}
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Boil progress, quality, anything worth remembering…"
-              className={`${fieldClass} resize-none`}
-              style={{ borderColor: "var(--color-border)" }}
-            />
-            <p className="mt-1 text-[11px] text-muted">
-              Saved as {currentUser.name} ·{" "}
-              {formatNoteTimestamp(day.date, new Date()).replace(/ at .*/, "")}
-            </p>
-          </div>
-          {view.notes.length > 0 ? (
-            <div>
-              <p className="mb-2 text-xs font-semibold">Previous notes</p>
-              <NotesList notes={view.notes} />
-            </div>
-          ) : null}
-        </div>
-
-        <div className="mt-4 flex shrink-0 gap-2 px-5 pb-5">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl border py-2.5 font-sans text-sm font-semibold"
-            style={{ borderColor: "var(--color-border)" }}
-          >
+    <Modal
+      title={`Edit ${batch.batchNumber}`}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            className="flex-1 rounded-xl py-2.5 font-sans text-sm font-semibold text-white"
-            style={{ background: "var(--color-accent)" }}
-          >
-            Save Changes
-          </button>
+          </Button>
+          <Button onClick={save}>Save Changes</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {batch.status === "completed" ? (
+          <p className="rounded-xl border border-attention-border bg-attention-bg px-4 py-2.5 text-sm">
+            This batch is closed. Saving overrides the lock and is written to the audit log.
+          </p>
+        ) : null}
+        <Field label="Date">
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={inputClass} />
+        </Field>
+        <Field label="Sap in (lbs)">
+          <input type="number" value={sapIn} onChange={(event) => setSapIn(event.target.value)} className={inputClass} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Syrup out (lbs)">
+            <input type="number" value={syrupOut} onChange={(event) => setSyrupOut(event.target.value)} className={inputClass} />
+          </Field>
+          <Field label="Brix (°)">
+            <input type="number" value={brix} onChange={(event) => setBrix(event.target.value)} className={inputClass} />
+          </Field>
         </div>
+        <Field label="Add a note" hint={`Saved as ${user.name}, ${noteStamp(day.date)}`}>
+          <textarea
+            rows={3}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Boil progress, quality, anything worth remembering…"
+            className={`${inputClass} resize-none`}
+          />
+        </Field>
+        {view.notes.length > 0 ? (
+          <div className="pb-2">
+            <p className="mb-2 text-sm font-semibold">Previous notes</p>
+            <NotesList notes={view.notes} />
+          </div>
+        ) : null}
       </div>
-    </div>
+    </Modal>
   );
 }
 
-function CreateBatchModal({ onClose }: { onClose: () => void }) {
+function NewBatchModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default bg-black/40"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div className="relative z-10 w-full rounded-t-3xl bg-white p-5 shadow-2xl md:max-w-md md:rounded-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-sans text-base font-semibold">Create Batch</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1.5 hover:bg-gray-100"
-            aria-label="Close"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-              <path
-                d="M3 3l10 10M13 3L3 13"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-        <div className="space-y-3">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Date</label>
-            <input
-              type="date"
-              className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">
-              Sap In (lbs)
-            </label>
-            <input
-              type="number"
-              placeholder="0.0"
-              className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">
-                Syrup Out (lbs)
-              </label>
-              <input
-                type="number"
-                placeholder="0.0"
-                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                style={{ borderColor: "var(--color-border)" }}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Brix (°)</label>
-              <input
-                type="number"
-                placeholder="66.0"
-                className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-                style={{ borderColor: "var(--color-border)" }}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Notes</label>
-            <textarea
-              rows={2}
-              className="w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            />
-          </div>
-        </div>
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl border py-2.5 font-sans text-sm font-semibold"
-            style={{ borderColor: "var(--color-border)" }}
-          >
+    <Modal
+      title="New batch"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl py-2.5 font-sans text-sm font-semibold text-white"
-            style={{ background: "var(--color-accent)" }}
-          >
-            Save Batch
-          </button>
+          </Button>
+          <Button onClick={onClose}>Save Batch</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="Date">
+          <input type="date" className={inputClass} />
+        </Field>
+        <Field label="Sap in (lbs)">
+          <input type="number" placeholder="0.0" className={inputClass} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Syrup out (lbs)">
+            <input type="number" placeholder="0.0" className={inputClass} />
+          </Field>
+          <Field label="Brix (°)">
+            <input type="number" placeholder="66.0" className={inputClass} />
+          </Field>
         </div>
+        <Field label="Notes">
+          <textarea rows={3} className={`${inputClass} resize-none`} />
+        </Field>
       </div>
-    </div>
+    </Modal>
   );
 }
 
-export default function Batches({ day, role }: { day: DemoDay; role: UserRole }) {
+export default function Batches({ day }: { day: DemoDay }) {
   const { viewBatch } = useBatchState();
-  const [showAdd, setShowAdd] = useState(false);
-  const [editingBatch, setEditingBatch] = useState<string | null>(null);
-  const isAdmin = role === "admin";
+  const { can } = useSession();
+  const { weight } = useClubSettings();
+  const [showNew, setShowNew] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
 
   const views = day.batches.map(viewBatch);
   const batches = views.map((view) => view.batch);
-  const viewOf = (batch: Batch) => views.find((view) => view.batch.id === batch.id)!;
+  const open = views.filter((view) => view.batch.status !== "completed");
+  const closed = views.filter((view) => view.batch.status === "completed");
 
-  // Finished batches are locked to managers and IT; open ones anyone with edit
-  // rights can update.
-  function editHandler(batch: Batch): (() => void) | null {
-    if (!isAdmin) return null;
-    if (batch.status === "completed" && !canManage(currentUser.role)) return null;
-    return () => setEditingBatch(batch.batchNumber);
-  }
-
-  const editingView = views.find((view) => view.batch.batchNumber === editingBatch) ?? null;
-  const activeBatches = batches.filter(
-    (batch) => batch.status === "active" || batch.status === "processing",
-  );
-  const waitingBatches = batches.filter((batch) => batch.status === "waiting");
-  const doneBatches = batches.filter((batch) => batch.status === "completed");
-
-  const totalSyrup = doneBatches.reduce((sum, batch) => sum + batch.syrupOutLbs, 0);
+  const closedBatches: Batch[] = closed.map((view) => view.batch);
   const totalSap = batches.reduce((sum, batch) => sum + batch.sapInLbs, 0);
-  const avgBrix = doneBatches.length
-    ? doneBatches.reduce((sum, batch) => sum + batch.brix, 0) / doneBatches.length
+  const syrup = closedBatches.reduce((sum, batch) => sum + batch.syrupOutLbs, 0);
+  const closedSap = closedBatches.reduce((sum, batch) => sum + batch.sapInLbs, 0);
+  const avgBrix = closedBatches.length
+    ? closedBatches.reduce((sum, batch) => sum + batch.brix, 0) / closedBatches.length
     : 0;
 
+  // Closed batches are locked to the Owner / IT; open ones follow the role's batch permission.
+  function editHandler(batch: Batch): (() => void) | null {
+    const allowed = batch.status === "completed" ? can("editClosedBatch") : can("editBatches");
+    return allowed ? () => setEditing(batch.batchNumber) : null;
+  }
+
+  const editingView = views.find((view) => view.batch.batchNumber === editing) ?? null;
+
   return (
-    <div className="w-full p-4 md:p-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs text-muted">
-            {batches.length} batch{batches.length === 1 ? "" : "es"} this season
-          </p>
-        </div>
-        {isAdmin ? (
-          <button
-            type="button"
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-2 rounded-xl px-4 py-2 font-sans text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ background: "var(--color-accent)" }}
-          >
-            <span className="text-base leading-none">+</span> New Batch
-          </button>
-        ) : null}
-      </div>
+    <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
+      <PageHeader
+        title="Batches"
+        subtitle={`${batches.length} this season. Closed batches are locked unless an admin overrides.`}
+        actions={can("editBatches") ? <Button onClick={() => setShowNew(true)}>New Batch</Button> : null}
+      />
 
       {batches.length === 0 ? (
-        <div className="py-16 text-center text-muted">
-          <div className="mb-3 text-4xl">🍯</div>
-          <p className="text-sm font-medium">No batches yet</p>
-          <p className="mt-1 text-xs">
-            A batch is created once sap has been collected into storage.
-          </p>
-        </div>
+        <Card className="py-14 text-center">
+          <p className="font-sans text-lg font-semibold">No batches yet</p>
+          <p className="mt-1 text-muted">A batch is created once sap has been collected into storage.</p>
+        </Card>
       ) : (
         <>
-          <div className="mb-6 grid grid-cols-3 gap-3">
-            {[
-              { label: "Total Sap In", value: `${totalSap.toFixed(1)} lbs` },
-              { label: "Syrup Produced", value: `${totalSyrup.toFixed(1)} lbs` },
-              {
-                label: "Avg Brix",
-                value: avgBrix > 0 ? `${avgBrix.toFixed(1)}°` : "—",
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-xl bg-white px-3 py-3 shadow-sm"
-                style={{ border: "1px solid var(--color-border)" }}
-              >
-                <div className="mb-0.5 text-xs text-muted">{item.label}</div>
-                <div className="font-sans text-lg font-bold">{item.value}</div>
-              </div>
-            ))}
+          <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard label="Total sap" value={weight(totalSap)} note="all batches" />
+            <StatCard
+              label="Syrup produced"
+              value={weight(syrup)}
+              note={`${closedBatches.length} batch${closedBatches.length === 1 ? "" : "es"} boiled`}
+            />
+            <StatCard label="Avg Brix" value={avgBrix ? `${avgBrix.toFixed(1)}°` : "—"} note="closed batches" />
+            <StatCard
+              label="Sap to syrup"
+              value={syrup ? `${(closedSap / syrup).toFixed(1)} : 1` : "—"}
+              note="closed batches only"
+            />
           </div>
 
-          {activeBatches.length > 0 ? (
-            <div className="mb-5">
-              <div
-                className="rounded-2xl p-4"
-                style={{
-                  background: "var(--color-accent-light)",
-                  border: "1.5px solid rgba(74,122,51,0.22)",
-                }}
-              >
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ background: "#6B9E45" }} />
-                  <h3 className="font-sans text-sm font-semibold">Collecting &amp; Boiling</h3>
-                  <span
-                    className="rounded-full px-2 py-0.5 text-xs font-medium"
-                    style={{ background: "rgba(255,255,255,0.7)", color: "#4A7A33" }}
-                  >
-                    {activeBatches.length}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {activeBatches.map((batch) => (
-                    <BatchCard key={batch.id} view={viewOf(batch)} onEdit={editHandler(batch)} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {waitingBatches.length > 0 ? (
-            <div className="mb-5">
-              <div
-                className="rounded-2xl p-4"
-                style={{
-                  background: "rgba(107,114,128,0.06)",
-                  border: "1.5px solid rgba(107,114,128,0.2)",
-                }}
-              >
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="text-base">⏳</span>
-                  <h3 className="font-sans text-sm font-semibold">Waiting / Storage</h3>
-                  <span
-                    className="rounded-full px-2 py-0.5 text-xs font-medium"
-                    style={{ background: "rgba(107,114,128,0.12)", color: "#6B7280" }}
-                  >
-                    {waitingBatches.length}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {waitingBatches.map((batch) => (
-                    <BatchCard key={batch.id} view={viewOf(batch)} onEdit={editHandler(batch)} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {doneBatches.length > 0 ? (
-            <div>
-              <h3 className="mb-3 font-sans text-sm font-semibold text-muted">
-                Completed
-              </h3>
-              <div className="flex flex-col gap-2">
-                {doneBatches.map((batch) => (
-                  <CompletedBatchRow
-                    key={batch.id}
-                    view={viewOf(batch)}
-                    onEdit={editHandler(batch)}
-                  />
+          {open.length > 0 ? (
+            <section className="mb-8">
+              <h2 className="mb-3 font-sans text-lg font-semibold">Open</h2>
+              <div className="space-y-5">
+                {open.map((view) => (
+                  <OpenBatchCard key={view.batch.id} view={view} onEdit={editHandler(view.batch)} />
                 ))}
               </div>
-            </div>
+            </section>
+          ) : null}
+
+          {closed.length > 0 ? (
+            <section>
+              <h2 className="mb-3 font-sans text-lg font-semibold">Closed</h2>
+              <Card className="md:px-7">
+                <DataTable
+                  columns={[
+                    { key: "batch", label: "Batch" },
+                    { key: "sapIn", label: "Sap in" },
+                    { key: "syrup", label: "Syrup out" },
+                    { key: "ratio", label: "Ratio" },
+                    { key: "brix", label: "Brix" },
+                    { key: "duration", label: "Duration" },
+                    { key: "notes", label: "Notes", className: "max-w-[220px]" },
+                    { key: "menu", label: "" },
+                  ]}
+                  rows={closed.map((view) => {
+                    const { batch } = view;
+                    return {
+                      key: batch.id,
+                      cells: {
+                        batch: (
+                          <div>
+                            <div className="font-sans font-semibold">{batch.batchNumber}</div>
+                            <div className="text-muted">
+                              {shortDate(batch.date)} · {batch.createdBy}
+                            </div>
+                          </div>
+                        ),
+                        sapIn: weight(batch.sapInLbs),
+                        syrup: weight(batch.syrupOutLbs),
+                        ratio: batch.syrupOutLbs ? `${(batch.sapInLbs / batch.syrupOutLbs).toFixed(1)} : 1` : "—",
+                        brix: batch.brix ? `${batch.brix}°` : "—",
+                        duration: formatDuration(batch.boilMinutes),
+                        notes: <span className="block truncate">{view.notes[0]?.text ?? "—"}</span>,
+                        menu: (
+                          <ClosedRowMenu
+                            view={view}
+                            canEdit={can("editClosedBatch")}
+                            onEdit={() => setEditing(batch.batchNumber)}
+                          />
+                        ),
+                      },
+                    };
+                  })}
+                />
+              </Card>
+            </section>
           ) : null}
         </>
       )}
 
-      {showAdd && isAdmin ? <CreateBatchModal onClose={() => setShowAdd(false)} /> : null}
+      {showNew ? <NewBatchModal onClose={() => setShowNew(false)} /> : null}
       {editingView ? (
-        <EditBatchModal
-          key={editingView.batch.batchNumber}
-          view={editingView}
-          day={day}
-          onClose={() => setEditingBatch(null)}
-        />
+        <EditBatchModal key={editingView.batch.batchNumber} view={editingView} day={day} onClose={() => setEditing(null)} />
       ) : null}
     </div>
   );

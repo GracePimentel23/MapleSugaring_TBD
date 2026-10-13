@@ -1,0 +1,241 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { useDemo } from "@/components/demo/DemoProvider";
+import { PencilIcon } from "@/components/icons";
+import {
+  useClubSettings,
+  type SeasonRecord,
+  type TempUnit,
+  type WeightUnit,
+} from "@/components/session/ClubSettingsProvider";
+import { useSession } from "@/components/session/SessionProvider";
+import { Button, Card, CardTitle, cx, DataTable, Field, inputClass, Modal } from "@/components/ui/ui";
+import { shortDate, tableStamp } from "@/lib/time";
+
+function Radio<T extends string>({
+  name,
+  value,
+  options,
+  onChange,
+}: {
+  name: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="flex gap-6">
+      {options.map((option) => (
+        <label key={option.value} className="flex cursor-pointer items-center gap-2 text-lg">
+          <input
+            type="radio"
+            name={name}
+            checked={value === option.value}
+            onChange={() => onChange(option.value)}
+            className="h-4 w-4 accent-[var(--color-accent-mid)]"
+          />
+          {option.label}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+function EditSeasonModal({
+  season,
+  onClose,
+}: {
+  season: SeasonRecord | null;
+  onClose: () => void;
+}) {
+  const { day } = useDemo();
+  const { seasons, setSeasons } = useClubSettings();
+  const { logAudit } = useSession();
+  const isNew = season === null;
+  const [name, setName] = useState(season?.name ?? "Season 2023");
+  const [start, setStart] = useState(season?.start ?? "2023-02-27");
+  const [end, setEnd] = useState(season?.end ?? "2023-03-15");
+
+  function save() {
+    if (isNew) {
+      setSeasons([
+        { name, start, end, status: "active" },
+        ...seasons.map((item) => ({ ...item, status: "closed" as const })),
+      ]);
+      logAudit({ when: tableStamp(day.date), action: "Started season", record: name, change: `${shortDate(start)} to ${shortDate(end)}` });
+    } else {
+      setSeasons(seasons.map((item) => (item.name === season.name ? { ...item, name, start, end } : item)));
+      logAudit({ when: tableStamp(day.date), action: "Edited season dates", record: name, change: `${shortDate(start)} to ${shortDate(end)}` });
+    }
+    onClose();
+  }
+
+  function close() {
+    if (!season) return;
+    setSeasons(seasons.map((item) => (item.name === season.name ? { ...item, status: "closed" } : item)));
+    logAudit({ when: tableStamp(day.date), action: "Closed season", record: season.name, change: "Data locked" });
+    onClose();
+  }
+
+  return (
+    <Modal title={isNew ? "Start new season" : "Edit season"} onClose={onClose}>
+      <div className="space-y-4">
+        <Field label="Season name">
+          <input value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Start date">
+            <input type="date" value={start} onChange={(event) => setStart(event.target.value)} className={inputClass} />
+          </Field>
+          <Field label="End date">
+            <input type="date" value={end} onChange={(event) => setEnd(event.target.value)} className={inputClass} />
+          </Field>
+        </div>
+        <p className="text-sm text-muted">
+          Dates change which days count toward this season. Collections outside the dates are listed
+          so none are lost.
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={save}>{isNew ? "Start Season" : "Save Dates"}</Button>
+        </div>
+        {!isNew ? (
+          <div className="border-t border-border pt-5 pb-6">
+            <h3 className="font-sans text-lg font-semibold">Close season</h3>
+            <p className="mb-4 text-sm text-muted">
+              Locks all data for {season.name.replace("Season ", "")}. Only Owner / IT can reopen it.
+            </p>
+            <Button variant="outline" className="border-border text-text" onClick={close}>
+              Close Season
+            </Button>
+          </div>
+        ) : (
+          <div className="pb-4" />
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+export default function UnitsTab() {
+  const { day } = useDemo();
+  const { can, user } = useSession();
+  const { weightUnit, setWeightUnit, tempUnit, setTempUnit, seasons, setSeasons, weight } = useClubSettings();
+  const [editing, setEditing] = useState<SeasonRecord | "new" | null>(null);
+  const canEditSeason = can("editSeason");
+
+  // Totals come from the season summaries the analysis uses.
+  const totals = new Map(day.seasons.map((season) => [season.season, season]));
+
+  return (
+    <>
+      <Card className="md:px-8 md:py-7">
+        <CardTitle title="Units" subtitle="Data is stored once and shown in the units you pick." />
+        <div className="flex flex-wrap gap-x-20 gap-y-4">
+          <div>
+            <p className="mb-2 text-sm text-muted">Temperature</p>
+            <Radio<TempUnit>
+              name="temperature"
+              value={tempUnit}
+              onChange={setTempUnit}
+              options={[
+                { value: "F", label: "°F" },
+                { value: "C", label: "°C" },
+              ]}
+            />
+          </div>
+          <div>
+            <p className="mb-2 text-sm text-muted">Weight</p>
+            <Radio<WeightUnit>
+              name="weight"
+              value={weightUnit}
+              onChange={setWeightUnit}
+              options={[
+                { value: "lbs", label: "lbs" },
+                { value: "kg", label: "kg" },
+              ]}
+            />
+          </div>
+        </div>
+      </Card>
+
+      {user.role !== "member" ? (
+        <Card className="md:px-8 md:py-7">
+          <CardTitle
+            title="Seasons"
+            subtitle="Managers can change the dates of the active season. Closing a season locks its data; only the Owner / IT can reopen it."
+            action={
+              canEditSeason ? (
+                <Button variant="outline" size="sm" onClick={() => setEditing("new")}>
+                  Start New Season
+                </Button>
+              ) : null
+            }
+          />
+          <DataTable
+            columns={[
+              { key: "season", label: "Season" },
+              { key: "dates", label: "Dates" },
+              { key: "sap", label: "Sap" },
+              { key: "syrup", label: "Syrup" },
+              { key: "status", label: "Status" },
+              { key: "action", label: "" },
+            ]}
+            rows={seasons.map((season) => {
+              const summary = totals.get(season.name);
+              const active = season.status === "active";
+              return {
+                key: season.name,
+                cells: {
+                  season: season.name.replace("Season ", ""),
+                  dates: `${shortDate(season.start)} to ${shortDate(season.end)}`,
+                  sap: summary ? weight(summary.totalSapLbs) : "—",
+                  syrup: summary ? weight(summary.totalSyrupLbs) : "—",
+                  status: (
+                    <span className={cx(active && "font-semibold text-status-online")}>
+                      {active ? "Active" : "Closed"}
+                    </span>
+                  ),
+                  action: active ? (
+                    canEditSeason ? (
+                      <button
+                        type="button"
+                        onClick={() => setEditing(season)}
+                        aria-label={`Edit ${season.name}`}
+                        className="rounded-lg p-1.5 hover:bg-bg"
+                      >
+                        <PencilIcon size={20} />
+                      </button>
+                    ) : null
+                  ) : user.role === "owner" ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSeasons(seasons.map((item) => (item.name === season.name ? { ...item, status: "active" } : item)))
+                      }
+                      className="font-semibold text-accent-mid hover:underline"
+                    >
+                      Reopen
+                    </button>
+                  ) : (
+                    <Link href="/data/analysis" className="font-semibold text-accent-mid hover:underline">
+                      View
+                    </Link>
+                  ),
+                },
+              };
+            })}
+          />
+        </Card>
+      ) : null}
+
+      {editing ? (
+        <EditSeasonModal season={editing === "new" ? null : editing} onClose={() => setEditing(null)} />
+      ) : null}
+    </>
+  );
+}

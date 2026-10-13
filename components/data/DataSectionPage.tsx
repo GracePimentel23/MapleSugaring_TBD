@@ -7,49 +7,61 @@ import Collections from "@/components/data/Collections";
 import Overview from "@/components/data/Overview";
 import { dataSections, type DataSectionId } from "@/components/data/sections";
 import { useDemo } from "@/components/demo/DemoProvider";
+import { useStationState } from "@/components/stations/StationStateProvider";
+import { cx } from "@/components/ui/ui";
+import type { Collection } from "@/lib/types/schema";
 
 export default function DataSectionPage({ section }: { section: DataSectionId }) {
-  const { day } = useDemo();
-  const title = dataSections.find((item) => item.id === section)?.label ?? "Data";
+  const { day, dayIndex } = useDemo();
+  const { loggedCollections } = useStationState();
+
+  // Collections logged in the app today show up alongside the timeline's.
+  const logged: Collection[] = loggedCollections
+    .filter((entry) => entry.dayIndex <= dayIndex)
+    .map((entry) => ({
+      id: `logged-${entry.id}`,
+      collectionNumber: day.collections.length + entry.id,
+      date: day.date,
+      entries: [
+        {
+          bucketId: entry.bucketId,
+          bucketName: entry.bucketName,
+          collectedBy: entry.collectedBy,
+          lbs: entry.lbs,
+        },
+      ],
+      totalLbs: entry.lbs,
+      batchName: entry.batchNumber,
+      loggedBy: entry.collectedBy,
+      notes: entry.note || undefined,
+    }));
+  const dayWithLogs = { ...day, collections: [...logged, ...day.collections] };
 
   return (
     <div className="flex min-h-full w-full flex-col">
-      <div className="px-4 pt-4 md:px-6 md:pt-6">
-        <h1 className="mb-4 font-sans text-2xl font-semibold md:mb-0 md:text-3xl">{title}</h1>
-
-        {/* On web the subsections live in the side nav; mobile keeps the tabs. */}
-        <div className="-mx-4 px-4 md:hidden">
-          <div
-            className="no-scrollbar flex gap-1 overflow-x-auto"
-            style={{ borderBottom: "1.5px solid var(--color-border)" }}
-          >
-            {dataSections.map((tab) => {
-              const active = section === tab.id;
-              return (
-                <Link
-                  key={tab.id}
-                  href={tab.href}
-                  className="shrink-0 px-4 py-2.5 font-sans text-sm font-medium transition-colors"
-                  style={{
-                    color: active ? "var(--color-accent)" : "var(--color-muted)",
-                    borderBottom: active
-                      ? "2px solid var(--color-accent)"
-                      : "2px solid transparent",
-                    marginBottom: "-1.5px",
-                  }}
-                >
-                  {tab.label}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
+      {/* On web the subsections live in the side nav; phones keep the tabs. */}
+      <div className="no-scrollbar flex gap-6 overflow-x-auto border-b border-border px-4 pt-2 md:hidden">
+        {dataSections.map((tab) => {
+          const active = section === tab.id;
+          return (
+            <Link
+              key={tab.id}
+              href={tab.href}
+              className={cx(
+                "-mb-px shrink-0 border-b-2 py-2.5 font-sans text-[15px]",
+                active ? "border-accent font-semibold text-accent" : "border-transparent text-muted",
+              )}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
       </div>
 
-      <div className="flex-1">
+      <div className="flex-1 md:pt-0">
         {section === "overview" ? <Overview day={day} /> : null}
-        {section === "collections" ? <Collections day={day} role="admin" /> : null}
-        {section === "batches" ? <Batches day={day} role="admin" /> : null}
+        {section === "collections" ? <Collections day={dayWithLogs} role="admin" /> : null}
+        {section === "batches" ? <Batches day={day} /> : null}
         {section === "analysis" ? <Analysis day={day} /> : null}
       </div>
     </div>

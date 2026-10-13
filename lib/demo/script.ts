@@ -295,6 +295,8 @@ export interface DemoBatchStage {
   syrupOutLbs: number;
   brix: number;
   notes?: string;
+  /** Time on the evaporator, once the batch is finished */
+  boilMinutes?: number;
 }
 
 export interface DemoBatchSpec {
@@ -325,7 +327,14 @@ export const demoBatchSpecs: DemoBatchSpec[] = [
         brix: 0,
         notes: "Evaporation in progress.",
       },
-      { fromDay: 9, status: "completed", syrupOutLbs: 0.9, brix: 66.4 },
+      {
+        fromDay: 9,
+        status: "completed",
+        syrupOutLbs: 0.9,
+        brix: 66.4,
+        notes: "Evaporator ran steady; pulled at 219°F.",
+        boilMinutes: 340,
+      },
     ],
   },
   {
@@ -353,6 +362,7 @@ export const demoBatchSpecs: DemoBatchSpec[] = [
         syrupOutLbs: 1.1,
         brix: 66.8,
         notes: "Best clarity of the season.",
+        boilMinutes: 395,
       },
     ],
   },
