@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRightIcon } from "@/components/icons";
+import { ChevronRightIcon, PlusIcon } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { AddStationModal } from "@/components/stations/StationForms";
@@ -66,7 +66,7 @@ function EditTreeModal({ station, onClose }: { station: StationView; onClose: ()
             checked={maintenance}
             onChange={setMaintenance}
             label="Maintenance mode"
-            disabled={!can("maintenance")}
+            disabled={!can("stations:maintenance")}
           />
           <div>
             <p className="font-sans text-base font-semibold">Maintenance mode</p>
@@ -108,9 +108,9 @@ export default function TreesTab() {
   const { maintenanceDefaults, setMaintenanceDefaults } = useClubSettings();
   const [editing, setEditing] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
-  const canEditTrees = can("editTrees");
+  const canEditTrees = can("stations:manage");
   // The defaults are set by the Owner / IT; managers switch maintenance per bucket.
-  const canEditDefaults = can("editThresholds");
+  const canEditDefaults = can("thresholds:manage");
   const editingStation = stations.find((station) => station.bucketId === editing) ?? null;
 
   return (
@@ -122,6 +122,7 @@ export default function TreesTab() {
           action={
             canEditTrees ? (
               <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+                <PlusIcon size={14} />
                 Add Tree
               </Button>
             ) : null

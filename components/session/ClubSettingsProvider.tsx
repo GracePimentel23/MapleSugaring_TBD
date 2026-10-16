@@ -92,6 +92,12 @@ interface ClubSettingsValue {
   setQuietHours: (hours: { from: string; to: string }) => void;
   seasons: SeasonRecord[];
   setSeasons: (seasons: SeasonRecord[]) => void;
+  /** Pounds of syrup the club is aiming for this season */
+  syrupGoalLbs: number;
+  setSyrupGoalLbs: (lbs: number) => void;
+  /** Moving background art on the dashboard cards */
+  animations: boolean;
+  setAnimations: (on: boolean) => void;
 }
 
 const ClubSettingsContext = createContext<ClubSettingsValue | null>(null);
@@ -115,6 +121,8 @@ export default function ClubSettingsProvider({ children }: { children: ReactNode
   });
   const [quietHours, setQuietHours] = useState({ from: "10:00 PM", to: "6:00 AM" });
   const [seasons, setSeasons] = useState(defaultSeasons);
+  const [syrupGoalLbs, setSyrupGoalLbs] = useState(5);
+  const [animations, setAnimations] = useState(true);
 
   const weight = useCallback(
     (lbs: number, withUnit = true, fixed = false) => {
@@ -163,6 +171,10 @@ export default function ClubSettingsProvider({ children }: { children: ReactNode
       setQuietHours,
       seasons,
       setSeasons,
+      syrupGoalLbs,
+      setSyrupGoalLbs,
+      animations,
+      setAnimations,
     }),
     [
       thresholds,
@@ -176,6 +188,8 @@ export default function ClubSettingsProvider({ children }: { children: ReactNode
       recipients,
       quietHours,
       seasons,
+      syrupGoalLbs,
+      animations,
     ],
   );
 

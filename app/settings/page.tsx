@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import AccountTab from "@/components/settings/AccountTab";
 import AuditTab from "@/components/settings/AuditTab";
+import DisplayCard from "@/components/settings/DisplayCard";
 import NotificationsTab from "@/components/settings/NotificationsTab";
 import ThresholdsTab from "@/components/settings/ThresholdsTab";
 import TreesTab from "@/components/settings/TreesTab";
@@ -10,24 +10,23 @@ import UnitsTab from "@/components/settings/UnitsTab";
 import UsersTab from "@/components/settings/UsersTab";
 import { useSession } from "@/components/session/SessionProvider";
 import { cx } from "@/components/ui/ui";
-import type { Role } from "@/lib/data/people";
 
-type TabId = "thresholds" | "users" | "trees" | "notifications" | "units" | "audit" | "account";
+type TabId = "thresholds" | "users" | "trees" | "notifications" | "units" | "display" | "audit";
 
-/** Who can open each tab. Members only see what applies to them. */
-const tabs: { id: TabId; label: string; roles: Role[] }[] = [
-  { id: "thresholds", label: "Thresholds", roles: ["owner", "manager"] },
-  { id: "users", label: "Users & Roles", roles: ["owner", "manager"] },
-  { id: "trees", label: "Trees & Sensors", roles: ["owner", "manager"] },
-  { id: "notifications", label: "Notifications", roles: ["owner", "manager", "member"] },
-  { id: "units", label: "Units & Season", roles: ["owner", "manager", "member"] },
-  { id: "audit", label: "Audit Log", roles: ["owner", "manager"] },
-  { id: "account", label: "My Account", roles: ["owner", "manager", "member"] },
+/** Each tab shows for the views lib/rbac.config.ts allows under "settings.<id>". */
+const tabs: { id: TabId; label: string }[] = [
+  { id: "thresholds", label: "Thresholds" },
+  { id: "users", label: "Users & Roles" },
+  { id: "trees", label: "Trees & Sensors" },
+  { id: "notifications", label: "Notifications" },
+  { id: "units", label: "Units & Season" },
+  { id: "display", label: "Display" },
+  { id: "audit", label: "Audit Log" },
 ];
 
 export default function SettingsPage() {
-  const { user } = useSession();
-  const visible = tabs.filter((tab) => tab.roles.includes(user.role));
+  const { shows } = useSession();
+  const visible = tabs.filter((tab) => shows(`settings.${tab.id}`));
   const [requested, setRequested] = useState<TabId>("thresholds");
   // Switching to a role that cannot see the open tab falls back to the first one it can.
   const active = visible.some((tab) => tab.id === requested) ? requested : visible[0]!.id;
@@ -67,8 +66,8 @@ export default function SettingsPage() {
           {active === "trees" ? <TreesTab /> : null}
           {active === "notifications" ? <NotificationsTab /> : null}
           {active === "units" ? <UnitsTab /> : null}
+          {active === "display" ? <DisplayCard /> : null}
           {active === "audit" ? <AuditTab /> : null}
-          {active === "account" ? <AccountTab key={user.id} /> : null}
         </div>
       </div>
     </div>

@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FilterIcon, InfoIcon } from "@/components/icons";
+import { DropIcon, FilterIcon, InfoIcon, PlusIcon } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { AddStationModal } from "@/components/stations/StationForms";
 import StationDialogs from "@/components/stations/StationSheet";
 import StationsMap from "@/components/stations/StationsMap";
+import StatusBadge from "@/components/stations/StatusBadge";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
-import { Button, Card, cx, FilterPill, PageHeader, ProgressBar, Toggle } from "@/components/ui/ui";
+import { Button, Card, cx, EmptyState, FilterPill, PageHeader, ProgressBar, Toggle } from "@/components/ui/ui";
 import {
   byUrgency,
   getStationSummary,
@@ -72,9 +73,7 @@ function StationCard({
           {station.name}
         </button>
         {/* The status stays at full strength even when the card is greyed out */}
-        <span className="pt-1 font-sans text-sm font-semibold" style={{ color: meta.color }}>
-          {meta.label}
-        </span>
+        <StatusBadge status={station.status} />
       </div>
       <p className="text-sm text-muted">{treeLine(station)}</p>
 
@@ -93,17 +92,19 @@ function StationCard({
         <p className="mt-3 text-sm text-muted">Last reading {station.lastUpdated}</p>
       </div>
 
-      <div className="mt-4 flex items-center gap-3 border-t border-border pt-4">
-        <Toggle
-          checked={station.inMaintenance}
-          onChange={() => toggleMaintenance(station.bucketId)}
-          label={`Maintenance mode for ${station.name}`}
-          disabled={!can("maintenance")}
-        />
-        <span className="text-sm text-muted">
-          Maintenance mode {can("maintenance") ? "(Manager)" : "(Manager only)"}
-        </span>
-      </div>
+      {can("stations:maintenance") ? (
+        <div className="mt-4 flex items-center gap-3 border-t border-border pt-4">
+          <Toggle
+            checked={station.inMaintenance}
+            onChange={() => toggleMaintenance(station.bucketId)}
+            label={`Maintenance mode for ${station.name}`}
+            disabled={!can("stations:maintenance")}
+          />
+          <span className="text-sm text-muted">
+            Maintenance mode {can("stations:maintenance") ? "(Manager)" : "(Manager only)"}
+          </span>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -173,7 +174,12 @@ export default function StationsPage() {
         title="Stations"
         subtitle={`${onlineCount} online · ${attentionCount} need${attentionCount === 1 ? "s" : ""} attention`}
         actions={
-          can("editTrees") ? <Button onClick={() => setShowAdd(true)}>Add Station</Button> : null
+          can("stations:manage") ? (
+            <Button onClick={() => setShowAdd(true)}>
+              <PlusIcon size={16} />
+              Add Station
+            </Button>
+          ) : null
         }
       />
 
@@ -216,7 +222,11 @@ export default function StationsPage() {
       </div>
 
       {sorted.length === 0 ? (
-        <Card className="py-14 text-center text-muted">No stations in this group right now.</Card>
+        <EmptyState
+          icon={<DropIcon size={26} />}
+          title="No stations here"
+          description="No station is in this group right now. Try All."
+        />
       ) : (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {sorted.map((station) => (
@@ -234,8 +244,8 @@ export default function StationsPage() {
 
       <h2 className="font-sans text-2xl font-bold">Sugarbush Map</h2>
       <p className="mt-1 mb-5 max-w-2xl text-sm text-muted">
-        Where each bucket sits around the Lobozzo Alumni House. Ring color shows its status. Drag to
-        move, tap a pin to open that station.
+        Where each bucket sits around the Lobozzo Alumni House. Ring color shows its status. Drag to move, tap
+        a pin to open that station.
       </p>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
@@ -247,36 +257,41 @@ export default function StationsPage() {
           />
         </Card>
 
-        <Card className="self-start">
-          <h3 className="border-b border-border pb-3 font-sans text-base font-semibold">By Bucket</h3>
-          <ul>
+        <section className="self-start overflow-hidden rounded-2xl border border-accent bg-white shadow-sm">
+          <div className="flex items-baseline justify-between bg-accent px-5 py-4 text-white">
+            <h3 className="font-sans text-lg font-bold">By Bucket</h3>
+            <span className="text-sm text-white/80">most urgent first</span>
+          </div>
+          <ul className="divide-y divide-border">
             {byBucket.map((station) => {
               const meta = stationStatusMeta[station.status];
+              const percent = Math.round(Math.min(station.fillPercent, 100));
               return (
-                <li key={station.bucketId} className="border-b border-border last:border-0">
+                <li key={station.bucketId}>
                   <button
                     type="button"
                     onClick={() => setOpenBucket(station.bucketId)}
-                    className="flex w-full items-start justify-between gap-3 py-3 text-left hover:opacity-80"
+                    className="w-full px-5 py-4 text-left transition-colors hover:bg-bg"
                   >
-                    <span>
-                      <span className="block font-sans text-base font-semibold">{station.name}</span>
-                      <span className="block text-sm text-muted">{station.location}</span>
+                    <span className="flex items-start justify-between gap-3">
+                      <span>
+                        <span className="block font-sans text-lg font-bold">{station.name}</span>
+                        <span className="block text-sm text-muted">{station.location}</span>
+                      </span>
+                      <StatusBadge status={station.status} />
                     </span>
-                    <span className="text-right">
-                      <span className="block font-sans text-sm font-semibold" style={{ color: meta.color }}>
-                        {meta.label}
+                    <span className="mt-3 flex items-center gap-3">
+                      <span className="flex-1">
+                        <ProgressBar percent={percent} color={meta.bar} height={6} />
                       </span>
-                      <span className="block text-sm text-muted">
-                        {Math.round(Math.min(station.fillPercent, 100))}% full
-                      </span>
+                      <span className="w-16 text-right font-sans text-sm font-semibold">{percent}% full</span>
                     </span>
                   </button>
                 </li>
               );
             })}
           </ul>
-        </Card>
+        </section>
       </div>
 
       {showAdd ? <AddStationModal onClose={() => setShowAdd(false)} /> : null}

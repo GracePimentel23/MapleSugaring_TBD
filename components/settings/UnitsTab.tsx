@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useDemo } from "@/components/demo/DemoProvider";
-import { PencilIcon } from "@/components/icons";
+import { PencilIcon, PlusIcon } from "@/components/icons";
 import {
   useClubSettings,
   type SeasonRecord,
@@ -123,10 +123,11 @@ function EditSeasonModal({
 
 export default function UnitsTab() {
   const { day } = useDemo();
-  const { can, user } = useSession();
-  const { weightUnit, setWeightUnit, tempUnit, setTempUnit, seasons, setSeasons, weight } = useClubSettings();
+  const { can, view, shows } = useSession();
+  const { weightUnit, setWeightUnit, tempUnit, setTempUnit, seasons, setSeasons, weight, syrupGoalLbs, setSyrupGoalLbs } =
+    useClubSettings();
   const [editing, setEditing] = useState<SeasonRecord | "new" | null>(null);
-  const canEditSeason = can("editSeason");
+  const canEditSeason = can("seasons:manage");
 
   // Totals come from the season summaries the analysis uses.
   const totals = new Map(day.seasons.map((season) => [season.season, season]));
@@ -163,7 +164,7 @@ export default function UnitsTab() {
         </div>
       </Card>
 
-      {user.role !== "member" ? (
+      {shows("settings.seasons") ? (
         <Card className="md:px-8 md:py-7">
           <CardTitle
             title="Seasons"
@@ -171,11 +172,25 @@ export default function UnitsTab() {
             action={
               canEditSeason ? (
                 <Button variant="outline" size="sm" onClick={() => setEditing("new")}>
+                  <PlusIcon size={14} />
                   Start New Season
                 </Button>
               ) : null
             }
           />
+          <div className="mb-5 max-w-xs">
+            <Field label="Syrup goal this season (lbs)" hint="Shown as the goal ring on Data › Overview.">
+              <input
+                type="number"
+                min={0.5}
+                step={0.5}
+                value={syrupGoalLbs}
+                disabled={!canEditSeason}
+                onChange={(event) => setSyrupGoalLbs(Math.max(Number.parseFloat(event.target.value) || 0, 0))}
+                className={inputClass}
+              />
+            </Field>
+          </div>
           <DataTable
             columns={[
               { key: "season", label: "Season" },
@@ -211,7 +226,7 @@ export default function UnitsTab() {
                         <PencilIcon size={20} />
                       </button>
                     ) : null
-                  ) : user.role === "owner" ? (
+                  ) : view === "owner" ? (
                     <button
                       type="button"
                       onClick={() =>

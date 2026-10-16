@@ -2,12 +2,22 @@
 
 import { useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useDemo } from "@/components/demo/DemoProvider";
+import { useSchedule } from "@/components/schedule/ScheduleProvider";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import LogCollectionModal from "@/components/stations/LogCollectionModal";
 import { EditBucketModal, NotesList } from "@/components/stations/StationForms";
+import StatusBadge from "@/components/stations/StatusBadge";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
+import {
+  lineCursor,
+  tooltipContentStyle,
+  tooltipItemStyle,
+  tooltipLabelStyle,
+} from "@/components/ui/chartTheme";
 import { Button, Modal, ProgressBar, Toggle } from "@/components/ui/ui";
+import { taskStatus, timeSlotLabel } from "@/lib/data/schedule";
 import { stationStatusMeta } from "@/lib/selectors/stations";
 import type { StationView } from "@/lib/types/schema";
 
@@ -31,8 +41,16 @@ function StationDetail({
   onLog: () => void;
   onEdit: () => void;
 }) {
-  const { can } = useSession();
-  const { weight } = useClubSettings();
+  const { can, shows, members } = useSession();
+  const { weight, animations } = useClubSettings();
+  const { dayIndex } = useDemo();
+  const { tasks } = useSchedule();
+  const scheduled = tasks.filter(
+    (task) =>
+      task.bucketId === station.bucketId &&
+      task.dayIndex === dayIndex &&
+      taskStatus(task, dayIndex) !== "done",
+  );
   const { toggleMaintenance, maintenance } = useStationState();
   const meta = stationStatusMeta[station.status];
   const percent = Math.round(Math.min(station.fillPercent, 100));
@@ -43,29 +61,24 @@ function StationDetail({
   return (
     <Modal
       title={station.name}
+      subtitle={`${station.treeLabel} · Updated ${station.lastUpdated}`}
+      badge={<StatusBadge status={station.status} />}
       onClose={onClose}
       footer={
         <div className="flex w-full flex-col gap-3">
-          {can("logCollections") ? (
+          {can("collections:log") ? (
             <Button onClick={onLog} className="w-full">
               Log Collection
             </Button>
           ) : null}
-          <Button variant="outline" onClick={onEdit} className="w-full border-border text-text">
-            Edit Station
-          </Button>
+          {shows("stations.manage") ? (
+            <Button variant="outline" onClick={onEdit} className="w-full border-border text-text">
+              Edit Station
+            </Button>
+          ) : null}
         </div>
       }
     >
-      <div className="-mt-2 mb-5 flex items-start justify-between gap-3">
-        <p className="text-[15px] text-muted">
-          {station.treeLabel} · Updated {station.lastUpdated}
-        </p>
-        <span className="shrink-0 font-sans text-[15px] font-semibold" style={{ color: meta.color }}>
-          {meta.label}
-        </span>
-      </div>
-
       <div className="mb-5 grid grid-cols-2 gap-3">
         <Tile label="Current" value={weight(station.currentLbs, true, true)} />
         <Tile label="Target" value={weight(station.capacityLbs)} />
@@ -85,7 +98,7 @@ function StationDetail({
         <Tile label="Battery" value={`${Math.round(station.batteryLevel)}%`} />
       </div>
 
-      {station.alerts.length > 0 ? (
+      {station.alerts.length > 0 && shows("stations.alerts") ? (
         <div className="mb-5 space-y-2">
           {station.alerts.map((alert) => (
             <div
@@ -99,6 +112,15 @@ function StationDetail({
         </div>
       ) : null}
 
+      {scheduled.map((task) => (
+        <p key={task.id} className="mb-4 rounded-xl bg-accent-light px-4 py-2.5 text-sm">
+          <span className="font-semibold">Scheduled today:</span> {task.title}, {timeSlotLabel[task.slot]} ·{" "}
+          {task.assigneeIds.length
+            ? task.assigneeIds.map((id) => members.find((member) => member.id === id)?.name).join(", ")
+            : "open for sign-up"}
+        </p>
+      ))}
+
       <h3 className="mb-2 font-sans text-base font-semibold">
         Fill trend, {chartData.length} day{chartData.length === 1 ? "" : "s"}
       </h3>
@@ -108,9 +130,11 @@ function StationDetail({
             <XAxis dataKey="day" hide />
             <YAxis hide domain={[0, station.capacityLbs]} />
             <Tooltip
-              contentStyle={{ fontSize: 12, borderRadius: 10, border: "none", background: "#1A2318", color: "#fff" }}
-              formatter={(value) => [`${value} lbs`, ""]}
-              labelStyle={{ color: "#B9C8B3" }}
+              contentStyle={tooltipContentStyle}
+              labelStyle={tooltipLabelStyle}
+              itemStyle={tooltipItemStyle}
+              cursor={lineCursor}
+              formatter={(value) => [`${value} lbs`, "Fill"]}
             />
             <Line
               type="linear"
@@ -118,28 +142,31 @@ function StationDetail({
               stroke="var(--color-accent-mid)"
               strokeWidth={3}
               dot={false}
-              isAnimationActive={false}
+              isAnimationActive={animations}
+              animationDuration={900}
             />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-5 flex items-start gap-4 border-t border-border pt-5">
-        <Toggle
-          checked={station.inMaintenance}
-          onChange={() => toggleMaintenance(station.bucketId)}
-          label={`Maintenance mode for ${station.name}`}
-          disabled={!can("maintenance")}
-        />
-        <div>
-          <p className="font-sans text-base font-semibold">Maintenance mode</p>
-          <p className="text-sm text-muted">
-            {entry
-              ? `On since ${new Date(entry.startedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} by ${entry.by}. Alerts for this bucket are paused.`
-              : "Manager and Owner only. Pauses alerts for this bucket while you service the sensor."}
-          </p>
+      {can("stations:maintenance") ? (
+        <div className="mt-5 flex items-start gap-4 border-t border-border pt-5">
+          <Toggle
+            checked={station.inMaintenance}
+            onChange={() => toggleMaintenance(station.bucketId)}
+            label={`Maintenance mode for ${station.name}`}
+            disabled={!can("stations:maintenance")}
+          />
+          <div>
+            <p className="font-sans text-base font-semibold">Maintenance mode</p>
+            <p className="text-sm text-muted">
+              {entry
+                ? `On since ${new Date(entry.startedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} by ${entry.by}. Alerts for this bucket are paused.`
+                : "Manager and Owner only. Pauses alerts for this bucket while you service the sensor."}
+            </p>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {station.notes.length > 0 ? (
         <div className="mt-5 border-t border-border pt-5">

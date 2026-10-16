@@ -64,6 +64,8 @@ interface StationStateValue {
   logCollection: (entry: Omit<LoggedCollection, "id" | "dayIndex">) => void;
   acks: Record<string, AlertStamp>;
   acknowledge: (alert: ClubAlert) => void;
+  /** Take back an acknowledgement, e.g. from Undo */
+  unacknowledge: (key: string) => void;
   resolutions: UserResolution[];
   resolve: (alert: ClubAlert) => void;
   /** Set when an alert is opened, so the Stations page can jump to it */
@@ -114,7 +116,7 @@ export default function StationStateProvider({ children }: { children: ReactNode
 
   const toggleMaintenance = useCallback(
     (bucketId: number) => {
-      if (!can("maintenance")) return;
+      if (!can("stations:maintenance")) return;
       const turningOn = !maintenance[bucketId];
       setMaintenance((current) => {
         const next = { ...current };
@@ -211,6 +213,14 @@ export default function StationStateProvider({ children }: { children: ReactNode
     [stamp],
   );
 
+  const unacknowledge = useCallback((key: string) => {
+    setAcks((current) => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
   const resolve = useCallback(
     (alert: ClubAlert) => {
       setResolutions((current) => [
@@ -245,6 +255,7 @@ export default function StationStateProvider({ children }: { children: ReactNode
       logCollection,
       acks,
       acknowledge,
+      unacknowledge,
       resolutions,
       resolve,
       focusedBucketId,
@@ -265,6 +276,7 @@ export default function StationStateProvider({ children }: { children: ReactNode
       logCollection,
       acks,
       acknowledge,
+      unacknowledge,
       resolutions,
       resolve,
       focusedBucketId,

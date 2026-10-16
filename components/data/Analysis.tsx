@@ -16,6 +16,14 @@ import {
 import { useBatchState } from "@/components/data/BatchStateProvider";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
+import {
+  barCursor,
+  lineCursor,
+  tooltipContentStyle,
+  tooltipItemStyle,
+  tooltipLabelStyle,
+} from "@/components/ui/chartTheme";
+
 import { Button, Card, DataTable, StatCard } from "@/components/ui/ui";
 import {
   bucketYields,
@@ -28,14 +36,6 @@ import type { DemoDay } from "@/lib/demo/timeline";
 import { daysBetween, monthDay } from "@/lib/time";
 import type { SeasonSummary } from "@/lib/types/schema";
 
-const tooltipStyle = {
-  fontSize: 12,
-  borderRadius: 10,
-  border: "none",
-  background: "#1A2318",
-  color: "#fff",
-  padding: "8px 12px",
-};
 const axisTick = { fontSize: 11, fill: "#8A8F86" };
 
 function year(season: SeasonSummary): string {
@@ -100,8 +100,8 @@ function SeasonSelect({
 
 export default function Analysis({ day }: { day: DemoDay }) {
   const seasons = day.seasons;
-  const { weight, temp, thresholds, seasons: seasonRecords } = useClubSettings();
-  const { user } = useSession();
+  const { weight, temp, thresholds, seasons: seasonRecords, animations } = useClubSettings();
+  const { can } = useSession();
   const { viewBatch } = useBatchState();
   const [primaryName, setPrimaryName] = useState(seasons[0]!.season);
   const [compareName, setCompareName] = useState(seasons[1]!.season);
@@ -156,7 +156,7 @@ export default function Analysis({ day }: { day: DemoDay }) {
   const yields = isCurrent ? bucketYields(day) : [];
   const maxYield = Math.max(1, ...yields.map((item) => item.total));
   const overdue = isCurrent ? overduePickups(day, thresholds) : [];
-  const canExport = user.role !== "member";
+  const canExport = can("data:export");
 
   const openBatches = batches.filter((batch) => batch.status !== "completed");
   const weakest = yields[yields.length - 1];
@@ -283,8 +283,21 @@ export default function Analysis({ day }: { day: DemoDay }) {
               <CartesianGrid vertical={false} stroke="#ECECE6" />
               <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
               <YAxis tick={axisTick} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#B9C8B3" }} />
-              <Line type="linear" dataKey={py} stroke="#1A2318" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Tooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                itemStyle={tooltipItemStyle}
+                cursor={lineCursor}
+              />
+              <Line
+                type="linear"
+                dataKey={py}
+                stroke="#1A2318"
+                strokeWidth={2}
+                dot={false}
+                isAnimationActive={animations}
+                animationDuration={900}
+              />
               <Line
                 type="linear"
                 dataKey={cy}
@@ -292,7 +305,8 @@ export default function Analysis({ day }: { day: DemoDay }) {
                 strokeWidth={2}
                 strokeDasharray="5 4"
                 dot={false}
-                isAnimationActive={false}
+                isAnimationActive={animations}
+                animationDuration={900}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -332,8 +346,19 @@ export default function Analysis({ day }: { day: DemoDay }) {
             <ComposedChart data={cycleData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
               <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
               <YAxis tick={axisTick} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#B9C8B3" }} />
-              <Bar dataKey="lbs" name={py} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+              <Tooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                itemStyle={tooltipItemStyle}
+                cursor={barCursor}
+              />
+              <Bar
+                dataKey="lbs"
+                name={py}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive={animations}
+                animationDuration={900}
+              >
                 {cycleData.map((point) => (
                   <Cell key={point.day} fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"} />
                 ))}
@@ -346,7 +371,8 @@ export default function Analysis({ day }: { day: DemoDay }) {
                 strokeWidth={2}
                 strokeDasharray="4 4"
                 dot={false}
-                isAnimationActive={false}
+                isAnimationActive={animations}
+                animationDuration={900}
               />
             </ComposedChart>
           </ResponsiveContainer>
@@ -372,13 +398,13 @@ export default function Analysis({ day }: { day: DemoDay }) {
           <>
             <Panel title="Yield by Bucket" subtitle="Season total in lbs, to spot weak trees.">
               <div className="space-y-5 py-2">
-                {yields.map((item) => (
+                {yields.map((item, index) => (
                   <div key={item.bucketId} className="grid grid-cols-[44px_1fr_44px] items-center gap-4">
                     <span className="text-sm">{item.label}</span>
                     <div className="h-3 overflow-hidden rounded-full bg-progress-track">
                       <div
-                        className="h-full rounded-full bg-accent-mid"
-                        style={{ width: `${(item.total / maxYield) * 100}%` }}
+                        className="anim-grow h-full rounded-full bg-accent-mid"
+                        style={{ width: `${(item.total / maxYield) * 100}%`, animationDelay: `${index * 120}ms` }}
                       />
                     </div>
                     <span className="text-right font-sans text-sm font-semibold">{item.total}</span>

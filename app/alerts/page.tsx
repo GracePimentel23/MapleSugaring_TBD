@@ -1,14 +1,15 @@
 "use client";
 
+import { CheckCircleIcon } from "@/components/icons";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import AlertIcon, { alertLabelColor, type AlertIconKind } from "@/components/alerts/AlertIcon";
+import { Can } from "@/components/auth/AccessContext";
 import { useDemo } from "@/components/demo/DemoProvider";
-import { FilterIcon } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { useAlerts, useStationState } from "@/components/stations/StationStateProvider";
-import { Button, Card, cx, DataTable, FilterPill, PageHeader } from "@/components/ui/ui";
+import { Button, Card, DataTable, EmptyState, FilterPill, PageHeader } from "@/components/ui/ui";
 import { getResolvedHistory } from "@/lib/selectors/alerts";
 import type { ClubAlert } from "@/lib/types/schema";
 
@@ -89,6 +90,12 @@ export default function AlertsPage() {
       />
 
       <div className="no-scrollbar -mx-4 mb-8 flex items-center gap-2 overflow-x-auto px-4 py-1 md:mx-0 md:px-0">
+        <FilterPill
+          label="All"
+          count={active.length + acknowledgedCount + resolvedRows.length}
+          active={filter === null}
+          onClick={() => setFilter(null)}
+        />
         {(
           [
             ["active", "Active", active.length],
@@ -101,24 +108,21 @@ export default function AlertsPage() {
             label={label}
             count={count}
             active={filter === id}
-            onClick={() => setFilter(filter === id ? null : id)}
+            onClick={() => setFilter(id)}
           />
         ))}
-        <button
-          type="button"
-          onClick={() => setFilter(null)}
-          title="Show every section"
-          className={cx("shrink-0 rounded-full p-2 hover:bg-white", filter ? "text-accent" : "text-muted")}
-        >
-          <FilterIcon size={20} />
-        </button>
       </div>
 
       {show("active") ? (
         <section className="mb-8">
           <h2 className="mb-3 font-sans text-lg font-semibold">Active</h2>
           {active.length === 0 ? (
-            <Card className="text-muted">Nothing active. Every alert has someone on it.</Card>
+            <EmptyState
+              compact
+              icon={<CheckCircleIcon size={22} />}
+              title="Nothing active"
+              description="Every alert has someone on it."
+            />
           ) : (
             <div className="space-y-4">
               {active.map((alert) => (
@@ -129,9 +133,11 @@ export default function AlertsPage() {
                   context={alert.context}
                   actions={
                     <>
-                      <Button variant="outline" onClick={() => acknowledge(alert)}>
-                        Acknowledge
-                      </Button>
+                      <Can permission="alerts:resolve">
+                        <Button variant="outline" onClick={() => acknowledge(alert)}>
+                          Acknowledge
+                        </Button>
+                      </Can>
                       {stationButton(alert)}
                     </>
                   }
@@ -146,7 +152,12 @@ export default function AlertsPage() {
         <section className="mb-8">
           <h2 className="mb-3 font-sans text-lg font-semibold">Acknowledged</h2>
           {acknowledgedCount === 0 ? (
-            <Card className="text-muted">Nothing acknowledged right now.</Card>
+            <EmptyState
+              compact
+              icon={<CheckCircleIcon size={22} />}
+              title="Nothing acknowledged"
+              description="When someone takes an alert, it shows here until it is fixed."
+            />
           ) : (
             <div className="space-y-4">
               {maintenanceAlerts.map((item) => (
@@ -156,7 +167,7 @@ export default function AlertsPage() {
                   title={`${item.station.name} maintenance mode is ending`}
                   context={`${item.station.location} · ends ${item.endsLabel}. Acknowledged by ${item.entry.by} at ${item.startedLabel}.`}
                   actions={
-                    can("maintenance") ? (
+                    can("stations:maintenance") ? (
                       <>
                         {maintenanceDefaults.allowExtend ? (
                           <Button variant="outline" onClick={() => extendMaintenance(item.bucketId)}>
@@ -180,7 +191,9 @@ export default function AlertsPage() {
                     actions={
                       <>
                         {stationButton(alert)}
-                        <Button onClick={() => resolve(alert)}>Resolve</Button>
+                        <Can permission="alerts:resolve">
+                          <Button onClick={() => resolve(alert)}>Resolve</Button>
+                        </Can>
                       </>
                     }
                   />
@@ -197,7 +210,7 @@ export default function AlertsPage() {
           <DataTable
             empty="Nothing resolved in the last seven days."
             columns={[
-              { key: "when", label: "When" },
+              { key: "when", label: "Time" },
               { key: "alert", label: "Alert" },
               { key: "bucket", label: "Bucket" },
               { key: "by", label: "Resolved by" },

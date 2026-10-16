@@ -76,7 +76,7 @@ export default function ThresholdsTab() {
   const { thresholds, setThresholds } = useClubSettings();
   const { can, logAudit } = useSession();
   const [editing, setEditing] = useState<ThresholdDef | null>(null);
-  const canEdit = can("editThresholds");
+  const canEdit = can("thresholds:manage");
 
   function reset() {
     setThresholds(defaultThresholds);
@@ -107,17 +107,17 @@ export default function ThresholdsTab() {
           return (
             <li key={def.key} className="flex flex-wrap items-center gap-4 border-b border-border py-5">
               <div className="min-w-[200px] flex-1">
-                <p className="font-sans text-base font-semibold md:text-lg">{def.label}</p>
+                <p className="font-sans text-base font-bold md:text-lg">{def.label}</p>
                 <p className="text-sm text-muted">{def.description}</p>
               </div>
               <div className="flex gap-6 text-right">
                 <div>
                   <div className="text-sm text-muted">Warn</div>
-                  <div className="font-sans text-lg">{def.warnFormat(value.warn)}</div>
+                  <div className="font-sans text-lg font-bold">{def.warnFormat(value.warn)}</div>
                 </div>
                 <div>
                   <div className="text-sm text-muted">Critical</div>
-                  <div className="font-sans text-lg text-status-problem">{def.criticalFormat(value.critical)}</div>
+                  <div className="font-sans text-lg font-bold text-status-problem">{def.criticalFormat(value.critical)}</div>
                 </div>
               </div>
               {canEdit ? (

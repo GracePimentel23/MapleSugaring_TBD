@@ -1,16 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import {
-  useBatchState,
-  type BatchEditStamp,
-  type BatchView,
-} from "@/components/data/BatchStateProvider";
-import { MoreIcon, PencilIcon } from "@/components/icons";
+import { useBatchState, type BatchEditStamp, type BatchView } from "@/components/data/BatchStateProvider";
+import { DropIcon, MoreIcon, PencilIcon, PlusIcon } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { NotesList } from "@/components/stations/StationForms";
-import { Button, Card, cx, DataTable, Field, inputClass, Modal, PageHeader, StatCard } from "@/components/ui/ui";
+import { Button, Card, cx, DataTable, EmptyState, Field, inputClass, Modal, PageHeader, StatCard } from "@/components/ui/ui";
 import { batchStatusLabel } from "@/lib/batchStatus";
 import type { DemoDay } from "@/lib/demo/timeline";
 import { monthDay, noteStamp, shortDate } from "@/lib/time";
@@ -38,8 +34,9 @@ function StageTrack({ status }: { status: BatchStatus }) {
       {stages.map((stage, index) => (
         <div key={stage}>
           <div
-            className="h-2.5 rounded-full"
+            className="anim-grow h-2.5 rounded-full"
             style={{
+              animationDelay: `${index * 140}ms`,
               // Stages already passed are pale green; the current one is stronger.
               background:
                 index > current
@@ -135,15 +132,7 @@ function OpenBatchCard({ view, onEdit }: { view: BatchView; onEdit: (() => void)
   );
 }
 
-function ClosedRowMenu({
-  view,
-  canEdit,
-  onEdit,
-}: {
-  view: BatchView;
-  canEdit: boolean;
-  onEdit: () => void;
-}) {
+function ClosedRowMenu({ view, canEdit, onEdit }: { view: BatchView; canEdit: boolean; onEdit: () => void }) {
   const [open, setOpen] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
 
@@ -193,7 +182,11 @@ function ClosedRowMenu({
       {showNotes ? (
         <Modal title={`${view.batch.batchNumber} notes`} onClose={() => setShowNotes(false)}>
           <div className="pb-6">
-            {view.notes.length ? <NotesList notes={view.notes} /> : <p className="text-muted">No notes yet.</p>}
+            {view.notes.length ? (
+              <NotesList notes={view.notes} />
+            ) : (
+              <p className="text-muted">No notes yet.</p>
+            )}
           </div>
         </Modal>
       ) : null}
@@ -202,15 +195,7 @@ function ClosedRowMenu({
 }
 
 /** Everything from New Batch, plus a note. Each save is stamped with who and when. */
-function EditBatchModal({
-  view,
-  day,
-  onClose,
-}: {
-  view: BatchView;
-  day: DemoDay;
-  onClose: () => void;
-}) {
+function EditBatchModal({ view, day, onClose }: { view: BatchView; day: DemoDay; onClose: () => void }) {
   const { saveBatch } = useBatchState();
   const { user, logAudit } = useSession();
   const { batch } = view;
@@ -237,7 +222,8 @@ function EditBatchModal({
     saveBatch(batch.batchNumber, next, text ? { text, author: user.name, createdAt: stamp.at } : null, stamp);
 
     const changes = [
-      next.syrupOutLbs !== batch.syrupOutLbs && `Syrup out: ${batch.syrupOutLbs || "—"} to ${next.syrupOutLbs} lbs`,
+      next.syrupOutLbs !== batch.syrupOutLbs &&
+        `Syrup out: ${batch.syrupOutLbs || "—"} to ${next.syrupOutLbs} lbs`,
       next.brix !== batch.brix && `Brix: ${batch.brix || "—"}° to ${next.brix}°`,
       next.sapInLbs !== batch.sapInLbs && `Sap in: ${batch.sapInLbs} to ${next.sapInLbs} lbs`,
       text && "Added a note",
@@ -271,17 +257,37 @@ function EditBatchModal({
           </p>
         ) : null}
         <Field label="Date">
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={inputClass} />
+          <input
+            type="date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+            className={inputClass}
+          />
         </Field>
         <Field label="Sap in (lbs)">
-          <input type="number" value={sapIn} onChange={(event) => setSapIn(event.target.value)} className={inputClass} />
+          <input
+            type="number"
+            value={sapIn}
+            onChange={(event) => setSapIn(event.target.value)}
+            className={inputClass}
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Syrup out (lbs)">
-            <input type="number" value={syrupOut} onChange={(event) => setSyrupOut(event.target.value)} className={inputClass} />
+            <input
+              type="number"
+              value={syrupOut}
+              onChange={(event) => setSyrupOut(event.target.value)}
+              className={inputClass}
+            />
           </Field>
           <Field label="Brix (°)">
-            <input type="number" value={brix} onChange={(event) => setBrix(event.target.value)} className={inputClass} />
+            <input
+              type="number"
+              value={brix}
+              onChange={(event) => setBrix(event.target.value)}
+              className={inputClass}
+            />
           </Field>
         </div>
         <Field label="Add a note" hint={`Saved as ${user.name}, ${noteStamp(day.date)}`}>
@@ -363,7 +369,7 @@ export default function Batches({ day }: { day: DemoDay }) {
 
   // Closed batches are locked to the Owner / IT; open ones follow the role's batch permission.
   function editHandler(batch: Batch): (() => void) | null {
-    const allowed = batch.status === "completed" ? can("editClosedBatch") : can("editBatches");
+    const allowed = batch.status === "completed" ? can("batches:editClosed") : can("batches:manage");
     return allowed ? () => setEditing(batch.batchNumber) : null;
   }
 
@@ -374,14 +380,22 @@ export default function Batches({ day }: { day: DemoDay }) {
       <PageHeader
         title="Batches"
         subtitle={`${batches.length} this season. Closed batches are locked unless an admin overrides.`}
-        actions={can("editBatches") ? <Button onClick={() => setShowNew(true)}>New Batch</Button> : null}
+        actions={
+          can("batches:manage") ? (
+            <Button onClick={() => setShowNew(true)}>
+              <PlusIcon size={16} />
+              New Batch
+            </Button>
+          ) : null
+        }
       />
 
       {batches.length === 0 ? (
-        <Card className="py-14 text-center">
-          <p className="font-sans text-lg font-semibold">No batches yet</p>
-          <p className="mt-1 text-muted">A batch is created once sap has been collected into storage.</p>
-        </Card>
+        <EmptyState
+          icon={<DropIcon size={26} />}
+          title="No batches yet"
+          description="A batch is created once sap has been collected into storage."
+        />
       ) : (
         <>
           <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -391,7 +405,11 @@ export default function Batches({ day }: { day: DemoDay }) {
               value={weight(syrup)}
               note={`${closedBatches.length} batch${closedBatches.length === 1 ? "" : "es"} boiled`}
             />
-            <StatCard label="Avg Brix" value={avgBrix ? `${avgBrix.toFixed(1)}°` : "—"} note="closed batches" />
+            <StatCard
+              label="Avg Brix"
+              value={avgBrix ? `${avgBrix.toFixed(1)}°` : "—"}
+              note="closed batches"
+            />
             <StatCard
               label="Sap to syrup"
               value={syrup ? `${(closedSap / syrup).toFixed(1)} : 1` : "—"}
@@ -440,14 +458,16 @@ export default function Batches({ day }: { day: DemoDay }) {
                         ),
                         sapIn: weight(batch.sapInLbs),
                         syrup: weight(batch.syrupOutLbs),
-                        ratio: batch.syrupOutLbs ? `${(batch.sapInLbs / batch.syrupOutLbs).toFixed(1)} : 1` : "—",
+                        ratio: batch.syrupOutLbs
+                          ? `${(batch.sapInLbs / batch.syrupOutLbs).toFixed(1)} : 1`
+                          : "—",
                         brix: batch.brix ? `${batch.brix}°` : "—",
                         duration: formatDuration(batch.boilMinutes),
                         notes: <span className="block truncate">{view.notes[0]?.text ?? "—"}</span>,
                         menu: (
                           <ClosedRowMenu
                             view={view}
-                            canEdit={can("editClosedBatch")}
+                            canEdit={can("batches:editClosed")}
                             onEdit={() => setEditing(batch.batchNumber)}
                           />
                         ),
@@ -463,7 +483,12 @@ export default function Batches({ day }: { day: DemoDay }) {
 
       {showNew ? <NewBatchModal onClose={() => setShowNew(false)} /> : null}
       {editingView ? (
-        <EditBatchModal key={editingView.batch.batchNumber} view={editingView} day={day} onClose={() => setEditing(null)} />
+        <EditBatchModal
+          key={editingView.batch.batchNumber}
+          view={editingView}
+          day={day}
+          onClose={() => setEditing(null)}
+        />
       ) : null}
     </div>
   );

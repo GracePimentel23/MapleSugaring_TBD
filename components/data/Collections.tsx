@@ -1,12 +1,14 @@
 "use client";
 
+import { FullIcon, PlusIcon } from "@/components/icons";
 import { useState } from "react";
+import { useSession } from "@/components/session/SessionProvider";
 import LogCollectionModal from "@/components/stations/LogCollectionModal";
-import { Button, PageHeader } from "@/components/ui/ui";
+import { Button, EmptyState, PageHeader } from "@/components/ui/ui";
 import { batchStatusLabel } from "@/lib/batchStatus";
 import { bucketProfiles } from "@/lib/demo/profiles";
 import type { DemoDay } from "@/lib/demo/timeline";
-import type { Collection, CollectionEntry, UserRole } from "@/lib/types/schema";
+import type { Collection, CollectionEntry } from "@/lib/types/schema";
 
 const PEOPLE = ["Mr. Adams", "Chloe M.", "Jordan T.", "Sam R."];
 
@@ -23,12 +25,7 @@ function formatDate(iso: string): string {
 function EditIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-      <path
-        d="M9.5 2.5l2 2-7 7H2.5v-2l7-7z"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinejoin="round"
-      />
+      <path d="M9.5 2.5l2 2-7 7H2.5v-2l7-7z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -62,13 +59,7 @@ function CloseIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-function EditRowPopup({
-  entry,
-  onClose,
-}: {
-  entry: CollectionEntry;
-  onClose: () => void;
-}) {
+function EditRowPopup({ entry, onClose }: { entry: CollectionEntry; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
@@ -99,9 +90,7 @@ function EditRowPopup({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">
-              Weight (lbs)
-            </label>
+            <label className="mb-1 block text-xs font-medium text-muted">Weight (lbs)</label>
             <input
               type="number"
               defaultValue={entry.lbs}
@@ -190,14 +179,9 @@ function EditCollectionSheet({
 
           <div>
             <label className="mb-2 block text-xs font-medium text-muted">Buckets</label>
-            <div
-              className="overflow-hidden rounded-xl border"
-              style={{ borderColor: "var(--color-border)" }}
-            >
+            <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--color-border)" }}>
               {bucketProfiles.map((profile, index) => {
-                const included = collection.entries.some(
-                  (entry) => entry.bucketName === profile.name,
-                );
+                const included = collection.entries.some((entry) => entry.bucketName === profile.name);
                 const removed = removedBuckets.includes(profile.name);
 
                 return (
@@ -230,9 +214,7 @@ function EditCollectionSheet({
                         className="rounded-full px-2 py-0.5 text-xs"
                         style={{
                           color: removed ? "#16A34A" : "#DC2626",
-                          background: removed
-                            ? "rgba(34,197,94,0.1)"
-                            : "rgba(239,68,68,0.1)",
+                          background: removed ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
                         }}
                       >
                         {removed ? "Restore" : "Remove"}
@@ -268,8 +250,7 @@ function EditCollectionSheet({
             </select>
             {waitingBatches.length > 0 ? (
               <p className="mt-1 text-xs text-muted">
-                Batches waiting for sap:{" "}
-                {waitingBatches.map((batch) => batch.batchNumber).join(", ")}
+                Batches waiting for sap: {waitingBatches.map((batch) => batch.batchNumber).join(", ")}
               </p>
             ) : null}
           </div>
@@ -333,13 +314,7 @@ function EditCollectionSheet({
   );
 }
 
-export default function Collections({
-  day,
-  role,
-}: {
-  day: DemoDay;
-  role: UserRole;
-}) {
+export default function Collections({ day }: { day: DemoDay }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [editCollectionId, setEditCollectionId] = useState<string | null>(null);
@@ -348,13 +323,14 @@ export default function Collections({
     bucketId: number;
   } | null>(null);
 
-  const canAdd = role === "admin" || role === "student";
-  const isAdmin = role === "admin";
+  const { can } = useSession();
+  // What you may do comes from lib/rbac.config.ts.
+  const canAdd = can("collections:log");
+  const isAdmin = can("collections:edit");
 
   // Resolved from the current day so an open sheet follows the replay rather
   // than holding a stale snapshot.
-  const editCollection =
-    day.collections.find((collection) => collection.id === editCollectionId) ?? null;
+  const editCollection = day.collections.find((collection) => collection.id === editCollectionId) ?? null;
   const editRowEntry =
     day.collections
       .find((collection) => collection.id === editRowKey?.collectionId)
@@ -365,17 +341,22 @@ export default function Collections({
       <PageHeader
         title="Collections"
         subtitle={`${day.collections.length} collection${day.collections.length === 1 ? "" : "s"} · most recent first`}
-        actions={canAdd ? <Button onClick={() => setShowAdd(true)}>Log Collection</Button> : null}
+        actions={
+          canAdd ? (
+            <Button onClick={() => setShowAdd(true)}>
+              <PlusIcon size={16} />
+              Log Collection
+            </Button>
+          ) : null
+        }
       />
 
       {day.collections.length === 0 ? (
-        <div className="py-16 text-center text-muted">
-          <div className="mb-3 text-4xl">🪣</div>
-          <p className="text-sm font-medium">No collections logged yet</p>
-          <p className="mt-1 text-xs">
-            The buckets are still filling - nothing has been emptied into storage.
-          </p>
-        </div>
+        <EmptyState
+          icon={<FullIcon size={26} />}
+          title="No collections logged yet"
+          description="The buckets are still filling. Nothing has been emptied into storage."
+        />
       ) : (
         <div className="flex flex-col gap-2">
           {day.collections.map((collection) => {
@@ -401,21 +382,16 @@ export default function Collections({
                       #{number}
                     </div>
                     <div className="min-w-0">
-                      <div className="font-sans text-sm font-semibold">
-                        {formatDate(collection.date)}
-                      </div>
+                      <div className="font-sans text-sm font-semibold">{formatDate(collection.date)}</div>
                       <div className="text-xs text-muted">
                         {collection.entries.length} bucket
-                        {collection.entries.length === 1 ? "" : "s"} ·{" "}
-                        {collection.batchName}
+                        {collection.entries.length === 1 ? "" : "s"} · {collection.batchName}
                       </div>
                     </div>
                   </button>
 
                   <div className="ml-3 flex shrink-0 items-center gap-3">
-                    <span className="font-sans text-sm font-bold">
-                      {collection.totalLbs} lbs
-                    </span>
+                    <span className="font-sans text-sm font-bold">{collection.totalLbs} lbs</span>
                     {isAdmin ? (
                       <button
                         type="button"
@@ -485,7 +461,7 @@ export default function Collections({
                         className="border-t px-4 py-3 text-xs text-muted"
                         style={{ borderColor: "var(--color-border)", background: "#F5F5F5" }}
                       >
-                        📝 {collection.notes}
+                        <span className="font-semibold text-text">Note:</span> {collection.notes}
                       </div>
                     ) : null}
                   </div>
@@ -506,9 +482,7 @@ export default function Collections({
           onClose={() => setEditCollectionId(null)}
         />
       ) : null}
-      {editRowEntry ? (
-        <EditRowPopup entry={editRowEntry} onClose={() => setEditRowKey(null)} />
-      ) : null}
+      {editRowEntry ? <EditRowPopup entry={editRowEntry} onClose={() => setEditRowKey(null)} /> : null}
     </div>
   );
 }

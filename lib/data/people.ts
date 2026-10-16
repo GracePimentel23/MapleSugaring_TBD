@@ -1,84 +1,17 @@
 /**
- * Club members and what each role may do. There is one Owner / IT account, a
- * few Managers (teachers or advisors) and Members (students and volunteers).
- * Everyone signs in; there is no guest view.
+ * Club members. There is one Owner / IT account, a few Managers (teachers or
+ * advisors) and Members (students and volunteers). What each role may do is
+ * in lib/rbac.config.ts.
  */
 
-export type Role = "owner" | "manager" | "member";
+import { ROLES, type Role } from "@/lib/rbac.config";
 
-export const roleLabels: Record<Role, string> = {
-  owner: "Owner / IT",
-  manager: "Manager",
-  member: "Member",
-};
+export type { Role };
 
-export type Permission =
-  | "viewData"
-  | "logCollections"
-  | "editOwnCollections"
-  | "editAnyCollection"
-  | "editBatches"
-  | "closeBatch"
-  | "editClosedBatch"
-  | "maintenance"
-  | "editTrees"
-  | "editSeason"
-  | "manageMembers"
-  | "assignManager"
-  | "editThresholds"
-  | "editRolePermissions"
-  | "deleteData";
-
-/** In the order the Role Permissions table lists them. */
-export const permissionLabels: { key: Permission; label: string }[] = [
-  { key: "viewData", label: "View dashboard and data" },
-  { key: "logCollections", label: "Log collections" },
-  { key: "editOwnCollections", label: "Edit own collections" },
-  { key: "editAnyCollection", label: "Edit any collection" },
-  { key: "editBatches", label: "Create and edit batches" },
-  { key: "closeBatch", label: "Close a batch" },
-  { key: "editClosedBatch", label: "Edit a closed batch" },
-  { key: "maintenance", label: "Maintenance mode" },
-  { key: "editTrees", label: "Add and edit trees and sensors" },
-  { key: "editSeason", label: "Edit season dates" },
-  { key: "manageMembers", label: "Add, edit and remove members" },
-  { key: "assignManager", label: "Assign Manager role" },
-  { key: "editThresholds", label: "Edit thresholds" },
-  { key: "editRolePermissions", label: "Edit role permissions" },
-  { key: "deleteData", label: "Delete data permanently" },
-];
-
-/** Only the Owner / IT account can ever hold these; they are not editable per role. */
-export const ownerOnlyPermissions: Permission[] = [
-  "editThresholds",
-  "editRolePermissions",
-  "deleteData",
-];
-
-export type RolePermissions = Record<"manager" | "member", Record<Permission, boolean>>;
-
-function grant(keys: Permission[]): Record<Permission, boolean> {
-  return Object.fromEntries(
-    permissionLabels.map(({ key }) => [key, keys.includes(key)]),
-  ) as Record<Permission, boolean>;
-}
-
-export const defaultRolePermissions: RolePermissions = {
-  manager: grant([
-    "viewData",
-    "logCollections",
-    "editOwnCollections",
-    "editAnyCollection",
-    "editBatches",
-    "closeBatch",
-    "maintenance",
-    "editTrees",
-    "editSeason",
-    "manageMembers",
-    "assignManager",
-  ]),
-  member: grant(["viewData", "logCollections", "editOwnCollections"]),
-};
+/** "Owner / IT", "Manager", "Member": from lib/rbac.config.ts. */
+export const roleLabels = Object.fromEntries(
+  (Object.keys(ROLES) as Role[]).map((role) => [role, ROLES[role].label]),
+) as Record<Role, string>;
 
 export type MemberStatus = "active" | "invited" | "deactivated";
 
@@ -87,6 +20,8 @@ export interface Member {
   name: string;
   email: string;
   role: Role;
+  /** Optional, set by the member themselves, e.g. "she/her", "they/them" */
+  pronouns?: string;
   status: MemberStatus;
   /** Newest first */
   activity: { when: string; what: string }[];

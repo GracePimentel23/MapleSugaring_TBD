@@ -9,16 +9,18 @@ function Svg({
   size = 20,
   children,
   className,
+  viewBox = "0 0 20 20",
 }: {
   size?: number;
   children: ReactNode;
   className?: string;
+  viewBox?: string;
 }) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 20 20"
+      viewBox={viewBox}
       fill="none"
       stroke="currentColor"
       strokeWidth="1.6"
@@ -70,11 +72,12 @@ export function BarsIcon(props: IconProps) {
   );
 }
 
+/** A standard cog (Lucide "settings", ISC licence), drawn on a 24-unit grid. */
 export function GearIcon(props: IconProps) {
   return (
-    <Svg {...props}>
-      <circle cx="10" cy="10" r="2.6" />
-      <path d="M10 2v2.2M10 15.8V18M2 10h2.2M15.8 10H18M4.3 4.3l1.6 1.6M14.1 14.1l1.6 1.6M4.3 15.7l1.6-1.6M14.1 5.9l1.6-1.6" />
+    <Svg {...props} viewBox="0 0 24 24">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
     </Svg>
   );
 }
@@ -240,6 +243,23 @@ export function CrosshairIcon(props: IconProps) {
     <Svg {...props}>
       <circle cx="10" cy="10" r="3.2" />
       <path d="M10 2v3M10 15v3M2 10h3M15 10h3" />
+    </Svg>
+  );
+}
+
+export function WrenchIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12.7 3.3a4 4 0 00-4.9 5.2L3.4 12.9a1.6 1.6 0 002.3 2.3l4.4-4.4a4 4 0 005.2-4.9l-2.4 2.4-2-.6-.6-2z" />
+    </Svg>
+  );
+}
+
+export function CalendarIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="3" y="4.5" width="14" height="12.5" rx="2" />
+      <path d="M3 8.5h14M7 2.8v3.2M13 2.8v3.2" />
     </Svg>
   );
 }

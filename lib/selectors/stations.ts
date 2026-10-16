@@ -295,14 +295,15 @@ export function byUrgency(a: StationView, b: StationView): number {
   return statusRank[a.status] - statusRank[b.status] || a.bucketId - b.bucketId;
 }
 
+/** label, text color, badge background, and progress-bar fill for each status */
 export const stationStatusMeta: Record<
   StationStatus,
-  { label: string; color: string; bar: string }
+  { label: string; color: string; bg: string; bar: string }
 > = {
-  filling: { label: "Filling", color: "var(--color-status-online)", bar: "var(--color-accent-mid)" },
-  due: { label: "Due", color: "var(--color-status-due)", bar: "var(--color-status-attention)" },
-  full: { label: "Full", color: "var(--color-status-due)", bar: "var(--color-status-attention)" },
-  lowBattery: { label: "Low battery", color: "var(--color-status-problem)", bar: "var(--color-status-offline)" },
-  offline: { label: "No signal", color: "var(--color-status-problem)", bar: "#B8B8B0" },
-  maintenance: { label: "Maintenance", color: "var(--color-status-maintenance)", bar: "#B8B8B0" },
+  filling: { label: "Filling", color: "#2E6B2B", bg: "#E3EFDF", bar: "var(--color-accent-mid)" },
+  due: { label: "Due", color: "#7A5300", bg: "#FBEFCF", bar: "var(--color-status-attention)" },
+  full: { label: "Full", color: "#7A3F00", bg: "#FBE0BE", bar: "#D98A1E" },
+  lowBattery: { label: "Low battery", color: "#A3221A", bg: "#FBE3E0", bar: "var(--color-status-offline)" },
+  offline: { label: "No signal", color: "#A3221A", bg: "#ECECE6", bar: "#B8B8B0" },
+  maintenance: { label: "Maintenance", color: "#5E5A50", bg: "#ECECE6", bar: "#B8B8B0" },
 };

@@ -217,6 +217,8 @@ export function Modal({
   footer,
   width = "md",
   eyebrow,
+  subtitle,
+  badge,
 }: {
   title: string;
   onClose: () => void;
@@ -224,6 +226,10 @@ export function Modal({
   footer?: ReactNode;
   width?: "md" | "lg";
   eyebrow?: string;
+  /** A line under the title, kept in the fixed header so it never scrolls under it */
+  subtitle?: ReactNode;
+  /** Shown beside the title, e.g. a status badge */
+  badge?: ReactNode;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-4">
@@ -246,9 +252,13 @@ export function Modal({
           <div className="h-1 w-10 rounded-full bg-[#D5D9CF]" />
         </div>
         <div className="flex shrink-0 items-start justify-between gap-4 px-6 pt-5 pb-3 md:px-8 md:pt-7">
-          <div>
+          <div className="min-w-0">
             {eyebrow ? <p className="mb-1 text-sm text-muted">{eyebrow}</p> : null}
-            <h2 className="font-sans text-2xl font-bold md:text-[28px]">{title}</h2>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h2 className="font-sans text-2xl font-bold md:text-[28px]">{title}</h2>
+              {badge}
+            </div>
+            {subtitle ? <p className="mt-1 text-[15px] text-muted">{subtitle}</p> : null}
           </div>
           <button
             type="button"
@@ -372,7 +382,7 @@ export function ProgressBar({
   return (
     <div className="overflow-hidden rounded-full bg-progress-track" style={{ height }}>
       <div
-        className="h-full rounded-full transition-all duration-500"
+        className="anim-grow h-full rounded-full transition-all duration-500"
         style={{ width: `${Math.min(Math.max(percent, 0), 100)}%`, background: color }}
       />
     </div>
@@ -410,5 +420,44 @@ export function Checkbox({
       </span>
       <span className="text-[15px]">{label}</span>
     </label>
+  );
+}
+
+/**
+ * The one "nothing here yet" look: a soft circular icon, a title and a line of
+ * help. `compact` is for empty sections inside a page.
+ */
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+  compact = false,
+}: {
+  icon: ReactNode;
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={cx(
+        "flex flex-col items-center rounded-2xl border border-dashed border-[#CFD6C8] bg-white text-center",
+        compact ? "px-6 py-7" : "px-6 py-14",
+      )}
+    >
+      <span
+        className={cx(
+          "mb-3 flex items-center justify-center rounded-full bg-accent-light text-accent-mid",
+          compact ? "h-11 w-11" : "h-14 w-14",
+        )}
+      >
+        {icon}
+      </span>
+      <p className={cx("font-sans font-semibold", compact ? "text-base" : "text-lg")}>{title}</p>
+      {description ? <p className="mt-1 max-w-sm text-sm text-muted">{description}</p> : null}
+      {action ? <div className="mt-4">{action}</div> : null}
+    </div>
   );
 }

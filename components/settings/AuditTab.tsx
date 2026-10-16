@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { FilterIcon } from "@/components/icons";
 import { useSession } from "@/components/session/SessionProvider";
 import { Button, Card, CardTitle, DataTable } from "@/components/ui/ui";
 
@@ -36,7 +35,7 @@ function FilterSelect({
 
 /** Every edit, who made it, and what changed. Read-only; Owner / IT can export it. */
 export default function AuditTab() {
-  const { audit, user } = useSession();
+  const { audit, can } = useSession();
   const [userFilter, setUserFilter] = useState(ALL);
   const [actionFilter, setActionFilter] = useState(ALL);
   const [period, setPeriod] = useState<"week" | "all">("week");
@@ -66,7 +65,7 @@ export default function AuditTab() {
     <Card className="md:px-8 md:py-7">
       <CardTitle title="Audit Log" subtitle="Every edit, who made it, and what changed. Read-only." />
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="mb-8 flex flex-wrap items-center gap-3">
         <select
           value={period}
           onChange={(event) => setPeriod(event.target.value as "week" | "all")}
@@ -77,9 +76,6 @@ export default function AuditTab() {
         </select>
         <FilterSelect value={userFilter} onChange={setUserFilter} options={users} allLabel="All Users" />
         <FilterSelect value={actionFilter} onChange={setActionFilter} options={actions} allLabel="All Actions" />
-        <span className="ml-auto text-muted">
-          <FilterIcon size={20} />
-        </span>
       </div>
 
       <DataTable
@@ -107,7 +103,7 @@ export default function AuditTab() {
         <span className="text-sm text-muted">
           Showing {shown.length} of {audit.length} changes
         </span>
-        {user.role === "owner" ? <Button onClick={exportCsv}>Export CSV</Button> : null}
+        {can("data:export") ? <Button onClick={exportCsv}>Export CSV</Button> : null}
       </div>
     </Card>
   );

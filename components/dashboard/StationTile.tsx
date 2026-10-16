@@ -1,6 +1,7 @@
 "use client";
 
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
+import StatusBadge from "@/components/stations/StatusBadge";
 import { cx, ProgressBar } from "@/components/ui/ui";
 import { stationStatusMeta } from "@/lib/selectors/stations";
 import type { StationView } from "@/lib/types/schema";
@@ -29,9 +30,7 @@ export default function StationTile({
     >
       <div className="flex items-start justify-between gap-2">
         <span className="font-sans text-lg font-semibold">{station.name}</span>
-        <span className="pt-1 text-right font-sans text-sm font-semibold" style={{ color: meta.color }}>
-          {meta.label}
-        </span>
+        <StatusBadge status={station.status} />
       </div>
       <span className="mt-1 text-[15px] text-muted">{station.location}</span>
       <div className={cx("mt-4 mb-3", inactive && "opacity-60")}>

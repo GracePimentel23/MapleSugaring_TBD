@@ -16,10 +16,11 @@ const channels: { key: Channel; label: string }[] = [
 ];
 
 export default function NotificationsTab() {
-  const { user } = useSession();
+  const { can } = useSession();
   const { notificationPrefs, setNotificationPref, recipients, setRecipients, quietHours, setQuietHours } =
     useClubSettings();
-  const isOwner = user.role === "owner";
+  // Who gets alerts for the whole club is the owner's call; everyone else sets their own.
+  const isOwner = can("users:manage");
 
   return (
     <>

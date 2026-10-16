@@ -3,59 +3,92 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
+import NotificationsMenu from "@/components/alerts/NotificationsMenu";
+import AccountMenu from "@/components/auth/AccountMenu";
 import { dataSections } from "@/components/data/sections";
 import DemoControls from "@/components/demo/DemoControls";
 import { useDemo } from "@/components/demo/DemoProvider";
 import {
   BarsIcon,
   BellIcon,
+  CalendarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   DropIcon,
   GearIcon,
   GridIcon,
 } from "@/components/icons";
-import { useAlerts } from "@/components/stations/StationStateProvider";
-import { cx } from "@/components/ui/ui";
+import { useClubSettings } from "@/components/session/ClubSettingsProvider";
+import { useSession } from "@/components/session/SessionProvider";
+import { Button, Card, cx } from "@/components/ui/ui";
 import { hoursOfDay } from "@/lib/time";
 
-type PageId = "dashboard" | "stations" | "alerts" | "data" | "settings";
+type PageId = "dashboard" | "stations" | "schedule" | "alerts" | "data" | "settings" | "account";
 
 const navItems: { id: PageId; href: string; label: string; Icon: typeof GridIcon }[] = [
   { id: "dashboard", href: "/", label: "Dashboard", Icon: GridIcon },
   { id: "stations", href: "/stations", label: "Stations", Icon: DropIcon },
+  { id: "schedule", href: "/schedule", label: "Schedule", Icon: CalendarIcon },
   { id: "alerts", href: "/alerts", label: "Alerts", Icon: BellIcon },
   { id: "data", href: "/data/overview", label: "Data", Icon: BarsIcon },
   { id: "settings", href: "/settings", label: "Settings", Icon: GearIcon },
 ];
 
-/** Settings lives behind the gear in the phone header, so the tab bar has four. */
+/** Settings lives behind the gear in the phone header, so it is not in the tab bar. */
 const mobileItems = navItems.filter((item) => item.id !== "settings");
+
+/** The component id (lib/rbac.config.ts) that gates the page at `pathname`. */
+function gateFor(pathname: string, page: PageId | null): string | null {
+  if (page === null) return null;
+  if (page === "data") {
+    const section = dataSections.find((item) => pathname.startsWith(item.href));
+    return section ? `data.${section.id}` : "nav.data";
+  }
+  return `nav.${page}`;
+}
+
+/** Shown in place of a page the current view may not open. */
+function NoAccess() {
+  const { signedIn, viewAs } = useSession();
+  return (
+    <div className="px-4 pt-10 md:px-10">
+      <Card className="mx-auto max-w-lg py-10 text-center">
+        <h1 className="font-sans text-2xl font-bold">
+          {signedIn ? "Your role can't open this page" : "Sign in to see this page"}
+        </h1>
+        <p className="mx-auto mt-2 max-w-sm text-muted">
+          {signedIn
+            ? "Ask a manager or the Owner / IT if you need access."
+            : "Guests can see today's sap activity and the stations. Members see alerts, data and the schedule."}
+        </p>
+        {signedIn ? null : (
+          <Button className="mt-5" onClick={() => viewAs("member")}>
+            Sign In
+          </Button>
+        )}
+      </Card>
+    </div>
+  );
+}
 
 function activePage(pathname: string): PageId | null {
   if (pathname === "/") return "dashboard";
+  if (pathname.startsWith("/account")) return "account";
   const match = navItems.find((item) => item.id !== "dashboard" && pathname.startsWith(`/${item.id}`));
   return match?.id ?? null;
-}
-
-function AlertBadge({ count, collapsed }: { count: number; collapsed: boolean }) {
-  if (count === 0) return null;
-  if (collapsed) {
-    return <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-status-problem" />;
-  }
-  return (
-    <span className="ml-auto flex h-6 min-w-6 items-center justify-center rounded-full bg-status-problem px-1.5 text-xs font-bold text-white">
-      {count}
-    </span>
-  );
 }
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const active = activePage(pathname);
   const { day } = useDemo();
-  const { active: activeAlerts } = useAlerts();
+  const { shows } = useSession();
+  const { animations } = useClubSettings();
   const [collapsed, setCollapsed] = useState(false);
+  const gate = gateFor(pathname, active);
+  const allowed = gate === null || shows(gate);
+  const visibleNav = navItems.filter((item) => shows(`nav.${item.id}`));
+  const visibleMobile = mobileItems.filter((item) => shows(`nav.${item.id}`));
 
   // The newest reading from any sensor that is still reporting.
   const synced = day.buckets
@@ -64,7 +97,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     .sort((a, b) => hoursOfDay(b) - hoursOfDay(a))[0];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-bg text-text">
+    <div className="flex h-screen overflow-hidden bg-bg text-text" data-motion={animations ? "on" : "off"}>
       <aside
         className={cx(
           "hidden shrink-0 flex-col bg-sidebar text-white transition-[width] duration-200 md:flex",
@@ -89,7 +122,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 px-3">
-          {navItems.map(({ id, href, label, Icon }) => {
+          {visibleNav.map(({ id, href, label, Icon }) => {
             const isActive = active === id;
             return (
               <div key={id}>
@@ -106,14 +139,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 >
                   <Icon size={20} />
                   {collapsed ? null : <span>{label}</span>}
-                  {id === "alerts" ? (
-                    <AlertBadge count={activeAlerts.length} collapsed={collapsed} />
-                  ) : null}
                 </Link>
 
                 {id === "data" && !collapsed ? (
                   <div className="mt-1 mb-1 ml-8 flex flex-col gap-0.5">
-                    {dataSections.map((section) => {
+                    {dataSections.filter((section) => shows(`data.${section.id}`)).map((section) => {
                       const sectionActive = pathname === section.href;
                       return (
                         <Link
@@ -141,39 +171,48 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="hidden items-center justify-between px-6 pt-5 pb-2 md:flex lg:px-10">
           <div className="flex items-center gap-3">
-            <span className="rounded-full bg-season-badge px-3.5 py-1 font-sans text-sm font-semibold text-white">
+            <span className="rounded-full bg-season-badge px-4 py-1.5 font-sans text-base font-semibold text-white">
               {day.meta.seasonLabel}
             </span>
-            <span className="text-sm text-muted">{day.meta.currentDateLabel}</span>
+            <span className="font-sans text-base text-muted">{day.meta.currentDateLabel}</span>
           </div>
-          {synced ? <span className="text-sm text-muted">Synced {synced}</span> : null}
+          <div className="flex items-center gap-4">
+            {synced ? <span className="text-sm text-muted">Synced {synced}</span> : null}
+            {shows("header.alerts") ? <NotificationsMenu /> : null}
+            <AccountMenu />
+          </div>
         </header>
 
-        <header className="flex items-center justify-between px-4 pt-4 pb-1 md:hidden">
+        <header className="flex items-center justify-between gap-2 px-4 pt-4 pb-1 md:hidden">
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-season-badge px-2.5 py-0.5 font-sans text-xs font-semibold text-white">
+            <span className="rounded-full bg-season-badge px-3 py-1 font-sans text-sm font-semibold whitespace-nowrap text-white">
               {day.meta.seasonLabel}
             </span>
-            <span className="text-xs text-muted">{day.meta.currentDateShortLabel}</span>
+            <span className="hidden text-sm whitespace-nowrap text-muted min-[360px]:inline">
+              {day.meta.currentDateShortLabel}
+            </span>
           </div>
-          <Link
-            href="/settings"
-            aria-label="Settings"
-            className={cx(
-              "rounded-lg p-1.5",
-              active === "settings" ? "text-accent" : "text-text",
-            )}
-          >
-            <GearIcon size={24} />
-          </Link>
+          <div className="flex items-center gap-1">
+            {shows("header.alerts") ? <NotificationsMenu /> : null}
+            <AccountMenu />
+            {shows("nav.settings") ? (
+              <Link
+                href="/settings"
+                aria-label="Settings"
+                className={cx("rounded-lg p-1.5", active === "settings" ? "text-accent" : "text-text")}
+              >
+                <GearIcon size={24} />
+              </Link>
+            ) : null}
+          </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto">{allowed ? children : <NoAccess />}</main>
 
         <DemoControls />
 
-        <nav className="fixed right-0 bottom-0 left-0 z-40 flex border-t border-border bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
-          {mobileItems.map(({ id, href, label, Icon }) => {
+        <nav className="fixed right-0 bottom-0 left-0 z-40 flex border-t border-border bg-bg pb-[env(safe-area-inset-bottom)] md:hidden">
+          {visibleMobile.map(({ id, href, label, Icon }) => {
             const isActive = active === id;
             return (
               <Link
@@ -184,14 +223,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   isActive ? "font-semibold text-accent" : "text-muted",
                 )}
               >
-                <span className="relative">
-                  <Icon size={24} />
-                  {id === "alerts" && activeAlerts.length > 0 ? (
-                    <span className="absolute -top-1.5 -right-2.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-status-problem px-1 text-[10px] font-bold text-white">
-                      {activeAlerts.length}
-                    </span>
-                  ) : null}
-                </span>
+                <Icon size={24} />
                 {label}
               </Link>
             );

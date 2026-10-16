@@ -2,17 +2,12 @@
 
 import { useState } from "react";
 import { useDemo } from "@/components/demo/DemoProvider";
-import { ChevronRightIcon } from "@/components/icons";
+import { ChevronRightIcon, PlusIcon } from "@/components/icons";
 import { useSession } from "@/components/session/SessionProvider";
 import { Button, Card, CardTitle, Checkbox, cx, DataTable, Field, inputClass, Modal } from "@/components/ui/ui";
-import {
-  ownerOnlyPermissions,
-  permissionLabels,
-  roleLabels,
-  type Member,
-  type Role,
-  type RolePermissions,
-} from "@/lib/data/people";
+import { roleLabels, type Member, type Role } from "@/lib/data/people";
+import { ALL_PERMISSIONS, VIEWS, viewLabels } from "@/lib/rbac";
+import { OWNER_ONLY, PERMISSIONS, type Permission, type View } from "@/lib/rbac.config";
 import { tableStamp } from "@/lib/time";
 
 const statusColor: Record<Member["status"], string> = {
@@ -30,12 +25,13 @@ const statusLabel: Record<Member["status"], string> = {
 
 function EditMemberModal({ member, onClose }: { member: Member; onClose: () => void }) {
   const { day } = useDemo();
-  const { user, can, updateMember, removeMember, logAudit } = useSession();
+  const { user, view, can, updateMember, removeMember, logAudit } = useSession();
   const [name, setName] = useState(member.name);
   const [email, setEmail] = useState(member.email);
   const [role, setRole] = useState<Role>(member.role);
-  const roleChoices: Role[] = user.role === "owner" ? ["member", "manager", "owner"] : ["member", "manager"];
-  const lockedRole = member.role === "owner" && user.role !== "owner";
+  const isOwner = view === "owner";
+  const roleChoices: Role[] = isOwner ? ["member", "manager", "owner"] : ["member", "manager"];
+  const lockedRole = member.role === "owner" && !isOwner;
 
   function save() {
     updateMember({
@@ -125,7 +121,7 @@ function EditMemberModal({ member, onClose }: { member: Member; onClose: () => v
               <Button variant="danger" onClick={deactivate} disabled={member.status === "deactivated"}>
                 Deactivate Member
               </Button>
-              <Button variant="danger" onClick={remove} disabled={!can("deleteData")}>
+              <Button variant="danger" onClick={remove} disabled={!can("data:delete")}>
                 Delete Permanently (Owner / IT)
               </Button>
             </div>
@@ -140,14 +136,28 @@ function EditMemberModal({ member, onClose }: { member: Member; onClose: () => v
 
 function EditPermissionsModal({ onClose }: { onClose: () => void }) {
   const { day } = useDemo();
-  const { rolePermissions, setRolePermissions, logAudit } = useSession();
-  const [draft, setDraft] = useState<RolePermissions>(rolePermissions);
-  const [role, setRole] = useState<"manager" | "member">("manager");
-  const editable = permissionLabels.filter((item) => !ownerOnlyPermissions.includes(item.key));
+  const { grants, setGrants, logAudit } = useSession();
+  const [draft, setDraft] = useState<Record<View, Permission[]>>(grants);
+  const [editing, setEditing] = useState<Exclude<View, "owner">>("manager");
+  const editable = ALL_PERMISSIONS.filter((permission) => !OWNER_ONLY.includes(permission));
+
+  function toggle(permission: Permission, on: boolean) {
+    setDraft((current) => ({
+      ...current,
+      [editing]: on
+        ? [...current[editing], permission]
+        : current[editing].filter((item) => item !== permission),
+    }));
+  }
 
   function save() {
-    setRolePermissions(draft);
-    logAudit({ when: tableStamp(day.date), action: "Changed role permissions", record: "Manager, Member", change: "Updated" });
+    setGrants(draft);
+    logAudit({
+      when: tableStamp(day.date),
+      action: "Changed role permissions",
+      record: "Guest, Member, Manager",
+      change: "Updated",
+    });
     onClose();
   }
 
@@ -165,38 +175,36 @@ function EditPermissionsModal({ onClose }: { onClose: () => void }) {
       }
     >
       <div className="mb-4 flex gap-2">
-        {(["manager", "member"] as const).map((option) => (
+        {(["manager", "member", "guest"] as const).map((option) => (
           <button
             key={option}
             type="button"
-            onClick={() => setRole(option)}
+            onClick={() => setEditing(option)}
             className={cx(
               "rounded-full px-4 py-1.5 font-sans text-[15px] font-semibold",
-              role === option ? "bg-accent text-white" : "text-slate hover:bg-bg",
+              editing === option ? "bg-accent text-white" : "text-slate hover:bg-bg",
             )}
           >
-            {roleLabels[option]}
+            {viewLabels[option]}
           </button>
         ))}
       </div>
       <p className="mb-5 text-sm text-muted">
-        Owner / IT can always do everything. Check what a {roleLabels[role]} can do.
+        Owner / IT can always do everything. Check what a {viewLabels[editing]} can do.
       </p>
       <div className="space-y-4">
-        {editable.map((item) => (
+        {editable.map((permission) => (
           <Checkbox
-            key={item.key}
-            label={item.label}
-            checked={draft[role][item.key]}
-            onChange={(checked) =>
-              setDraft((current) => ({ ...current, [role]: { ...current[role], [item.key]: checked } }))
-            }
+            key={permission}
+            label={PERMISSIONS[permission]}
+            checked={draft[editing].includes(permission)}
+            onChange={(checked) => toggle(permission, checked)}
           />
         ))}
       </div>
       <p className="mt-6 text-sm text-muted">
-        Owner-only: edit thresholds, edit role permissions, delete data permanently. New abilities
-        appear here as the app gains features.
+        Owner-only: change role permissions, change alert thresholds, delete data permanently. The
+        defaults live in lib/rbac.config.ts, matching worker/src/rbac.config.js on main.
       </p>
     </Modal>
   );
@@ -204,12 +212,12 @@ function EditPermissionsModal({ onClose }: { onClose: () => void }) {
 
 export default function UsersTab() {
   const { day } = useDemo();
-  const { members, can, rolePermissions, addMember, logAudit } = useSession();
+  const { members, can, grants, addMember, logAudit } = useSession();
   const [editing, setEditing] = useState<Member | null>(null);
   const [showPermissions, setShowPermissions] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<Role>("member");
-  const manage = can("manageMembers");
+  const manage = can("users:manage");
 
   function invite() {
     const email = inviteEmail.trim();
@@ -229,6 +237,7 @@ export default function UsersTab() {
           action={
             manage ? (
               <Button variant="outline" size="sm" onClick={() => document.getElementById("invite-email")?.focus()}>
+                <PlusIcon size={14} />
                 Add Member
               </Button>
             ) : null
@@ -247,7 +256,12 @@ export default function UsersTab() {
             key: String(member.id),
             onClick: manage ? () => setEditing(member) : undefined,
             cells: {
-              name: member.name,
+              name: (
+                <span>
+                  {member.name}
+                  {member.pronouns ? <span className="block text-xs text-muted">{member.pronouns}</span> : null}
+                </span>
+              ),
               email: member.email,
               role: roleLabels[member.role],
               status: (
@@ -305,7 +319,7 @@ export default function UsersTab() {
           title="Role Permissions"
           subtitle="Fixed per role. Only the Owner / IT account can change what a role is allowed to do."
           action={
-            can("editRolePermissions") ? (
+            can("roles:manage") ? (
               <Button variant="outline" size="sm" onClick={() => setShowPermissions(true)}>
                 Edit Permissions
               </Button>
@@ -315,17 +329,20 @@ export default function UsersTab() {
         <DataTable
           columns={[
             { key: "permission", label: "Permission" },
-            { key: "owner", label: "Owner / IT" },
-            { key: "manager", label: "Manager" },
-            { key: "member", label: "Member" },
+            ...VIEWS.map((item) => ({ key: item, label: viewLabels[item] })),
           ]}
-          rows={permissionLabels.map((item) => ({
-            key: item.key,
+          rows={ALL_PERMISSIONS.map((permission) => ({
+            key: permission,
             cells: {
-              permission: item.label,
-              owner: "Yes",
-              manager: rolePermissions.manager[item.key] ? "Yes" : "No",
-              member: rolePermissions.member[item.key] ? "Yes" : "No",
+              permission: (
+                <span>
+                  {PERMISSIONS[permission]}
+                  <span className="block font-mono text-[11px] text-muted">{permission}</span>
+                </span>
+              ),
+              ...Object.fromEntries(
+                VIEWS.map((item) => [item, grants[item].includes(permission) ? "Yes" : "No"]),
+              ),
             },
           }))}
         />

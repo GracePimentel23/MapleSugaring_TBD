@@ -81,3 +81,244 @@ h5 {
   text-transform: uppercase;
   color: var(--color-muted);
 }
+
+/* Card art on the dashboard. Gentle, slow, and off for anyone who asks for less motion. */
+@keyframes leaf-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+@keyframes drop-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes sun-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes cloud-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(10px);
+  }
+}
+@keyframes weather-fall {
+  0% {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(46px);
+    opacity: 0;
+  }
+}
+@keyframes bolt-flash {
+  0%,
+  86%,
+  100% {
+    opacity: 0.25;
+  }
+  88%,
+  92% {
+    opacity: 1;
+  }
+}
+.anim-sway {
+  transform-origin: 50% 95%;
+  animation: leaf-sway 11s ease-in-out infinite;
+}
+.anim-bob {
+  animation: drop-bob 7s ease-in-out infinite;
+}
+.anim-spin {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: sun-spin 80s linear infinite;
+}
+.anim-drift {
+  animation: cloud-drift 9s ease-in-out infinite;
+}
+.anim-fall {
+  animation: weather-fall 2.4s linear infinite;
+}
+.anim-flash {
+  animation: bolt-flash 5s linear infinite;
+}
+/* Scene layers: always moving, each piece on its own delay so nothing lines up. */
+@keyframes leaf-fall {
+  0% {
+    transform: translate(0, -40px) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-90px, 360px) rotate(320deg);
+    opacity: 0;
+  }
+}
+@keyframes sap-drip {
+  0% {
+    transform: translateY(0) scaleY(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.8;
+    transform: translateY(0) scaleY(1);
+  }
+  85% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(120px) scaleY(1.1);
+    opacity: 0;
+  }
+}
+@keyframes bubble-rise {
+  0% {
+    transform: translateY(0) scale(0.5);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(-230px) scale(1.05);
+    opacity: 0;
+  }
+}
+@keyframes wave-shift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-40px);
+  }
+}
+@keyframes drift-across {
+  from {
+    left: -35%;
+  }
+  to {
+    left: 105%;
+  }
+}
+@keyframes precip-fall {
+  0% {
+    transform: translate(0, -30px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-18px, 320px);
+    opacity: 0;
+  }
+}
+@keyframes snow-fall {
+  0% {
+    transform: translate(0, -30px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(14px, 140px);
+  }
+  100% {
+    transform: translate(-6px, 300px);
+    opacity: 0;
+  }
+}
+@keyframes glow-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.6;
+  }
+}
+.anim-leaf-fall {
+  animation: leaf-fall linear infinite;
+}
+.anim-drip {
+  transform-origin: top;
+  animation: sap-drip 6.5s ease-in infinite;
+}
+.anim-bubble {
+  animation: bubble-rise linear infinite;
+}
+.anim-wave {
+  animation: wave-shift 6s linear infinite;
+}
+.anim-across {
+  animation: drift-across linear infinite;
+}
+.anim-precip {
+  animation: precip-fall linear infinite;
+}
+.anim-snow {
+  animation: snow-fall linear infinite;
+}
+.anim-glow {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: glow-pulse 9s ease-in-out infinite;
+}
+/* Bars grow in from the left when a page opens. */
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+.anim-grow {
+  transform-origin: left center;
+  animation: bar-grow 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/*
+ * Motion off: the Background animations setting (data-motion="off" on the app
+ * shell) or the device asking for reduced motion. Everything stops; pieces that
+ * only make sense while moving (falling leaves, drips, bubbles, rain, snow, the
+ * filling pulse) are hidden, and the rest stays as a still picture.
+ */
+[data-motion="off"] [class*="anim-"],
+[data-motion="off"] .animate-ping {
+  animation: none !important;
+}
+[data-motion="off"] :is(.anim-leaf-fall, .anim-drip, .anim-bubble, .anim-precip, .anim-snow, .animate-ping) {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*="anim-"] {
+    animation: none !important;
+  }
+  :is(.anim-leaf-fall, .anim-drip, .anim-bubble, .anim-precip, .anim-snow) {
+    display: none;
+  }
+}

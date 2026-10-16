@@ -31,10 +31,13 @@ export default function LogCollectionModal({
   bucketId,
   onClose,
   onBackToStation,
+  onLogged,
 }: {
   bucketId: number;
   onClose: () => void;
   onBackToStation?: (bucketId: number) => void;
+  /** Called once the collection is saved, e.g. to tick off a scheduled job */
+  onLogged?: () => void;
 }) {
   const { day } = useDemo();
   const { user } = useSession();
@@ -96,6 +99,7 @@ export default function LogCollectionModal({
       });
     }
 
+    onLogged?.();
     setReceipt({
       lbs: amount,
       bucketName: station.name,

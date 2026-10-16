@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useDemo } from "@/components/demo/DemoProvider";
 import { useSession } from "@/components/session/SessionProvider";
-import { roleLabels, type Role } from "@/lib/data/people";
+import { VIEWS, viewLabels } from "@/lib/rbac";
+import type { View } from "@/lib/rbac.config";
 import { demoTimeline } from "@/lib/demo/timeline";
 
 /** Days worth flagging on the scrubber so the presenter can see what is coming. */
@@ -43,8 +44,10 @@ function ChevronRight() {
 export default function DemoControls() {
   const { day, dayIndex, totalDays, canGoNext, canGoPrev, next, prev, jumpTo, reset } =
     useDemo();
-  const { user, viewAs } = useSession();
+  const { view, viewAs } = useSession();
   const [scriptOpen, setScriptOpen] = useState(true);
+  // Phones get one compact row; the script, day dots and Reset sit behind "More".
+  const [more, setMore] = useState(false);
 
   return (
     <div
@@ -53,7 +56,7 @@ export default function DemoControls() {
     >
       {scriptOpen ? (
         <div
-          className="px-4 pt-3.5 pb-1 md:px-6"
+          className={`px-4 pt-3.5 pb-1 md:block md:px-6 ${more ? "block" : "hidden"}`}
           style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}
         >
           <div className="flex flex-col gap-2 pb-3 lg:flex-row lg:gap-8">
@@ -77,7 +80,7 @@ export default function DemoControls() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 md:px-6">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 md:px-6 md:py-2.5">
         <span className="rounded-full bg-white/15 px-2 py-0.5 font-sans text-[10px] font-bold tracking-widest text-white">
           DEMO
         </span>
@@ -107,12 +110,14 @@ export default function DemoControls() {
           <div className="font-sans text-sm font-semibold text-white">
             Day {day.dayNumber} of {totalDays}
           </div>
-          <div className="text-xs text-white/60">
+          <div className="hidden text-xs text-white/60 sm:block">
             {day.weather.label}, 2022 · Rochester, NY
           </div>
         </div>
 
-        <div className="order-last flex w-full items-center gap-1 sm:order-none sm:w-auto sm:flex-1 sm:justify-center">
+        <div
+          className={`order-last w-full items-center gap-1 sm:order-none sm:flex sm:w-auto sm:flex-1 sm:justify-center ${more ? "flex" : "hidden"}`}
+        >
           {dayMarkers.map((marker, index) => {
             const isCurrent = index === dayIndex;
             const isPast = index < dayIndex;
@@ -154,30 +159,39 @@ export default function DemoControls() {
           </span>
           {/* Presenter control: see the app as each role would. */}
           <label className="flex items-center gap-1.5 text-xs text-white/70">
-            View as
+            <span className="hidden sm:inline">View as</span>
             <select
-              value={user.role}
-              onChange={(event) => viewAs(event.target.value as Role)}
+              value={view}
+              aria-label="View as"
+              onChange={(event) => viewAs(event.target.value as View)}
               className="rounded-lg border border-white/20 bg-white/10 px-2 py-1 font-sans text-xs font-medium text-white outline-none"
             >
-              {(Object.keys(roleLabels) as Role[]).map((role) => (
-                <option key={role} value={role} className="text-text">
-                  {roleLabels[role]}
+              {VIEWS.map((item) => (
+                <option key={item} value={item} className="text-text">
+                  {viewLabels[item]}
                 </option>
               ))}
             </select>
           </label>
           <button
             type="button"
+            onClick={() => setMore((open) => !open)}
+            aria-expanded={more}
+            className="rounded-lg px-2.5 py-1.5 font-sans text-xs font-medium text-white/85 transition-colors hover:bg-white/15 sm:hidden"
+          >
+            {more ? "Less" : "More"}
+          </button>
+          <button
+            type="button"
             onClick={() => setScriptOpen((open) => !open)}
-            className="rounded-lg px-2.5 py-1.5 font-sans text-xs font-medium text-white/85 transition-colors hover:bg-white/15"
+            className={`rounded-lg px-2.5 py-1.5 font-sans text-xs font-medium text-white/85 transition-colors hover:bg-white/15 sm:inline-block ${more ? "inline-block" : "hidden"}`}
           >
             {scriptOpen ? "Hide script" : "Show script"}
           </button>
           <button
             type="button"
             onClick={reset}
-            className="rounded-lg px-2.5 py-1.5 font-sans text-xs font-medium text-white/85 transition-colors hover:bg-white/15"
+            className={`rounded-lg px-2.5 py-1.5 font-sans text-xs font-medium text-white/85 transition-colors hover:bg-white/15 sm:inline-block ${more ? "inline-block" : "hidden"}`}
           >
             Reset
           </button>
