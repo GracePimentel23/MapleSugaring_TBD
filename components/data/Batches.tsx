@@ -48,7 +48,7 @@ function StageTrack({ status }: { status: BatchStatus }) {
           />
           <div
             className={cx(
-              "mt-2 text-sm md:text-[15px]",
+              "mt-2 text-sm md:text-[16px]",
               index === current ? "font-semibold text-text" : "text-muted",
             )}
           >
@@ -67,7 +67,7 @@ function BatchNotes({ view }: { view: BatchView }) {
 
   return (
     <div className="mt-4">
-      {latest ? <p className="text-[15px] text-muted">{latest.text}</p> : null}
+      {latest ? <p className="text-[16px] text-muted">{latest.text}</p> : null}
       {view.notes.length > 0 ? (
         <button
           type="button"
@@ -105,7 +105,7 @@ function OpenBatchCard({ view, onEdit }: { view: BatchView; onEdit: (() => void)
               {batchStatusLabel[batch.status]}
             </span>
           </div>
-          <div className="mt-0.5 text-[15px] text-muted">
+          <div className="mt-0.5 text-[16px] text-muted">
             {monthDay(batch.date)} · {batch.createdBy}
           </div>
         </div>
@@ -122,7 +122,7 @@ function OpenBatchCard({ view, onEdit }: { view: BatchView; onEdit: (() => void)
       </div>
 
       <div className="mb-5">
-        <div className="text-[15px] text-muted">Sap in</div>
+        <div className="text-[16px] text-muted">Sap in</div>
         <div className="font-sans text-3xl font-bold md:text-4xl">{weight(batch.sapInLbs)}</div>
       </div>
 

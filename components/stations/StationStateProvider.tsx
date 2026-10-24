@@ -34,6 +34,8 @@ export interface LoggedCollection {
   collectedBy: string;
   /** "Mar 11, 9:40 AM" */
   when: string;
+  /** The day it was collected, from "When" ("2022-03-11") */
+  date: string;
   note: string;
 }
 

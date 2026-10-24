@@ -39,6 +39,19 @@
   --color-alert: #b3261e;
 }
 
+/* Type scale, one step up from Tailwind's defaults so everything reads more easily. */
+@theme {
+  --text-xs: 0.8125rem; /* 13px */
+  --text-sm: 0.9375rem; /* 15px */
+  --text-base: 1.0625rem; /* 17px */
+  --text-lg: 1.1875rem; /* 19px */
+  --text-xl: 1.3125rem; /* 21px */
+  --text-2xl: 1.625rem; /* 26px */
+  --text-3xl: 2rem; /* 32px */
+  --text-4xl: 2.375rem; /* 38px */
+  --text-5xl: 3.125rem; /* 50px */
+}
+
 * {
   box-sizing: border-box;
 }
@@ -53,7 +66,7 @@ body {
   font-family: var(--font-dm-sans), sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 h1,
@@ -75,7 +88,7 @@ h5 {
 
 /* Small uppercase column headings used by every data table. */
 .table-head {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -263,6 +276,25 @@ h5 {
     opacity: 0.6;
   }
 }
+/* Background particles take their phone size from --p and grow on wider screens. */
+.particle {
+  width: var(--p);
+  height: auto;
+}
+.particle-round {
+  width: var(--p);
+  height: var(--p);
+}
+@media (min-width: 48rem) {
+  .particle {
+    width: calc(var(--p) * 1.6);
+  }
+  .particle-round {
+    width: calc(var(--p) * 1.6);
+    height: calc(var(--p) * 1.6);
+  }
+}
+
 .anim-leaf-fall {
   animation: leaf-fall linear infinite;
 }

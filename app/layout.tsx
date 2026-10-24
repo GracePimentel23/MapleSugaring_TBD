@@ -4,7 +4,6 @@ import { DM_Sans, Inter } from "next/font/google";
 import DemoProvider from "@/components/demo/DemoProvider";
 import BatchStateProvider from "@/components/data/BatchStateProvider";
 import AppShell from "@/components/layout/AppShell";
-import ScheduleProvider from "@/components/schedule/ScheduleProvider";
 import ClubSettingsProvider from "@/components/session/ClubSettingsProvider";
 import SessionProvider from "@/components/session/SessionProvider";
 import StationStateProvider from "@/components/stations/StationStateProvider";
@@ -31,19 +30,14 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${dmSans.variable} ${inter.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`${dmSans.variable} ${inter.variable} h-full antialiased`}>
       <body className="min-h-full">
         <DemoProvider>
           <SessionProvider>
             <ClubSettingsProvider>
               <StationStateProvider>
                 <BatchStateProvider>
-                  <ScheduleProvider>
-                    <AppShell>{children}</AppShell>
-                  </ScheduleProvider>
+                  <AppShell>{children}</AppShell>
                 </BatchStateProvider>
               </StationStateProvider>
             </ClubSettingsProvider>

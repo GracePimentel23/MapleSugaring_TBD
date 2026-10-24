@@ -16,13 +16,7 @@ const dayMarkers = demoTimeline.map((day) => ({
 function ChevronLeft() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-      <path
-        d="M11 4l-5 5 5 5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M11 4l-5 5 5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -30,21 +24,14 @@ function ChevronLeft() {
 function ChevronRight() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-      <path
-        d="M7 4l5 5-5 5"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M7 4l5 5-5 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
 export default function DemoControls() {
-  const { day, dayIndex, totalDays, canGoNext, canGoPrev, next, prev, jumpTo, reset } =
-    useDemo();
-  const { view, viewAs } = useSession();
+  const { day, dayIndex, totalDays, canGoNext, canGoPrev, next, prev, jumpTo, reset } = useDemo();
+  const { view, viewAs, authMode } = useSession();
   const [scriptOpen, setScriptOpen] = useState(true);
   // Phones get one compact row; the script, day dots and Reset sit behind "More".
   const [more, setMore] = useState(false);
@@ -61,12 +48,8 @@ export default function DemoControls() {
         >
           <div className="flex flex-col gap-2 pb-3 lg:flex-row lg:gap-8">
             <div className="min-w-0 lg:flex-1">
-              <h3 className="font-sans text-sm font-semibold text-white">
-                {day.narration.title}
-              </h3>
-              <p className="mt-1 text-xs leading-relaxed text-white/75">
-                {day.narration.script}
-              </p>
+              <h3 className="font-sans text-sm font-semibold text-white">{day.narration.title}</h3>
+              <p className="mt-1 text-xs leading-relaxed text-white/75">{day.narration.script}</p>
             </div>
             <ul className="flex shrink-0 flex-col gap-1 lg:w-[340px]">
               {day.narration.beats.map((beat) => (
@@ -81,7 +64,7 @@ export default function DemoControls() {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 md:px-6 md:py-2.5">
-        <span className="rounded-full bg-white/15 px-2 py-0.5 font-sans text-[10px] font-bold tracking-widest text-white">
+        <span className="rounded-full bg-white/15 px-2 py-0.5 font-sans text-[12px] font-bold tracking-widest text-white">
           DEMO
         </span>
 
@@ -110,9 +93,7 @@ export default function DemoControls() {
           <div className="font-sans text-sm font-semibold text-white">
             Day {day.dayNumber} of {totalDays}
           </div>
-          <div className="hidden text-xs text-white/60 sm:block">
-            {day.weather.label}, 2022 · Rochester, NY
-          </div>
+          <div className="hidden text-xs text-white/60 sm:block">{day.weather.label}, 2022 · Rochester, NY</div>
         </div>
 
         <div
@@ -154,25 +135,25 @@ export default function DemoControls() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <span className="hidden text-xs text-white/45 xl:inline">
-            Arrow keys to step
-          </span>
-          {/* Presenter control: see the app as each role would. */}
-          <label className="flex items-center gap-1.5 text-xs text-white/70">
-            <span className="hidden sm:inline">View as</span>
-            <select
-              value={view}
-              aria-label="View as"
-              onChange={(event) => viewAs(event.target.value as View)}
-              className="rounded-lg border border-white/20 bg-white/10 px-2 py-1 font-sans text-xs font-medium text-white outline-none"
-            >
-              {VIEWS.map((item) => (
-                <option key={item} value={item} className="text-text">
-                  {viewLabels[item]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <span className="hidden text-xs text-white/45 xl:inline">Arrow keys to step</span>
+          {/* Presenter control: see the app as each role would. Real sign-in sets the role instead. */}
+          {authMode === "sso" ? null : (
+            <label className="flex items-center gap-1.5 text-xs text-white/70">
+              <span className="hidden sm:inline">View as</span>
+              <select
+                value={view}
+                aria-label="View as"
+                onChange={(event) => viewAs(event.target.value as View)}
+                className="rounded-lg border border-white/20 bg-white/10 px-2 py-1 font-sans text-xs font-medium text-white outline-none"
+              >
+                {VIEWS.map((item) => (
+                  <option key={item} value={item} className="text-text">
+                    {viewLabels[item]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button
             type="button"
             onClick={() => setMore((open) => !open)}

@@ -7,6 +7,7 @@ import AlertIcon from "@/components/alerts/AlertIcon";
 import { BellIcon, CheckIcon } from "@/components/icons";
 import { useSession } from "@/components/session/SessionProvider";
 import { useAlerts, useStationState } from "@/components/stations/StationStateProvider";
+import { cx } from "@/components/ui/ui";
 import type { ClubAlert } from "@/lib/types/schema";
 
 /** How long "Undo" stays offered after someone takes an alert. */
@@ -19,7 +20,7 @@ const UNDO_MS = 6000;
  * does not mark it fixed; that happens where the work is done, or on the Alerts
  * page. A slip is one tap to take back with Undo.
  */
-export default function NotificationsMenu() {
+export default function NotificationsMenu({ onDark = false }: { onDark?: boolean }) {
   const router = useRouter();
   const { can } = useSession();
   const { active } = useAlerts();
@@ -91,11 +92,14 @@ export default function NotificationsMenu() {
             ? `Notifications, ${active.length} need${active.length === 1 ? "s" : ""} attention`
             : "Notifications"
         }
-        className="relative rounded-lg p-1.5 text-text transition-colors hover:bg-black/5"
+        className={cx(
+          "relative rounded-lg p-1.5 transition-colors",
+          onDark ? "text-white hover:bg-white/10" : "text-text hover:bg-black/5",
+        )}
       >
         <BellIcon size={26} />
         {active.length > 0 ? (
-          <span className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-status-problem px-1 text-[10px] font-bold text-white">
+          <span className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-status-problem px-1 text-[12px] font-bold text-white">
             {active.length}
           </span>
         ) : null}
@@ -138,7 +142,7 @@ export default function NotificationsMenu() {
                     <AlertIcon kind={alert.kind} size={22} />
                   </span>
                   <span className="min-w-0">
-                    <span className="block font-sans text-[15px] font-semibold group-enabled:group-hover:underline">
+                    <span className="block font-sans text-[16px] font-semibold group-enabled:group-hover:underline">
                       {alert.title}
                     </span>
                     <span className="block text-sm text-muted">{alert.advice}</span>

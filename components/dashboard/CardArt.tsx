@@ -25,7 +25,17 @@ function Layer({ children }: { children: ReactNode }) {
   );
 }
 
-function Leaf({ size, color, style, className }: { size: number; color: string; style?: CSSProperties; className?: string }) {
+function Leaf({
+  size,
+  color,
+  style,
+  className,
+}: {
+  size: number;
+  color: string;
+  style?: CSSProperties;
+  className?: string;
+}) {
   return (
     <svg viewBox="0 0 100 110" width={size} height={size * 1.1} className={className} style={style} fill={color}>
       <path d={LEAF_PATH} />
@@ -66,12 +76,15 @@ export function LeafArt({ lbs }: { lbs: number }) {
           key={leaf.left}
           size={leaf.size}
           color={leaf.color}
-          className="anim-leaf-fall absolute top-0"
-          style={{
-            left: leaf.left,
-            animationDuration: `${leaf.duration * speed}s`,
-            animationDelay: `-${leaf.delay}s`,
-          }}
+          className="anim-leaf-fall particle absolute top-0"
+          style={
+            {
+              "--p": `${leaf.size}px`,
+              left: leaf.left,
+              animationDuration: `${leaf.duration * speed}s`,
+              animationDelay: `-${leaf.delay}s`,
+            } as CSSProperties
+          }
         />
       ))}
 
@@ -107,8 +120,8 @@ export function DropArt({ fill }: { fill: number }) {
           viewBox="0 0 10 16"
           width="9"
           height="14"
-          className="anim-drip absolute top-0"
-          style={{ left: drip.left, animationDelay: `${drip.delay}s` }}
+          className="anim-drip particle absolute top-0"
+          style={{ "--p": "9px", left: drip.left, animationDelay: `${drip.delay}s` } as CSSProperties}
           fill="#D99E52"
         >
           <path d="M5 0S0 7 0 10.5a5 5 0 0010 0C10 7 5 0 5 0z" />
@@ -118,14 +131,15 @@ export function DropArt({ fill }: { fill: number }) {
       {BUBBLES.map((bubble) => (
         <span
           key={bubble.left}
-          className="anim-bubble absolute bottom-0 rounded-full border-2 border-[#D9A962] bg-[#F3D6AE]"
-          style={{
-            left: bubble.left,
-            width: bubble.size,
-            height: bubble.size,
-            animationDuration: `${bubble.duration}s`,
-            animationDelay: `-${bubble.delay}s`,
-          }}
+          className="anim-bubble particle-round absolute bottom-0 rounded-full border-2 border-[#D9A962] bg-[#F3D6AE]"
+          style={
+            {
+              "--p": `${bubble.size}px`,
+              left: bubble.left,
+              animationDuration: `${bubble.duration}s`,
+              animationDelay: `-${bubble.delay}s`,
+            } as CSSProperties
+          }
         />
       ))}
 
@@ -148,7 +162,14 @@ export function DropArt({ fill }: { fill: number }) {
               </g>
             </g>
           </g>
-          <path d="M13 22c-3 5-4 9-3 13" stroke="#FFFFFF" strokeOpacity="0.6" strokeWidth="2" fill="none" strokeLinecap="round" />
+          <path
+            d="M13 22c-3 5-4 9-3 13"
+            stroke="#FFFFFF"
+            strokeOpacity="0.6"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+          />
         </svg>
       </div>
     </Layer>
@@ -223,7 +244,20 @@ function Sun({ size }: { size: number }) {
 }
 
 const PRECIP_COLUMNS = [
-  "52%", "57%", "61%", "66%", "70%", "74%", "79%", "83%", "87%", "92%", "96%", "45%", "63%", "89%",
+  "52%",
+  "57%",
+  "61%",
+  "66%",
+  "70%",
+  "74%",
+  "79%",
+  "83%",
+  "87%",
+  "92%",
+  "96%",
+  "45%",
+  "63%",
+  "89%",
 ];
 
 export function WeatherArt({ kind }: { kind: WeatherKind }) {
@@ -252,7 +286,7 @@ export function WeatherArt({ kind }: { kind: WeatherKind }) {
         ? PRECIP_COLUMNS.map((left, index) => (
             <span
               key={left}
-              className="anim-precip absolute top-[18%] h-4 w-[2px] rounded-full bg-[#7E98B0]"
+              className="anim-precip absolute top-[18%] h-4 w-[2px] rounded-full bg-[#7E98B0] md:h-6 md:w-[3px]"
               style={{
                 left,
                 animationDuration: `${1.8 + (index % 4) * 0.4}s`,
@@ -266,15 +300,16 @@ export function WeatherArt({ kind }: { kind: WeatherKind }) {
         ? PRECIP_COLUMNS.map((left, index) => (
             <span
               key={left}
-              className="anim-snow absolute top-[14%] rounded-full bg-white shadow-[0_0_0_1px_rgba(126,152,176,0.35)]"
-              style={{
-                left,
-                width: 5 + (index % 3) * 2,
-                height: 5 + (index % 3) * 2,
-                opacity: 0.9,
-                animationDuration: `${9 + (index % 5) * 1.5}s`,
-                animationDelay: `-${(index * 1.4) % 10}s`,
-              }}
+              className="anim-snow particle-round absolute top-[14%] rounded-full bg-white shadow-[0_0_0_1px_rgba(126,152,176,0.35)]"
+              style={
+                {
+                  "--p": `${5 + (index % 3) * 2}px`,
+                  left,
+                  opacity: 0.9,
+                  animationDuration: `${9 + (index % 5) * 1.5}s`,
+                  animationDelay: `-${(index * 1.4) % 10}s`,
+                } as CSSProperties
+              }
             />
           ))
         : null}

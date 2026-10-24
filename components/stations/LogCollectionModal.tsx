@@ -6,13 +6,12 @@ import { useDemo } from "@/components/demo/DemoProvider";
 import { CheckIcon } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
-import {
-  useStationCards,
-  useStationState,
-} from "@/components/stations/StationStateProvider";
+import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
+import DateTimePicker, { formatDateTime, nowMinutes, type DateTime } from "@/components/ui/DateTimePicker";
+import PersonPicker from "@/components/ui/PersonPicker";
 import { Button, Field, inputClass, Modal } from "@/components/ui/ui";
 import { batchStatusLabel } from "@/lib/batchStatus";
-import { clockTime, monthDay, noteStamp } from "@/lib/time";
+import { noteStamp } from "@/lib/time";
 import { formatLbsNumber } from "@/lib/units";
 
 interface Receipt {
@@ -31,16 +30,13 @@ export default function LogCollectionModal({
   bucketId,
   onClose,
   onBackToStation,
-  onLogged,
 }: {
   bucketId: number;
   onClose: () => void;
   onBackToStation?: (bucketId: number) => void;
-  /** Called once the collection is saved, e.g. to tick off a scheduled job */
-  onLogged?: () => void;
 }) {
   const { day } = useDemo();
-  const { user } = useSession();
+  const { user, members, grants } = useSession();
   const { weight } = useClubSettings();
   const stations = useStationCards();
   const { logCollection, addNote, resolve } = useStationState();
@@ -49,15 +45,18 @@ export default function LogCollectionModal({
   const openBatches = day.batches
     .map(viewBatch)
     .filter((view) => view.batch.status === "active" || view.batch.status === "waiting");
-  const defaultBatch =
-    openBatches.find((view) => view.batch.status === "active") ?? openBatches[0];
+  const defaultBatch = openBatches.find((view) => view.batch.status === "active") ?? openBatches[0];
 
   const [selectedBucket, setSelectedBucket] = useState(bucketId);
   const station = stations.find((item) => item.bucketId === selectedBucket) ?? stations[0]!;
   const [batchNumber, setBatchNumber] = useState(defaultBatch?.batch.batchNumber ?? "");
   const [lbs, setLbs] = useState(String(station.currentLbs));
   const [collectedBy, setCollectedBy] = useState(user.name);
-  const [when, setWhen] = useState(`${monthDay(day.date)}, ${clockTime()}`);
+  const [when, setWhen] = useState<DateTime>(() => ({ date: day.date, minutes: nowMinutes() }));
+  // Anyone whose role may log collections, and whose account is active.
+  const collectors = members
+    .filter((member) => member.status === "active" && grants[member.role].includes("collections:log"))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const [note, setNote] = useState("");
   const [receipt, setReceipt] = useState<Receipt | null>(null);
 
@@ -84,7 +83,8 @@ export default function LogCollectionModal({
       lbs: amount,
       batchNumber,
       collectedBy,
-      when,
+      when: formatDateTime(when),
+      date: when.date,
       note: note.trim(),
     });
     // Emptying the bucket fixes its fill and sap-age alerts; record who did it.
@@ -99,7 +99,6 @@ export default function LogCollectionModal({
       });
     }
 
-    onLogged?.();
     setReceipt({
       lbs: amount,
       bucketName: station.name,
@@ -115,7 +114,7 @@ export default function LogCollectionModal({
     );
     if (next) pickBucket(next.bucketId);
     setNote("");
-    setWhen(`${monthDay(day.date)}, ${clockTime()}`);
+    setWhen({ date: day.date, minutes: nowMinutes() });
     setReceipt(null);
   }
 
@@ -126,7 +125,7 @@ export default function LogCollectionModal({
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-accent-light text-accent-mid">
             <CheckIcon size={30} />
           </div>
-          <p className="text-[15px] text-muted">
+          <p className="text-[16px] text-muted">
             {weight(receipt.lbs)} from {receipt.bucketName} added to {receipt.batchNumber}.
           </p>
         </div>
@@ -143,12 +142,7 @@ export default function LogCollectionModal({
           ))}
         </div>
         <div className="flex flex-col gap-3 pb-6">
-          <Button
-            onClick={() =>
-              onBackToStation ? onBackToStation(station.bucketId) : onClose()
-            }
-            className="w-full"
-          >
+          <Button onClick={() => (onBackToStation ? onBackToStation(station.bucketId) : onClose())} className="w-full">
             Back To Station
           </Button>
           <Button variant="outline" onClick={logAnother} className="w-full">
@@ -190,11 +184,7 @@ export default function LogCollectionModal({
           </select>
         </Field>
         <Field label="Batch">
-          <select
-            value={batchNumber}
-            onChange={(event) => setBatchNumber(event.target.value)}
-            className={inputClass}
-          >
+          <select value={batchNumber} onChange={(event) => setBatchNumber(event.target.value)} className={inputClass}>
             {openBatches.length === 0 ? <option value="">No open batch</option> : null}
             {openBatches.map((view) => (
               <option key={view.batch.id} value={view.batch.batchNumber}>
@@ -219,16 +209,18 @@ export default function LogCollectionModal({
         >
           Use Sensor Reading: {formatLbsNumber(station.currentLbs)} lbs
         </Button>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Collected by">
-            <input
+            <PersonPicker
+              label="Collected by"
+              people={collectors}
               value={collectedBy}
-              onChange={(event) => setCollectedBy(event.target.value)}
-              className={inputClass}
+              onChange={setCollectedBy}
+              currentUserId={user.id}
             />
           </Field>
           <Field label="When">
-            <input value={when} onChange={(event) => setWhen(event.target.value)} className={inputClass} />
+            <DateTimePicker label="When" value={when} onChange={setWhen} today={day.date} />
           </Field>
         </div>
         <Field label="Note (optional)">

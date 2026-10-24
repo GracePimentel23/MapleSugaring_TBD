@@ -32,7 +32,7 @@ function AlertRow({
         <AlertIcon kind={kind} size={28} />
         <div className="min-w-0">
           <p className="font-sans text-base font-semibold md:text-lg">{title}</p>
-          <p className="text-sm text-muted md:text-[15px]">{context}</p>
+          <p className="text-sm text-muted md:text-[16px]">{context}</p>
         </div>
       </div>
       <div className="flex shrink-0 flex-wrap gap-3 md:justify-end">{actions}</div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DropIcon, FilterIcon, InfoIcon, PlusIcon } from "@/components/icons";
+import { DropIcon, InfoIcon, PlusIcon, SortIcon } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { AddStationModal } from "@/components/stations/StationForms";
@@ -9,7 +9,7 @@ import StationDialogs from "@/components/stations/StationSheet";
 import StationsMap from "@/components/stations/StationsMap";
 import StatusBadge from "@/components/stations/StatusBadge";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
-import { Button, Card, cx, EmptyState, FilterPill, PageHeader, ProgressBar, Toggle } from "@/components/ui/ui";
+import { Button, Card, cx, EmptyState, FilterPill, PageHeader, ProgressBar } from "@/components/ui/ui";
 import {
   byUrgency,
   getStationSummary,
@@ -17,7 +17,7 @@ import {
   stationStatusMeta,
   type StationFilter,
 } from "@/lib/selectors/stations";
-import type { StationView } from "@/lib/types/schema";
+import type { StationStatus, StationView } from "@/lib/types/schema";
 
 const filters: { id: StationFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -44,9 +44,7 @@ function StationCard({
   highlighted: boolean;
   onOpen: () => void;
 }) {
-  const { can } = useSession();
   const { weight } = useClubSettings();
-  const { toggleMaintenance } = useStationState();
   const meta = stationStatusMeta[station.status];
   const percent = Math.round(Math.min(station.fillPercent, 100));
   const inactive = station.status === "maintenance" || station.status === "offline";
@@ -91,41 +89,29 @@ function StationCard({
         </div>
         <p className="mt-3 text-sm text-muted">Last reading {station.lastUpdated}</p>
       </div>
-
-      {can("stations:maintenance") ? (
-        <div className="mt-4 flex items-center gap-3 border-t border-border pt-4">
-          <Toggle
-            checked={station.inMaintenance}
-            onChange={() => toggleMaintenance(station.bucketId)}
-            label={`Maintenance mode for ${station.name}`}
-            disabled={!can("stations:maintenance")}
-          />
-          <span className="text-sm text-muted">
-            Maintenance mode {can("stations:maintenance") ? "(Manager)" : "(Manager only)"}
-          </span>
-        </div>
-      ) : null}
     </article>
   );
 }
 
 function StatusLegend() {
-  const items: [string, string][] = [
-    ["Filling", "Collecting sap normally."],
-    ["Due", "Nearly full, or the sap has waited too long. Collect it."],
-    ["Full", "At the full mark. Empty it now."],
-    ["Low battery", "Replace the sensor battery soon."],
-    ["No signal", "The sensor stopped reporting. Check the hardware."],
-    ["Maintenance", "Alerts are paused while someone services it."],
+  const items: [StationStatus, string][] = [
+    ["filling", "Collecting sap normally."],
+    ["due", "Nearly full, or the sap has waited too long. Collect it."],
+    ["full", "At the full mark. Empty it now."],
+    ["lowBattery", "Replace the sensor battery soon."],
+    ["offline", "The sensor stopped reporting. Check the hardware."],
+    ["maintenance", "Alerts are paused while someone services it."],
   ];
   return (
-    <div className="absolute top-full right-0 z-30 mt-2 w-72 rounded-2xl border border-border bg-white p-4 text-left shadow-xl">
-      <p className="mb-2 font-sans text-sm font-semibold">What the statuses mean</p>
-      <dl className="space-y-1.5 text-sm">
-        {items.map(([term, text]) => (
-          <div key={term}>
-            <dt className="inline font-semibold">{term}: </dt>
-            <dd className="inline text-muted">{text}</dd>
+    <div className="absolute top-full right-0 z-30 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-border bg-white p-4 text-left shadow-xl">
+      <p className="mb-3 font-sans text-base font-semibold">What the statuses mean</p>
+      <dl className="space-y-3 text-sm">
+        {items.map(([status, text]) => (
+          <div key={status}>
+            <dt>
+              <StatusBadge status={status} size="sm" />
+            </dt>
+            <dd className="mt-1 text-muted">{text}</dd>
           </div>
         ))}
       </dl>
@@ -152,9 +138,7 @@ export default function StationsPage() {
 
   useEffect(() => {
     if (focusedBucketId === null) return;
-    document
-      .getElementById(`station-${focusedBucketId}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    document.getElementById(`station-${focusedBucketId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     const timer = setTimeout(clearFocus, FOCUS_HIGHLIGHT_MS);
     return () => clearTimeout(timer);
   }, [focusedBucketId, clearFocus]);
@@ -166,7 +150,6 @@ export default function StationsPage() {
 
   const visible = stations.filter((station) => matchesFilter(station, filter));
   const sorted = urgentFirst ? [...visible].sort(byUrgency) : visible;
-  const byBucket = [...stations].sort(byUrgency);
 
   return (
     <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
@@ -194,28 +177,41 @@ export default function StationsPage() {
               onClick={() => setFilter(item.id)}
             />
           ))}
-          <button
-            type="button"
-            onClick={() => setUrgentFirst(!urgentFirst)}
-            aria-pressed={urgentFirst}
-            title={urgentFirst ? "Sorted: most urgent first" : "Sorted: bucket order"}
-            className={cx(
-              "shrink-0 rounded-full p-2 transition-colors hover:bg-white",
-              urgentFirst ? "text-accent" : "text-muted",
-            )}
-          >
-            <FilterIcon size={20} />
-          </button>
         </div>
-        <div className="relative hidden md:block">
+        <button
+          type="button"
+          onClick={() => setUrgentFirst(!urgentFirst)}
+          aria-pressed={urgentFirst}
+          aria-label={
+            urgentFirst
+              ? "Sorted by most urgent first. Sort by bucket number"
+              : "Sorted by bucket number. Sort by most urgent first"
+          }
+          title={urgentFirst ? "Sorted: most urgent first" : "Sorted: bucket number"}
+          className={cx(
+            "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 font-sans text-sm font-semibold transition-colors",
+            urgentFirst
+              ? "border-accent bg-accent-light text-accent"
+              : "border-border bg-white text-muted hover:text-text",
+          )}
+        >
+          <SortIcon size={18} />
+          <span className="hidden sm:inline">{urgentFirst ? "Most urgent" : "Bucket #"}</span>
+        </button>
+        <div className="relative">
           <button
             type="button"
             onClick={() => setShowLegend(!showLegend)}
             aria-label="What the statuses mean"
             aria-expanded={showLegend}
-            className="rounded-full p-2 text-muted transition-colors hover:bg-white hover:text-text"
+            className={cx(
+              "rounded-full border p-2 transition-colors",
+              showLegend
+                ? "border-accent bg-accent-light text-accent"
+                : "border-border bg-white text-muted hover:text-text",
+            )}
           >
-            <InfoIcon size={20} />
+            <InfoIcon size={18} />
           </button>
           {showLegend ? <StatusLegend /> : null}
         </div>
@@ -244,55 +240,17 @@ export default function StationsPage() {
 
       <h2 className="font-sans text-2xl font-bold">Sugarbush Map</h2>
       <p className="mt-1 mb-5 max-w-2xl text-sm text-muted">
-        Where each bucket sits around the Lobozzo Alumni House. Ring color shows its status. Drag to move, tap
-        a pin to open that station.
+        Where each bucket sits around the Lobozzo Alumni House. Ring color shows its status. Drag to move, tap a pin to
+        open that station.
       </p>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
-        <Card className="p-4">
-          <StationsMap
-            stations={visible}
-            highlightedId={focusedBucketId}
-            onSelect={(bucketId) => setOpenBucket(bucketId)}
-          />
-        </Card>
-
-        <section className="self-start overflow-hidden rounded-2xl border border-accent bg-white shadow-sm">
-          <div className="flex items-baseline justify-between bg-accent px-5 py-4 text-white">
-            <h3 className="font-sans text-lg font-bold">By Bucket</h3>
-            <span className="text-sm text-white/80">most urgent first</span>
-          </div>
-          <ul className="divide-y divide-border">
-            {byBucket.map((station) => {
-              const meta = stationStatusMeta[station.status];
-              const percent = Math.round(Math.min(station.fillPercent, 100));
-              return (
-                <li key={station.bucketId}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenBucket(station.bucketId)}
-                    className="w-full px-5 py-4 text-left transition-colors hover:bg-bg"
-                  >
-                    <span className="flex items-start justify-between gap-3">
-                      <span>
-                        <span className="block font-sans text-lg font-bold">{station.name}</span>
-                        <span className="block text-sm text-muted">{station.location}</span>
-                      </span>
-                      <StatusBadge status={station.status} />
-                    </span>
-                    <span className="mt-3 flex items-center gap-3">
-                      <span className="flex-1">
-                        <ProgressBar percent={percent} color={meta.bar} height={6} />
-                      </span>
-                      <span className="w-16 text-right font-sans text-sm font-semibold">{percent}% full</span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      </div>
+      <Card className="p-4">
+        <StationsMap
+          stations={visible}
+          highlightedId={focusedBucketId}
+          onSelect={(bucketId) => setOpenBucket(bucketId)}
+        />
+      </Card>
 
       {showAdd ? <AddStationModal onClose={() => setShowAdd(false)} /> : null}
       <StationDialogs bucketId={openBucket} onClose={() => setOpenBucket(null)} />

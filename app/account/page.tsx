@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import DisplayCard from "@/components/settings/DisplayCard";
 import { useSession } from "@/components/session/SessionProvider";
@@ -7,7 +8,8 @@ import { Button, Card, CardTitle, Field, inputClass, PageHeader } from "@/compon
 import { roleLabels, type Member } from "@/lib/data/people";
 
 function AccountForm({ user }: { user: Member }) {
-  const { updateMember, viewAs } = useSession();
+  const { updateMember, signOut } = useSession();
+  const router = useRouter();
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
   const [pronouns, setPronouns] = useState(user.pronouns ?? "");
@@ -22,7 +24,7 @@ function AccountForm({ user }: { user: Member }) {
 
   return (
     <Card className="max-w-3xl md:px-8 md:py-7">
-      <CardTitle title="Your details" subtitle="How you appear on notes, collections, the schedule and the audit log." />
+      <CardTitle title="Your details" subtitle="How you appear on notes, collections and the audit log." />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Name">
           <input value={name} onChange={(event) => edit(setName)(event.target.value)} className={inputClass} />
@@ -36,7 +38,12 @@ function AccountForm({ user }: { user: Member }) {
           />
         </Field>
         <Field label="Email">
-          <input type="email" value={email} onChange={(event) => edit(setEmail)(event.target.value)} className={inputClass} />
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => edit(setEmail)(event.target.value)}
+            className={inputClass}
+          />
         </Field>
         <Field label="Role" hint="Your role is set by a Manager or the Owner / IT.">
           <input value={roleLabels[user.role]} disabled className={inputClass} />
@@ -51,7 +58,14 @@ function AccountForm({ user }: { user: Member }) {
         >
           Save Changes
         </Button>
-        <Button variant="outline" className="border-border text-text" onClick={() => viewAs("guest")}>
+        <Button
+          variant="outline"
+          className="border-border text-text"
+          onClick={async () => {
+            await signOut();
+            router.push("/login");
+          }}
+        >
           Sign Out
         </Button>
         {saved ? <span className="text-sm text-status-online">Saved.</span> : null}

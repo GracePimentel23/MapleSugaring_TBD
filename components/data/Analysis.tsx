@@ -209,7 +209,7 @@ export default function Analysis({ day }: { day: DemoDay }) {
     <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-sans text-3xl font-bold tracking-tight md:text-[40px] md:leading-tight">Analysis</h1>
+          <h1 className="font-sans text-3xl font-bold tracking-tight md:text-[44px] md:leading-tight">Analysis</h1>
           <p className="mt-1 text-sm text-muted">
             Compares with the season before by default. Pick any past season.
           </p>

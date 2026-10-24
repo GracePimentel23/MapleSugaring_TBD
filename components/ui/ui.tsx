@@ -9,21 +9,11 @@ export function cx(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(" ");
 }
 
-export function PageHeader({
-  title,
-  subtitle,
-  actions,
-}: {
-  title: string;
-  subtitle?: ReactNode;
-  actions?: ReactNode;
-}) {
+export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="font-sans text-3xl font-bold tracking-tight md:text-[40px] md:leading-tight">
-          {title}
-        </h1>
+        <h1 className="font-sans text-3xl font-bold tracking-tight md:text-[44px] md:leading-tight">{title}</h1>
         {subtitle ? <p className="mt-1 max-w-2xl text-sm text-muted">{subtitle}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -44,27 +34,15 @@ export function Card({
   className?: string;
   padded?: boolean;
 }) {
-  return (
-    <div className={cx("rounded-2xl border border-border bg-white", padded && "p-5", className)}>
-      {children}
-    </div>
-  );
+  return <div className={cx("rounded-2xl border border-border bg-white", padded && "p-5", className)}>{children}</div>;
 }
 
-export function CardTitle({
-  title,
-  subtitle,
-  action,
-}: {
-  title: string;
-  subtitle?: ReactNode;
-  action?: ReactNode;
-}) {
+export function CardTitle({ title, subtitle, action }: { title: string; subtitle?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-4 flex items-start justify-between gap-4">
+    <div className="mb-5 flex items-start justify-between gap-4">
       <div>
-        <h3 className="font-sans text-base font-semibold md:text-lg">{title}</h3>
-        {subtitle ? <p className="mt-0.5 max-w-xl text-sm text-muted">{subtitle}</p> : null}
+        <h2 className="font-sans text-xl font-bold md:text-2xl">{title}</h2>
+        {subtitle ? <p className="mt-1 max-w-xl text-sm text-muted">{subtitle}</p> : null}
       </div>
       {action}
     </div>
@@ -94,10 +72,8 @@ export function StatCard({
       )}
     >
       <div className={cx("text-sm", dark ? "text-white/80" : "text-muted")}>{label}</div>
-      <div className="mt-1 font-sans text-[28px] leading-tight font-bold md:text-3xl">{value}</div>
-      {note ? (
-        <div className={cx("mt-1 text-sm", dark ? "text-white/80" : "text-muted")}>{note}</div>
-      ) : null}
+      <div className="mt-1 font-sans text-[30px] leading-tight font-bold md:text-3xl">{value}</div>
+      {note ? <div className={cx("mt-1 text-sm", dark ? "text-white/80" : "text-muted")}>{note}</div> : null}
     </div>
   );
 }
@@ -117,11 +93,10 @@ export function Button({
       {...props}
       className={cx(
         "inline-flex items-center justify-center gap-2 rounded-xl font-sans font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-        size === "sm" ? "px-3 py-1.5 text-sm" : "px-4 py-2.5 text-sm md:text-[15px]",
+        size === "sm" ? "px-3 py-1.5 text-sm" : "px-4 py-2.5 text-sm md:text-[16px]",
         variant === "primary" && "bg-accent text-white hover:bg-sidebar-hover",
         variant === "outline" && "border border-accent bg-white text-accent hover:bg-accent-light",
-        variant === "danger" &&
-          "border border-attention-border bg-white text-status-problem hover:bg-attention-bg",
+        variant === "danger" && "border border-attention-border bg-white text-status-problem hover:bg-attention-bg",
         variant === "ghost" && "text-accent hover:bg-accent-light",
         className,
       )}
@@ -152,9 +127,7 @@ export function FilterPill({
       aria-pressed={active}
       className={cx(
         "relative flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 font-sans text-sm font-medium whitespace-nowrap transition-colors",
-        active
-          ? "border-accent bg-accent text-white"
-          : "border-border bg-white text-text hover:border-accent/40",
+        active ? "border-accent bg-accent text-white" : "border-border bg-white text-text hover:border-accent/40",
       )}
     >
       {label}
@@ -255,10 +228,10 @@ export function Modal({
           <div className="min-w-0">
             {eyebrow ? <p className="mb-1 text-sm text-muted">{eyebrow}</p> : null}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <h2 className="font-sans text-2xl font-bold md:text-[28px]">{title}</h2>
+              <h2 className="font-sans text-2xl font-bold md:text-[30px]">{title}</h2>
               {badge}
             </div>
-            {subtitle ? <p className="mt-1 text-[15px] text-muted">{subtitle}</p> : null}
+            {subtitle ? <p className="mt-1 text-[16px] text-muted">{subtitle}</p> : null}
           </div>
           <button
             type="button"
@@ -271,24 +244,14 @@ export function Modal({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-2 md:px-8">{children}</div>
         {footer ? (
-          <div className="flex shrink-0 flex-wrap justify-end gap-3 px-6 pt-3 pb-6 md:px-8">
-            {footer}
-          </div>
+          <div className="flex shrink-0 flex-wrap justify-end gap-3 px-6 pt-3 pb-6 md:px-8">{footer}</div>
         ) : null}
       </div>
     </div>
   );
 }
 
-export function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: ReactNode;
-  children: ReactNode;
-}) {
+export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm text-muted">{label}</span>
@@ -299,7 +262,7 @@ export function Field({
 }
 
 export const inputClass =
-  "w-full rounded-xl border border-border bg-white px-4 py-3 text-[15px] text-text outline-none transition-colors focus:border-accent-mid disabled:bg-bg disabled:text-muted";
+  "w-full rounded-xl border border-border bg-white px-4 py-3 text-[16px] text-text outline-none transition-colors focus:border-accent-mid disabled:bg-bg disabled:text-muted";
 
 /** Simple bordered table with uppercase heads. Columns are plain strings or nodes. */
 export function DataTable({
@@ -320,11 +283,7 @@ export function DataTable({
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={cx(
-                  "table-head px-3 pb-3",
-                  column.align === "right" && "text-right",
-                  column.className,
-                )}
+                className={cx("table-head px-3 pb-3", column.align === "right" && "text-right", column.className)}
               >
                 {column.label}
               </th>
@@ -343,10 +302,7 @@ export function DataTable({
               <tr
                 key={row.key}
                 onClick={row.onClick}
-                className={cx(
-                  "border-b border-border last:border-0",
-                  row.onClick && "cursor-pointer hover:bg-bg",
-                )}
+                className={cx("border-b border-border last:border-0", row.onClick && "cursor-pointer hover:bg-bg")}
               >
                 {columns.map((column) => (
                   <td
@@ -370,15 +326,7 @@ export function DataTable({
 }
 
 /** Thin progress track with a colored fill. */
-export function ProgressBar({
-  percent,
-  color,
-  height = 8,
-}: {
-  percent: number;
-  color: string;
-  height?: number;
-}) {
+export function ProgressBar({ percent, color, height = 8 }: { percent: number; color: string; height?: number }) {
   return (
     <div className="overflow-hidden rounded-full bg-progress-track" style={{ height }}>
       <div
@@ -418,7 +366,7 @@ export function Checkbox({
       >
         {checked ? <CheckIcon size={14} /> : null}
       </span>
-      <span className="text-[15px]">{label}</span>
+      <span className="text-[16px]">{label}</span>
     </label>
   );
 }

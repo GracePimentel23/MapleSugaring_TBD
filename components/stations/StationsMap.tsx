@@ -81,7 +81,7 @@ function StationMarker({
         style={{ background: "var(--color-text)" }}
       >
         <span className="block font-semibold">{station.name}</span>
-        <span className="block text-[11px] opacity-80">
+        <span className="block text-[12px] opacity-80">
           {meta.label} · {formatLbsNumber(station.currentLbs)} /{" "}
           {formatLbsNumber(station.capacityLbs)} lbs
         </span>
@@ -101,7 +101,7 @@ function StationMarker({
 
       {/* Location under the pin */}
       {showLocation ? (
-      <span className="absolute top-full left-1/2 mt-1 -translate-x-1/2 rounded-full bg-white/85 px-1.5 text-[11px] whitespace-nowrap text-text shadow-sm">
+      <span className="absolute top-full left-1/2 mt-1 -translate-x-1/2 rounded-full bg-white/85 px-1.5 text-[12px] whitespace-nowrap text-text shadow-sm">
         {station.location}
       </span>
       ) : null}
@@ -322,7 +322,7 @@ export default function StationsMap({
           href="https://www.openstreetmap.org/copyright"
           target="_blank"
           rel="noreferrer"
-          className="absolute right-0 bottom-0 z-20 bg-white/80 px-1.5 py-0.5 text-[10px] text-muted"
+          className="absolute right-0 bottom-0 z-20 bg-white/80 px-1.5 py-0.5 text-[12px] text-muted"
         >
           © OpenStreetMap contributors
         </a>

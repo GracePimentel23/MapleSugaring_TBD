@@ -80,7 +80,12 @@ export default function ThresholdsTab() {
 
   function reset() {
     setThresholds(defaultThresholds);
-    logAudit({ when: tableStamp(day.date), action: "Reset thresholds", record: "All thresholds", change: "Back to defaults" });
+    logAudit({
+      when: tableStamp(day.date),
+      action: "Reset thresholds",
+      record: "All thresholds",
+      change: "Back to defaults",
+    });
   }
 
   return (
@@ -89,8 +94,8 @@ export default function ThresholdsTab() {
         title="Alert Thresholds"
         subtitle={
           <>
-            Alerts fire when a reading crosses these. Every change is written to the audit log. Owner /
-            IT only{canEdit ? "." : "; you can view them."}
+            Alerts fire when a reading crosses these. Every change is written to the audit log. Owner / IT only
+            {canEdit ? "." : "; you can view them."}
           </>
         }
         action={
@@ -107,17 +112,19 @@ export default function ThresholdsTab() {
           return (
             <li key={def.key} className="flex flex-wrap items-center gap-4 border-b border-border py-5">
               <div className="min-w-[200px] flex-1">
-                <p className="font-sans text-base font-bold md:text-lg">{def.label}</p>
+                <p className="font-sans text-base font-medium">{def.label}</p>
                 <p className="text-sm text-muted">{def.description}</p>
               </div>
               <div className="flex gap-6 text-right">
                 <div>
                   <div className="text-sm text-muted">Warn</div>
-                  <div className="font-sans text-lg font-bold">{def.warnFormat(value.warn)}</div>
+                  <div className="font-sans text-base font-semibold">{def.warnFormat(value.warn)}</div>
                 </div>
                 <div>
                   <div className="text-sm text-muted">Critical</div>
-                  <div className="font-sans text-lg font-bold text-status-problem">{def.criticalFormat(value.critical)}</div>
+                  <div className="font-sans text-base font-semibold text-status-problem">
+                    {def.criticalFormat(value.critical)}
+                  </div>
                 </div>
               </div>
               {canEdit ? (
@@ -137,8 +144,8 @@ export default function ThresholdsTab() {
         })}
       </ul>
       <p className="mt-5 text-sm text-muted">
-        The sensors measure weight only, so there are no sap temperature or sugar thresholds. Enter
-        Brix by hand when a batch finishes.
+        The sensors measure weight only, so there are no sap temperature or sugar thresholds. Enter Brix by hand when a
+        batch finishes.
       </p>
       {editing ? <EditThresholdModal def={editing} onClose={() => setEditing(null)} /> : null}
     </Card>

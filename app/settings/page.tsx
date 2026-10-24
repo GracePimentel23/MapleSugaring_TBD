@@ -33,7 +33,7 @@ export default function SettingsPage() {
 
   return (
     <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
-      <h1 className="mb-6 font-sans text-3xl font-bold tracking-tight md:text-[40px] md:leading-tight">
+      <h1 className="mb-6 font-sans text-3xl font-bold tracking-tight md:text-[44px] md:leading-tight">
         Settings
       </h1>
 
@@ -49,7 +49,7 @@ export default function SettingsPage() {
               onClick={() => setRequested(tab.id)}
               aria-current={active === tab.id ? "page" : undefined}
               className={cx(
-                "shrink-0 rounded-xl px-4 py-2.5 text-left font-sans text-[15px] whitespace-nowrap transition-colors lg:py-3",
+                "shrink-0 rounded-xl px-4 py-2.5 text-left font-sans text-[16px] whitespace-nowrap transition-colors lg:py-3",
                 active === tab.id
                   ? "bg-accent-mid font-semibold text-white"
                   : "text-text hover:bg-white",

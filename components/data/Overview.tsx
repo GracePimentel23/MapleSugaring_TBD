@@ -212,7 +212,7 @@ export default function Overview({ day }: { day: DemoDay }) {
             value={selected}
             onChange={(event) => setSelected(event.target.value)}
             aria-label="Season"
-            className="rounded-xl border-2 border-accent bg-white px-4 py-2.5 font-sans text-[15px] font-semibold text-text outline-none"
+            className="rounded-xl border-2 border-accent bg-white px-4 py-2.5 font-sans text-[16px] font-semibold text-text outline-none"
           >
             {seasons.map((item) => (
               <option key={item.season} value={item.season}>
@@ -457,7 +457,7 @@ export default function Overview({ day }: { day: DemoDay }) {
                 <ul className="divide-y divide-border border-t border-border">
                   {activity.map((item) => (
                     <li key={item.key} className="py-3">
-                      <p className="text-[15px]">{item.text}</p>
+                      <p className="text-[16px]">{item.text}</p>
                       <p className="text-sm text-muted">{activityWhen(item, dayIndex)}</p>
                     </li>
                   ))}

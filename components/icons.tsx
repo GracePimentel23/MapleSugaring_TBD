@@ -271,3 +271,21 @@ export function NorthIcon(props: IconProps) {
     </Svg>
   );
 }
+
+export function LockIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="4" y="9" width="12" height="8.5" rx="2" />
+      <path d="M7 9V6.5a3 3 0 0 1 6 0V9" />
+    </Svg>
+  );
+}
+
+/** Sort by priority: lines that shorten downward, with a down arrow. */
+export function SortIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M3 5h9M3 10h6M3 15h3M15.5 4v12M12.5 13l3 3 3-3" />
+    </Svg>
+  );
+}

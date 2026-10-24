@@ -4,7 +4,7 @@
  * Ported from worker/src/rbac.config.js on the RBAC-SYSTEM branch (merged into main), with the
  * same permission ids and shape, so the two stay easy to line up when the front end moves onto
  * the worker. Permissions marked "redesign" are new: they cover features the worker does not
- * have yet (maintenance mode, the schedule, thresholds, seasons...).
+ * have yet (maintenance mode, thresholds, seasons...).
  *
  *   1. PERMISSIONS  every thing a person can see or do.
  *   2. GUEST        what anyone sees without signing in. Not a role: it is having no role.
@@ -31,9 +31,6 @@ export const PERMISSIONS = {
   "batches:view": "See boiling batches",
   "batches:manage": "Start, update and finish batches",
   "batches:editClosed": "Override the lock on a closed batch", // redesign
-  "schedule:view": "See the work schedule", // redesign
-  "schedule:join": "Sign up for jobs and finish your own", // redesign
-  "schedule:manage": "Post jobs and assign others", // redesign
   "sensors:view": "See raw readings, LoRa packets, nodes and gateways",
   "account:edit": "Edit your own name, email and pronouns", // redesign
   "settings:view": "Open Settings: notifications, units and seasons", // redesign
@@ -76,16 +73,7 @@ export const ROLES: Record<Role, RoleDef> = {
     label: "Member",
     description: "Signed in club member. Sees everything, logs collections and handles alerts.",
     inherits: "guest",
-    can: [
-      "alerts:view",
-      "collections:view",
-      "batches:view",
-      "collections:log",
-      "alerts:resolve",
-      "schedule:view",
-      "schedule:join",
-      "account:edit",
-    ],
+    can: ["alerts:view", "collections:view", "batches:view", "collections:log", "alerts:resolve", "account:edit"],
   },
   manager: {
     label: "Manager",
@@ -97,7 +85,6 @@ export const ROLES: Record<Role, RoleDef> = {
       "batches:manage",
       "sensors:view",
       "stations:maintenance",
-      "schedule:manage",
       "seasons:manage",
       "data:export",
       "settings:view",
@@ -127,7 +114,6 @@ export const COMPONENTS: Record<string, Permission | View[]> = {
   // Navigation (sidebar and phone tab bar). A page whose nav item is hidden shows "Sign in".
   "nav.dashboard": "dashboard:view",
   "nav.stations": "stations:view",
-  "nav.schedule": "schedule:view",
   "nav.alerts": "alerts:view",
   "nav.data": "collections:view",
   "nav.settings": "settings:view",
@@ -148,10 +134,6 @@ export const COMPONENTS: Record<string, Permission | View[]> = {
   // Alerts page (/alerts)
   "alerts.respond": "alerts:resolve", // Acknowledge / Resolve
   "alerts.maintenance": "stations:maintenance", // Extend 1 Hour / end maintenance
-
-  // Schedule page (/schedule)
-  "schedule.join": "schedule:join", // Sign Up, Leave, I'll Do It, Mark Done on own jobs
-  "schedule.manage": "schedule:manage", // Assign, Remove, Post for Sign-Up
 
   // Data pages: tabs, then the buttons inside them
   "data.overview": "collections:view",

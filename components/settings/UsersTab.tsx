@@ -181,7 +181,7 @@ function EditPermissionsModal({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={() => setEditing(option)}
             className={cx(
-              "rounded-full px-4 py-1.5 font-sans text-[15px] font-semibold",
+              "rounded-full px-4 py-1.5 font-sans text-[16px] font-semibold",
               editing === option ? "bg-accent text-white" : "text-slate hover:bg-bg",
             )}
           >
@@ -337,7 +337,7 @@ export default function UsersTab() {
               permission: (
                 <span>
                   {PERMISSIONS[permission]}
-                  <span className="block font-mono text-[11px] text-muted">{permission}</span>
+                  <span className="block font-mono text-[12px] text-muted">{permission}</span>
                 </span>
               ),
               ...Object.fromEntries(

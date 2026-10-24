@@ -2,22 +2,14 @@
 
 import { useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useDemo } from "@/components/demo/DemoProvider";
-import { useSchedule } from "@/components/schedule/ScheduleProvider";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import LogCollectionModal from "@/components/stations/LogCollectionModal";
 import { EditBucketModal, NotesList } from "@/components/stations/StationForms";
 import StatusBadge from "@/components/stations/StatusBadge";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
-import {
-  lineCursor,
-  tooltipContentStyle,
-  tooltipItemStyle,
-  tooltipLabelStyle,
-} from "@/components/ui/chartTheme";
+import { lineCursor, tooltipContentStyle, tooltipItemStyle, tooltipLabelStyle } from "@/components/ui/chartTheme";
 import { Button, Modal, ProgressBar, Toggle } from "@/components/ui/ui";
-import { taskStatus, timeSlotLabel } from "@/lib/data/schedule";
 import { stationStatusMeta } from "@/lib/selectors/stations";
 import type { StationView } from "@/lib/types/schema";
 
@@ -41,16 +33,8 @@ function StationDetail({
   onLog: () => void;
   onEdit: () => void;
 }) {
-  const { can, shows, members } = useSession();
+  const { can, shows } = useSession();
   const { weight, animations } = useClubSettings();
-  const { dayIndex } = useDemo();
-  const { tasks } = useSchedule();
-  const scheduled = tasks.filter(
-    (task) =>
-      task.bucketId === station.bucketId &&
-      task.dayIndex === dayIndex &&
-      taskStatus(task, dayIndex) !== "done",
-  );
   const { toggleMaintenance, maintenance } = useStationState();
   const meta = stationStatusMeta[station.status];
   const percent = Math.round(Math.min(station.fillPercent, 100));
@@ -86,8 +70,8 @@ function StationDetail({
 
       <div className="mb-5">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-[15px]">Fill</span>
-          <span className="font-sans text-[15px] font-semibold">{percent}%</span>
+          <span className="text-[16px]">Fill</span>
+          <span className="font-sans text-[16px] font-semibold">{percent}%</span>
         </div>
         <ProgressBar percent={percent} color={meta.bar} height={10} />
       </div>
@@ -105,21 +89,11 @@ function StationDetail({
               key={alert.key}
               className="rounded-xl border border-attention-border bg-attention-bg px-4 py-2.5 text-sm"
             >
-              <span className="font-semibold">{alert.title}.</span>{" "}
-              <span className="text-muted">{alert.advice}</span>
+              <span className="font-semibold">{alert.title}.</span> <span className="text-muted">{alert.advice}</span>
             </div>
           ))}
         </div>
       ) : null}
-
-      {scheduled.map((task) => (
-        <p key={task.id} className="mb-4 rounded-xl bg-accent-light px-4 py-2.5 text-sm">
-          <span className="font-semibold">Scheduled today:</span> {task.title}, {timeSlotLabel[task.slot]} ·{" "}
-          {task.assigneeIds.length
-            ? task.assigneeIds.map((id) => members.find((member) => member.id === id)?.name).join(", ")
-            : "open for sign-up"}
-        </p>
-      ))}
 
       <h3 className="mb-2 font-sans text-base font-semibold">
         Fill trend, {chartData.length} day{chartData.length === 1 ? "" : "s"}
@@ -182,13 +156,7 @@ function StationDetail({
  * Station pop-up and the flows it leads to (log a collection, edit the
  * station). Used by the Dashboard and the Stations page.
  */
-export default function StationDialogs({
-  bucketId,
-  onClose,
-}: {
-  bucketId: number | null;
-  onClose: () => void;
-}) {
+export default function StationDialogs({ bucketId, onClose }: { bucketId: number | null; onClose: () => void }) {
   const stations = useStationCards();
   const [mode, setMode] = useState<"detail" | "log" | "edit">("detail");
   const [shownFor, setShownFor] = useState<number | null>(bucketId);
@@ -203,17 +171,14 @@ export default function StationDialogs({
   if (bucketId === null || !station) return null;
 
   if (mode === "log") {
-    return <LogCollectionModal bucketId={station.bucketId} onClose={onClose} onBackToStation={() => setMode("detail")} />;
+    return (
+      <LogCollectionModal bucketId={station.bucketId} onClose={onClose} onBackToStation={() => setMode("detail")} />
+    );
   }
   if (mode === "edit") {
     return <EditBucketModal station={station} onClose={() => setMode("detail")} />;
   }
   return (
-    <StationDetail
-      station={station}
-      onClose={onClose}
-      onLog={() => setMode("log")}
-      onEdit={() => setMode("edit")}
-    />
+    <StationDetail station={station} onClose={onClose} onLog={() => setMode("log")} onEdit={() => setMode("edit")} />
   );
 }

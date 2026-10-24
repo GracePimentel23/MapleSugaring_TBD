@@ -23,7 +23,7 @@ export default function DataSectionPage({ section }: { section: DataSectionId })
     .map((entry) => ({
       id: `logged-${entry.id}`,
       collectionNumber: day.collections.length + entry.id,
-      date: day.date,
+      date: entry.date,
       entries: [
         {
           bucketId: entry.bucketId,
@@ -50,7 +50,7 @@ export default function DataSectionPage({ section }: { section: DataSectionId })
               key={tab.id}
               href={tab.href}
               className={cx(
-                "-mb-px shrink-0 border-b-2 py-2.5 font-sans text-[15px]",
+                "-mb-px shrink-0 border-b-2 py-2.5 font-sans text-[16px]",
                 active ? "border-accent font-semibold text-accent" : "border-transparent text-muted",
               )}
             >
