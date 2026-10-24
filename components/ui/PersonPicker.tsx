@@ -164,7 +164,7 @@ export default function PersonPicker({
                     {initials(person.name)}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-sans text-[16px] font-semibold">
+                    <span className="block truncate font-sans text-body font-semibold">
                       {person.name}
                       {person.id === currentUserId ? <span className="font-normal text-muted"> (you)</span> : null}
                     </span>

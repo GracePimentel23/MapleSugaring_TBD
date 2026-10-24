@@ -38,7 +38,7 @@ export default function DemoControls() {
 
   return (
     <div
-      className="shrink-0 pb-[68px] md:pb-0"
+      className="shrink-0 pb-[calc(78px+env(safe-area-inset-bottom))] md:pb-0"
       style={{ background: "#16290F", borderTop: "1px solid rgba(255,255,255,0.12)" }}
     >
       {scriptOpen ? (
@@ -49,11 +49,11 @@ export default function DemoControls() {
           <div className="flex flex-col gap-2 pb-3 lg:flex-row lg:gap-8">
             <div className="min-w-0 lg:flex-1">
               <h3 className="font-sans text-sm font-semibold text-white">{day.narration.title}</h3>
-              <p className="mt-1 text-xs leading-relaxed text-white/75">{day.narration.script}</p>
+              <p className="mt-1 text-sm leading-relaxed text-white/75">{day.narration.script}</p>
             </div>
             <ul className="flex shrink-0 flex-col gap-1 lg:w-[340px]">
               {day.narration.beats.map((beat) => (
-                <li key={beat} className="flex gap-2 text-xs text-white/80">
+                <li key={beat} className="flex gap-2 text-sm text-white/80">
                   <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-white/50" />
                   <span>{beat}</span>
                 </li>
@@ -138,13 +138,13 @@ export default function DemoControls() {
           <span className="hidden text-xs text-white/45 xl:inline">Arrow keys to step</span>
           {/* Presenter control: see the app as each role would. Real sign-in sets the role instead. */}
           {authMode === "sso" ? null : (
-            <label className="flex items-center gap-1.5 text-xs text-white/70">
+            <label className="flex items-center gap-1.5 text-sm text-white/70">
               <span className="hidden sm:inline">View as</span>
               <select
                 value={view}
                 aria-label="View as"
                 onChange={(event) => viewAs(event.target.value as View)}
-                className="rounded-lg border border-white/20 bg-white/10 px-2 py-1 font-sans text-xs font-medium text-white outline-none"
+                className="rounded-lg border border-white/20 bg-white/10 px-2 py-1 font-sans text-sm font-medium text-white outline-none"
               >
                 {VIEWS.map((item) => (
                   <option key={item} value={item} className="text-text">
@@ -158,21 +158,21 @@ export default function DemoControls() {
             type="button"
             onClick={() => setMore((open) => !open)}
             aria-expanded={more}
-            className="rounded-lg px-2.5 py-1.5 font-sans text-xs font-medium text-white/85 transition-colors hover:bg-white/15 sm:hidden"
+            className="rounded-lg px-2.5 py-1.5 font-sans text-sm font-medium text-white/85 transition-colors hover:bg-white/15 sm:hidden"
           >
             {more ? "Less" : "More"}
           </button>
           <button
             type="button"
             onClick={() => setScriptOpen((open) => !open)}
-            className={`rounded-lg px-2.5 py-1.5 font-sans text-xs font-medium text-white/85 transition-colors hover:bg-white/15 sm:inline-block ${more ? "inline-block" : "hidden"}`}
+            className={`rounded-lg px-2.5 py-1.5 font-sans text-sm font-medium text-white/85 transition-colors hover:bg-white/15 sm:inline-block ${more ? "inline-block" : "hidden"}`}
           >
             {scriptOpen ? "Hide script" : "Show script"}
           </button>
           <button
             type="button"
             onClick={reset}
-            className={`rounded-lg px-2.5 py-1.5 font-sans text-xs font-medium text-white/85 transition-colors hover:bg-white/15 sm:inline-block ${more ? "inline-block" : "hidden"}`}
+            className={`rounded-lg px-2.5 py-1.5 font-sans text-sm font-medium text-white/85 transition-colors hover:bg-white/15 sm:inline-block ${more ? "inline-block" : "hidden"}`}
           >
             Reset
           </button>

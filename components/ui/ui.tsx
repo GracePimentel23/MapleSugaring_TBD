@@ -11,9 +11,9 @@ export function cx(...classes: (string | false | null | undefined)[]): string {
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-4 max-md:pt-4">
       <div className="min-w-0">
-        <h1 className="font-sans text-3xl font-bold tracking-tight md:text-[44px] md:leading-tight">{title}</h1>
+        <h1 className="font-sans text-3xl font-bold tracking-tight md:text-[48px] md:leading-tight">{title}</h1>
         {subtitle ? <p className="mt-1 max-w-2xl text-sm text-muted">{subtitle}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -93,7 +93,7 @@ export function Button({
       {...props}
       className={cx(
         "inline-flex items-center justify-center gap-2 rounded-xl font-sans font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-        size === "sm" ? "px-3 py-1.5 text-sm" : "px-4 py-2.5 text-sm md:text-[16px]",
+        size === "sm" ? "px-3 py-1.5 text-sm" : "px-4 py-2.5 text-sm md:text-body",
         variant === "primary" && "bg-accent text-white hover:bg-sidebar-hover",
         variant === "outline" && "border border-accent bg-white text-accent hover:bg-accent-light",
         variant === "danger" && "border border-attention-border bg-white text-status-problem hover:bg-attention-bg",
@@ -113,12 +113,14 @@ export function FilterPill({
   active,
   onClick,
   badge,
+  className,
 }: {
   label: string;
   count?: number;
   active: boolean;
   onClick: () => void;
   badge?: ReactNode;
+  className?: string;
 }) {
   return (
     <button
@@ -126,8 +128,9 @@ export function FilterPill({
       onClick={onClick}
       aria-pressed={active}
       className={cx(
-        "relative flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 font-sans text-sm font-medium whitespace-nowrap transition-colors",
+        "relative inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 font-sans text-sm font-medium whitespace-nowrap transition-colors",
         active ? "border-accent bg-accent text-white" : "border-border bg-white text-text hover:border-accent/40",
+        className,
       )}
     >
       {label}
@@ -228,10 +231,10 @@ export function Modal({
           <div className="min-w-0">
             {eyebrow ? <p className="mb-1 text-sm text-muted">{eyebrow}</p> : null}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <h2 className="font-sans text-2xl font-bold md:text-[30px]">{title}</h2>
+              <h2 className="font-sans text-2xl font-bold md:text-[32px]">{title}</h2>
               {badge}
             </div>
-            {subtitle ? <p className="mt-1 text-[16px] text-muted">{subtitle}</p> : null}
+            {subtitle ? <p className="mt-1 text-body text-muted">{subtitle}</p> : null}
           </div>
           <button
             type="button"
@@ -262,7 +265,7 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
 }
 
 export const inputClass =
-  "w-full rounded-xl border border-border bg-white px-4 py-3 text-[16px] text-text outline-none transition-colors focus:border-accent-mid disabled:bg-bg disabled:text-muted";
+  "w-full rounded-xl border border-border bg-white px-4 py-3 text-body text-text outline-none transition-colors focus:border-accent-mid disabled:bg-bg disabled:text-muted";
 
 /** Simple bordered table with uppercase heads. Columns are plain strings or nodes. */
 export function DataTable({
@@ -275,30 +278,24 @@ export function DataTable({
   empty?: string;
 }) {
   return (
-    <div className="-mx-1 overflow-x-auto">
-      {/* Wide tables scroll sideways on phones; narrow ones just fit. */}
-      <table className={cx("w-full border-collapse text-left text-sm", columns.length > 3 && "min-w-[520px]")}>
-        <thead>
-          <tr className="border-b border-border">
-            {columns.map((column) => (
-              <th
-                key={column.key}
-                className={cx("table-head px-3 pb-3", column.align === "right" && "text-right", column.className)}
-              >
-                {column.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} className="px-3 py-6 text-center text-muted">
-                {empty}
-              </td>
+    <>
+      <div className="-mx-1 overflow-x-auto">
+        {/* Wide tables scroll sideways on phones; narrow ones just fit. */}
+        <table className={cx("w-full border-collapse text-left text-sm", columns.length > 3 && "min-w-[520px]")}>
+          <thead>
+            <tr className="border-b border-border">
+              {columns.map((column) => (
+                <th
+                  key={column.key}
+                  className={cx("table-head px-3 pb-3", column.align === "right" && "text-right", column.className)}
+                >
+                  {column.label}
+                </th>
+              ))}
             </tr>
-          ) : (
-            rows.map((row) => (
+          </thead>
+          <tbody>
+            {rows.map((row) => (
               <tr
                 key={row.key}
                 onClick={row.onClick}
@@ -317,11 +314,13 @@ export function DataTable({
                   </td>
                 ))}
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {/* Outside the scroller, so on a phone it centers in view instead of across the wide table. */}
+      {rows.length === 0 ? <p className="px-2 py-6 text-center text-sm text-muted">{empty}</p> : null}
+    </>
   );
 }
 
@@ -366,7 +365,7 @@ export function Checkbox({
       >
         {checked ? <CheckIcon size={14} /> : null}
       </span>
-      <span className="text-[16px]">{label}</span>
+      <span className="text-body">{label}</span>
     </label>
   );
 }

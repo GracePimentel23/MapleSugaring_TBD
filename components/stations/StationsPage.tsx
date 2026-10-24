@@ -166,55 +166,58 @@ export default function StationsPage() {
         }
       />
 
-      <div className="mb-6 flex items-center gap-3">
-        <div className="no-scrollbar -mx-4 flex flex-1 gap-2 overflow-x-auto px-4 py-1 md:mx-0 md:px-0">
-          {filters.map((item) => (
-            <FilterPill
-              key={item.id}
-              label={item.label}
-              count={counts[item.id]}
-              active={filter === item.id}
-              onClick={() => setFilter(item.id)}
-            />
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => setUrgentFirst(!urgentFirst)}
-          aria-pressed={urgentFirst}
-          aria-label={
-            urgentFirst
-              ? "Sorted by most urgent first. Sort by bucket number"
-              : "Sorted by bucket number. Sort by most urgent first"
-          }
-          title={urgentFirst ? "Sorted: most urgent first" : "Sorted: bucket number"}
-          className={cx(
-            "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 font-sans text-sm font-semibold transition-colors",
-            urgentFirst
-              ? "border-accent bg-accent-light text-accent"
-              : "border-border bg-white text-muted hover:text-text",
-          )}
-        >
-          <SortIcon size={18} />
-          <span className="hidden sm:inline">{urgentFirst ? "Most urgent" : "Bucket #"}</span>
-        </button>
-        <div className="relative">
+      {/* Sort and the status legend float at the right end of the first row; the pills flow around
+          them and wrap underneath, so on a phone nothing is cut off and nothing sits on its own row. */}
+      <div className="mb-4 flow-root">
+        <div className="float-right mb-2 ml-1 flex items-center gap-1.5 md:gap-2">
           <button
             type="button"
-            onClick={() => setShowLegend(!showLegend)}
-            aria-label="What the statuses mean"
-            aria-expanded={showLegend}
+            onClick={() => setUrgentFirst(!urgentFirst)}
+            aria-pressed={urgentFirst}
+            aria-label={
+              urgentFirst
+                ? "Sorted by most urgent first. Sort by bucket number"
+                : "Sorted by bucket number. Sort by most urgent first"
+            }
+            title={urgentFirst ? "Sorted: most urgent first" : "Sorted: bucket number"}
             className={cx(
-              "rounded-full border p-2 transition-colors",
-              showLegend
+              "flex h-[38px] shrink-0 items-center justify-center gap-1.5 rounded-full border font-sans text-sm font-semibold transition-colors max-sm:w-[38px] sm:px-3",
+              urgentFirst
                 ? "border-accent bg-accent-light text-accent"
                 : "border-border bg-white text-muted hover:text-text",
             )}
           >
-            <InfoIcon size={18} />
+            <SortIcon size={18} />
+            <span className="hidden sm:inline">{urgentFirst ? "Most urgent" : "Bucket #"}</span>
           </button>
-          {showLegend ? <StatusLegend /> : null}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowLegend(!showLegend)}
+              aria-label="What the statuses mean"
+              aria-expanded={showLegend}
+              className={cx(
+                "flex h-[38px] w-[38px] items-center justify-center rounded-full border transition-colors",
+                showLegend
+                  ? "border-accent bg-accent-light text-accent"
+                  : "border-border bg-white text-muted hover:text-text",
+              )}
+            >
+              <InfoIcon size={18} />
+            </button>
+            {showLegend ? <StatusLegend /> : null}
+          </div>
         </div>
+        {filters.map((item) => (
+          <FilterPill
+            key={item.id}
+            label={item.label}
+            count={counts[item.id]}
+            active={filter === item.id}
+            onClick={() => setFilter(item.id)}
+            className="mr-1.5 mb-2 align-top max-md:gap-1.5 max-md:px-3 max-md:text-[14px] md:mr-2"
+          />
+        ))}
       </div>
 
       {sorted.length === 0 ? (
@@ -238,7 +241,7 @@ export default function StationsPage() {
 
       <hr className="my-10 border-border" />
 
-      <h2 className="font-sans text-2xl font-bold">Sugarbush Map</h2>
+      <h2 className="font-sans text-2xl font-bold max-md:pt-4">Sugarbush Map</h2>
       <p className="mt-1 mb-5 max-w-2xl text-sm text-muted">
         Where each bucket sits around the Lobozzo Alumni House. Ring color shows its status. Drag to move, tap a pin to
         open that station.

@@ -181,7 +181,7 @@ function EditPermissionsModal({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={() => setEditing(option)}
             className={cx(
-              "rounded-full px-4 py-1.5 font-sans text-[16px] font-semibold",
+              "rounded-full px-4 py-1.5 font-sans text-body font-semibold",
               editing === option ? "bg-accent text-white" : "text-slate hover:bg-bg",
             )}
           >

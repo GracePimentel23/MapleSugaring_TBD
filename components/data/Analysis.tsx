@@ -25,18 +25,12 @@ import {
 } from "@/components/ui/chartTheme";
 
 import { Button, Card, DataTable, StatCard } from "@/components/ui/ui";
-import {
-  bucketYields,
-  cycleDays,
-  overduePickups,
-  seasonStats,
-  TREE_COUNT,
-} from "@/lib/selectors/analysis";
+import { bucketYields, cycleDays, overduePickups, seasonStats, TREE_COUNT } from "@/lib/selectors/analysis";
 import type { DemoDay } from "@/lib/demo/timeline";
 import { daysBetween, monthDay } from "@/lib/time";
 import type { SeasonSummary } from "@/lib/types/schema";
 
-const axisTick = { fontSize: 11, fill: "#8A8F86" };
+const axisTick = { fontSize: 12, fill: "#8A8F86" };
 
 function year(season: SeasonSummary): string {
   return season.season.replace("Season ", "");
@@ -82,7 +76,7 @@ function SeasonSelect({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-muted">{label}</span>
+      <span className="mb-1 block text-sm text-muted">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -209,10 +203,8 @@ export default function Analysis({ day }: { day: DemoDay }) {
     <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-sans text-3xl font-bold tracking-tight md:text-[44px] md:leading-tight">Analysis</h1>
-          <p className="mt-1 text-sm text-muted">
-            Compares with the season before by default. Pick any past season.
-          </p>
+          <h1 className="font-sans text-3xl font-bold tracking-tight md:text-[48px] md:leading-tight">Analysis</h1>
+          <p className="mt-1 text-sm text-muted">Compares with the season before by default. Pick any past season.</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <SeasonSelect label="Season" value={primary.season} seasons={seasons} onChange={setPrimaryName} />
@@ -233,14 +225,17 @@ export default function Analysis({ day }: { day: DemoDay }) {
         </div>
       </div>
 
-      <h2 className="mb-3 font-sans text-base font-semibold">Season Metrics</h2>
+      <h2 className="mb-3 font-sans text-base font-semibold max-md:pt-4">Season Metrics</h2>
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           dark
           label="Total sap"
           value={weight(primary.totalSapLbs)}
-          note={versus(primary.totalSapLbs, compare.totalSapLbs, cy, (diff) =>
-            `${Math.round((diff / Math.max(compare.totalSapLbs, 1)) * 100)}%`,
+          note={versus(
+            primary.totalSapLbs,
+            compare.totalSapLbs,
+            cy,
+            (diff) => `${Math.round((diff / Math.max(compare.totalSapLbs, 1)) * 100)}%`,
           )}
         />
         <StatCard
@@ -251,7 +246,11 @@ export default function Analysis({ day }: { day: DemoDay }) {
         <StatCard
           label="Avg Brix"
           value={primary.avgBrix ? `${primary.avgBrix}°` : "—"}
-          note={primary.avgBrix ? versus(primary.avgBrix, compare.avgBrix, cy, (diff) => `${diff.toFixed(1)}°`) : "no batch finished yet"}
+          note={
+            primary.avgBrix
+              ? versus(primary.avgBrix, compare.avgBrix, cy, (diff) => `${diff.toFixed(1)}°`)
+              : "no batch finished yet"
+          }
         />
         <StatCard
           label="Sap to syrup"
@@ -263,7 +262,11 @@ export default function Analysis({ day }: { day: DemoDay }) {
           value={`${pStats.days} days`}
           note={`${isCurrent ? "so far; " : ""}${cy} ran ${seasonDays(compare)}`}
         />
-        <StatCard label="Boil sessions" value={String(boilSessions(primary))} note={`${cy}: ${boilSessions(compare)}`} />
+        <StatCard
+          label="Boil sessions"
+          value={String(boilSessions(primary))}
+          note={`${cy}: ${boilSessions(compare)}`}
+        />
         <StatCard
           label="Sap per tree"
           value={weight(Math.round((primary.totalSapLbs / TREE_COUNT) * 10) / 10)}
@@ -352,15 +355,12 @@ export default function Analysis({ day }: { day: DemoDay }) {
                 itemStyle={tooltipItemStyle}
                 cursor={barCursor}
               />
-              <Bar
-                dataKey="lbs"
-                name={py}
-                radius={[4, 4, 0, 0]}
-                isAnimationActive={animations}
-                animationDuration={900}
-              >
+              <Bar dataKey="lbs" name={py} radius={[4, 4, 0, 0]} isAnimationActive={animations} animationDuration={900}>
                 {cycleData.map((point) => (
-                  <Cell key={point.day} fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"} />
+                  <Cell
+                    key={point.day}
+                    fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"}
+                  />
                 ))}
               </Bar>
               <Line
@@ -389,7 +389,11 @@ export default function Analysis({ day }: { day: DemoDay }) {
               ["Cycle days", String(pStats.cycleDays), String(cStats.cycleDays)],
               ["Avg lbs, cycle day", pStats.avgCycleLbs.toFixed(1), cStats.avgCycleLbs.toFixed(1)],
               ["Avg lbs, other day", pStats.avgOtherLbs.toFixed(1), cStats.avgOtherLbs.toFixed(1)],
-              ["Sap from cycle days", `${Math.round(pStats.cycleShare * 100)}%`, `${Math.round(cStats.cycleShare * 100)}%`],
+              [
+                "Sap from cycle days",
+                `${Math.round(pStats.cycleShare * 100)}%`,
+                `${Math.round(cStats.cycleShare * 100)}%`,
+              ],
             ].map(([label, p, c]) => ({ key: label!, cells: { label, p, c } }))}
           />
         </Panel>
@@ -431,6 +435,7 @@ export default function Analysis({ day }: { day: DemoDay }) {
 
             <Panel title="Batches: Sap in and Syrup Out" subtitle="Only boiled batches count toward the ratio.">
               <DataTable
+                empty="No batches yet this season."
                 columns={[
                   { key: "batch", label: "Batch" },
                   { key: "date", label: "Date" },
@@ -477,8 +482,8 @@ export default function Analysis({ day }: { day: DemoDay }) {
           </>
         ) : (
           <Card className="text-sm text-muted xl:col-span-2">
-            Per-bucket yield, batch and pickup detail is kept for the current season only. Pick Season{" "}
-            {year(current)} to see it.
+            Per-bucket yield, batch and pickup detail is kept for the current season only. Pick Season {year(current)}{" "}
+            to see it.
           </Card>
         )}
       </div>

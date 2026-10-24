@@ -10,11 +10,13 @@ function Svg({
   children,
   className,
   viewBox = "0 0 20 20",
+  strokeWidth = 1.6,
 }: {
   size?: number;
   children: ReactNode;
   className?: string;
   viewBox?: string;
+  strokeWidth?: number;
 }) {
   return (
     <svg
@@ -23,7 +25,7 @@ function Svg({
       viewBox={viewBox}
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.6"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -34,7 +36,7 @@ function Svg({
   );
 }
 
-type IconProps = { size?: number; className?: string };
+type IconProps = { size?: number; className?: string; strokeWidth?: number };
 
 export function GridIcon(props: IconProps) {
   return (

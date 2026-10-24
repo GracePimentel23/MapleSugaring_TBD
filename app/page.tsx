@@ -42,11 +42,11 @@ export default function Home() {
 
   return (
     <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
-      <h1 className="mt-2 font-sans text-3xl font-bold tracking-tight md:text-[48px] md:leading-tight">
+      <h1 className="mt-2 font-sans max-md:pt-4 text-3xl font-bold tracking-tight md:text-[48px] md:leading-tight">
         {greeting()}
         {signedIn ? `, ${firstName(user.name)}` : ""}
       </h1>
-      <p className="mt-1 mb-7 text-[16px] text-muted md:text-base">
+      <p className="mt-1 mb-7 text-body text-muted md:text-base">
         {seasonLine} ·{" "}
         {attentionCount === 0
           ? "every bucket looks fine"
@@ -55,7 +55,7 @@ export default function Home() {
 
       <ShowFor id="dashboard.signIn">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-white px-6 py-4">
-          <p className="text-[16px]">You are viewing as a guest. Sign in to log collections, and handle alerts.</p>
+          <p className="text-body">You are viewing as a guest. Sign in to log collections, and handle alerts.</p>
           <Button onClick={() => router.push("/login")}>Sign In</Button>
         </div>
       </ShowFor>
@@ -67,7 +67,9 @@ export default function Home() {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(280px,1.15fr)]">
         <ShowFor id="dashboard.stations">
           <section>
-            <h2 className="mb-4 font-sans text-xl font-semibold md:text-2xl">Buckets · {onlineCount} Online</h2>
+            <h2 className="mb-4 font-sans text-xl font-semibold max-md:pt-4 md:text-2xl">
+              Buckets · {onlineCount} Online
+            </h2>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {stations.map((station) => (
                 <StationTile key={station.bucketId} station={station} onOpen={() => setOpenBucket(station.bucketId)} />

@@ -11,7 +11,7 @@ export const tooltipContentStyle: CSSProperties = {
   borderRadius: 12,
   boxShadow: "0 8px 24px rgba(26, 35, 24, 0.12)",
   color: "#1A2318",
-  fontSize: 13,
+  fontSize: 16,
   padding: "8px 12px",
 };
 

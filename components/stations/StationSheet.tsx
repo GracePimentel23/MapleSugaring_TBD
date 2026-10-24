@@ -70,8 +70,8 @@ function StationDetail({
 
       <div className="mb-5">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-[16px]">Fill</span>
-          <span className="font-sans text-[16px] font-semibold">{percent}%</span>
+          <span className="text-body">Fill</span>
+          <span className="font-sans text-body font-semibold">{percent}%</span>
         </div>
         <ProgressBar percent={percent} color={meta.bar} height={10} />
       </div>

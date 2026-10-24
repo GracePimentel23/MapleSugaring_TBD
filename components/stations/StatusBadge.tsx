@@ -36,7 +36,7 @@ export default function StatusBadge({
     <span
       className={cx(
         "inline-flex shrink-0 items-center gap-1.5 rounded-full font-sans font-semibold whitespace-nowrap",
-        size === "sm" ? "px-2 py-0.5 text-[12px]" : "px-2.5 py-1 text-xs",
+        size === "sm" ? "px-2 py-0.5 text-[12px] md:text-sm" : "px-2.5 py-1 text-xs md:text-sm",
         className,
       )}
       style={{ color: meta.color, background: meta.bg }}

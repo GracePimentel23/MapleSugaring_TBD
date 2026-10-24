@@ -32,7 +32,7 @@ function AlertRow({
         <AlertIcon kind={kind} size={28} />
         <div className="min-w-0">
           <p className="font-sans text-base font-semibold md:text-lg">{title}</p>
-          <p className="text-sm text-muted md:text-[16px]">{context}</p>
+          <p className="text-sm text-muted md:text-body">{context}</p>
         </div>
       </div>
       <div className="flex shrink-0 flex-wrap gap-3 md:justify-end">{actions}</div>
@@ -46,8 +46,7 @@ export default function AlertsPage() {
   const { thresholds, maintenanceDefaults } = useClubSettings();
   const { can } = useSession();
   const { active, acknowledged, maintenanceAlerts, acks } = useAlerts();
-  const { acknowledge, resolve, resolutions, focusStation, extendMaintenance, toggleMaintenance } =
-    useStationState();
+  const { acknowledge, resolve, resolutions, focusStation, extendMaintenance, toggleMaintenance } = useStationState();
   const [filter, setFilter] = useState<Section | null>(null);
 
   const history = getResolvedHistory(dayIndex, thresholds);
@@ -103,19 +102,13 @@ export default function AlertsPage() {
             ["resolved", "Resolved", resolvedRows.length],
           ] as [Section, string, number][]
         ).map(([id, label, count]) => (
-          <FilterPill
-            key={id}
-            label={label}
-            count={count}
-            active={filter === id}
-            onClick={() => setFilter(id)}
-          />
+          <FilterPill key={id} label={label} count={count} active={filter === id} onClick={() => setFilter(id)} />
         ))}
       </div>
 
       {show("active") ? (
         <section className="mb-8">
-          <h2 className="mb-3 font-sans text-lg font-semibold">Active</h2>
+          <h2 className="max-md:pt-4 mb-3 font-sans text-lg font-semibold">Active</h2>
           {active.length === 0 ? (
             <EmptyState
               compact
@@ -150,7 +143,7 @@ export default function AlertsPage() {
 
       {show("acknowledged") ? (
         <section className="mb-8">
-          <h2 className="mb-3 font-sans text-lg font-semibold">Acknowledged</h2>
+          <h2 className="max-md:pt-4 mb-3 font-sans text-lg font-semibold">Acknowledged</h2>
           {acknowledgedCount === 0 ? (
             <EmptyState
               compact
@@ -206,7 +199,7 @@ export default function AlertsPage() {
 
       {show("resolved") ? (
         <Card className="md:px-7">
-          <h2 className="mb-4 font-sans text-lg font-semibold">Resolved This Week</h2>
+          <h2 className="max-md:pt-4 mb-4 font-sans text-lg font-semibold">Resolved This Week</h2>
           <DataTable
             empty="Nothing resolved in the last seven days."
             columns={[

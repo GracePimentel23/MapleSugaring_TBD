@@ -142,7 +142,7 @@ export default function NotificationsMenu({ onDark = false }: { onDark?: boolean
                     <AlertIcon kind={alert.kind} size={22} />
                   </span>
                   <span className="min-w-0">
-                    <span className="block font-sans text-[16px] font-semibold group-enabled:group-hover:underline">
+                    <span className="block font-sans text-body font-semibold group-enabled:group-hover:underline">
                       {alert.title}
                     </span>
                     <span className="block text-sm text-muted">{alert.advice}</span>

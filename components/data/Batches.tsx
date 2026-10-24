@@ -6,7 +6,18 @@ import { DropIcon, MoreIcon, PencilIcon, PlusIcon } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { NotesList } from "@/components/stations/StationForms";
-import { Button, Card, cx, DataTable, EmptyState, Field, inputClass, Modal, PageHeader, StatCard } from "@/components/ui/ui";
+import {
+  Button,
+  Card,
+  cx,
+  DataTable,
+  EmptyState,
+  Field,
+  inputClass,
+  Modal,
+  PageHeader,
+  StatCard,
+} from "@/components/ui/ui";
 import { batchStatusLabel } from "@/lib/batchStatus";
 import type { DemoDay } from "@/lib/demo/timeline";
 import { monthDay, noteStamp, shortDate } from "@/lib/time";
@@ -47,10 +58,7 @@ function StageTrack({ status }: { status: BatchStatus }) {
             }}
           />
           <div
-            className={cx(
-              "mt-2 text-sm md:text-[16px]",
-              index === current ? "font-semibold text-text" : "text-muted",
-            )}
+            className={cx("mt-2 text-sm md:text-body", index === current ? "font-semibold text-text" : "text-muted")}
           >
             {stage}
           </div>
@@ -67,7 +75,7 @@ function BatchNotes({ view }: { view: BatchView }) {
 
   return (
     <div className="mt-4">
-      {latest ? <p className="text-[16px] text-muted">{latest.text}</p> : null}
+      {latest ? <p className="text-body text-muted">{latest.text}</p> : null}
       {view.notes.length > 0 ? (
         <button
           type="button"
@@ -105,7 +113,7 @@ function OpenBatchCard({ view, onEdit }: { view: BatchView; onEdit: (() => void)
               {batchStatusLabel[batch.status]}
             </span>
           </div>
-          <div className="mt-0.5 text-[16px] text-muted">
+          <div className="mt-0.5 text-body text-muted">
             {monthDay(batch.date)} · {batch.createdBy}
           </div>
         </div>
@@ -122,7 +130,7 @@ function OpenBatchCard({ view, onEdit }: { view: BatchView; onEdit: (() => void)
       </div>
 
       <div className="mb-5">
-        <div className="text-[16px] text-muted">Sap in</div>
+        <div className="text-body text-muted">Sap in</div>
         <div className="font-sans text-3xl font-bold md:text-4xl">{weight(batch.sapInLbs)}</div>
       </div>
 
@@ -182,11 +190,7 @@ function ClosedRowMenu({ view, canEdit, onEdit }: { view: BatchView; canEdit: bo
       {showNotes ? (
         <Modal title={`${view.batch.batchNumber} notes`} onClose={() => setShowNotes(false)}>
           <div className="pb-6">
-            {view.notes.length ? (
-              <NotesList notes={view.notes} />
-            ) : (
-              <p className="text-muted">No notes yet.</p>
-            )}
+            {view.notes.length ? <NotesList notes={view.notes} /> : <p className="text-muted">No notes yet.</p>}
           </div>
         </Modal>
       ) : null}
@@ -222,8 +226,7 @@ function EditBatchModal({ view, day, onClose }: { view: BatchView; day: DemoDay;
     saveBatch(batch.batchNumber, next, text ? { text, author: user.name, createdAt: stamp.at } : null, stamp);
 
     const changes = [
-      next.syrupOutLbs !== batch.syrupOutLbs &&
-        `Syrup out: ${batch.syrupOutLbs || "—"} to ${next.syrupOutLbs} lbs`,
+      next.syrupOutLbs !== batch.syrupOutLbs && `Syrup out: ${batch.syrupOutLbs || "—"} to ${next.syrupOutLbs} lbs`,
       next.brix !== batch.brix && `Brix: ${batch.brix || "—"}° to ${next.brix}°`,
       next.sapInLbs !== batch.sapInLbs && `Sap in: ${batch.sapInLbs} to ${next.sapInLbs} lbs`,
       text && "Added a note",
@@ -257,12 +260,7 @@ function EditBatchModal({ view, day, onClose }: { view: BatchView; day: DemoDay;
           </p>
         ) : null}
         <Field label="Date">
-          <input
-            type="date"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-            className={inputClass}
-          />
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={inputClass} />
         </Field>
         <Field label="Sap in (lbs)">
           <input
@@ -405,11 +403,7 @@ export default function Batches({ day }: { day: DemoDay }) {
               value={weight(syrup)}
               note={`${closedBatches.length} batch${closedBatches.length === 1 ? "" : "es"} boiled`}
             />
-            <StatCard
-              label="Avg Brix"
-              value={avgBrix ? `${avgBrix.toFixed(1)}°` : "—"}
-              note="closed batches"
-            />
+            <StatCard label="Avg Brix" value={avgBrix ? `${avgBrix.toFixed(1)}°` : "—"} note="closed batches" />
             <StatCard
               label="Sap to syrup"
               value={syrup ? `${(closedSap / syrup).toFixed(1)} : 1` : "—"}
@@ -419,7 +413,7 @@ export default function Batches({ day }: { day: DemoDay }) {
 
           {open.length > 0 ? (
             <section className="mb-8">
-              <h2 className="mb-3 font-sans text-lg font-semibold">Open</h2>
+              <h2 className="mb-3 font-sans text-lg font-semibold max-md:pt-4">Open</h2>
               <div className="space-y-5">
                 {open.map((view) => (
                   <OpenBatchCard key={view.batch.id} view={view} onEdit={editHandler(view.batch)} />
@@ -430,7 +424,7 @@ export default function Batches({ day }: { day: DemoDay }) {
 
           {closed.length > 0 ? (
             <section>
-              <h2 className="mb-3 font-sans text-lg font-semibold">Closed</h2>
+              <h2 className="mb-3 font-sans text-lg font-semibold max-md:pt-4">Closed</h2>
               <Card className="md:px-7">
                 <DataTable
                   columns={[
@@ -458,9 +452,7 @@ export default function Batches({ day }: { day: DemoDay }) {
                         ),
                         sapIn: weight(batch.sapInLbs),
                         syrup: weight(batch.syrupOutLbs),
-                        ratio: batch.syrupOutLbs
-                          ? `${(batch.sapInLbs / batch.syrupOutLbs).toFixed(1)} : 1`
-                          : "—",
+                        ratio: batch.syrupOutLbs ? `${(batch.sapInLbs / batch.syrupOutLbs).toFixed(1)} : 1` : "—",
                         brix: batch.brix ? `${batch.brix}°` : "—",
                         duration: formatDuration(batch.boilMinutes),
                         notes: <span className="block truncate">{view.notes[0]?.text ?? "—"}</span>,

@@ -54,7 +54,7 @@ export default function SummaryCards() {
             <div className="mt-1 font-sans text-5xl font-bold tracking-tight text-accent md:text-6xl">
               {weight(today?.lbs ?? 0)}
             </div>
-            <p className="mt-3 max-w-md text-[16px] text-text md:text-base">{sapStory(day)}</p>
+            <p className="mt-3 max-w-md text-body text-text md:text-base">{sapStory(day)}</p>
             <div className="mt-6 flex flex-wrap gap-x-10 gap-y-3">
               <Footnote tone={sapTone} label="Season Total" value={weight(day.meta.production.sapCollectedLbs)} />
               <Footnote tone={sapTone} label="Collections Today" value={String(collectedToday)} />
@@ -96,7 +96,7 @@ export default function SummaryCards() {
           <div className="mt-1 font-sans text-5xl font-bold tracking-tight text-[#1E3347]">
             {temp(day.weather.temperatureF)}
           </div>
-          <p className="mt-2 text-[16px] md:text-base">
+          <p className="mt-2 text-body md:text-base">
             {day.weather.summary} · High {temp(day.weather.highF, false)}, Low {temp(day.weather.lowF, false)}
           </p>
           {forecast.length > 0 ? (

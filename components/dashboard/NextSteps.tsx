@@ -76,7 +76,7 @@ export default function NextSteps({ stations }: { stations: StationView[] }) {
     <section className="rounded-2xl border border-border bg-white p-5 md:p-6">
       <h2 className="border-b border-border pb-3 font-sans text-lg font-semibold">Next Steps</h2>
       {steps.length === 0 ? (
-        <p className="pt-4 text-[16px] text-muted">Nothing to do right now.</p>
+        <p className="pt-4 text-body text-muted">Nothing to do right now.</p>
       ) : (
         <ul>
           {steps.map((step) => {
@@ -102,7 +102,7 @@ export default function NextSteps({ stations }: { stations: StationView[] }) {
                   </span>
                   <span className={cx(checked && "text-muted line-through")}>
                     <span className="block font-sans text-base font-semibold md:text-lg">{step.title}</span>
-                    <span className="block text-[16px] text-muted">{step.detail}</span>
+                    <span className="block text-body text-muted">{step.detail}</span>
                   </span>
                 </label>
               </li>

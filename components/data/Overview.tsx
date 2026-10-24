@@ -212,7 +212,7 @@ export default function Overview({ day }: { day: DemoDay }) {
             value={selected}
             onChange={(event) => setSelected(event.target.value)}
             aria-label="Season"
-            className="rounded-xl border-2 border-accent bg-white px-4 py-2.5 font-sans text-[16px] font-semibold text-text outline-none"
+            className="rounded-xl border-2 border-accent bg-white px-4 py-2.5 font-sans text-body font-semibold text-text outline-none"
           >
             {seasons.map((item) => (
               <option key={item.season} value={item.season}>
@@ -355,7 +355,7 @@ export default function Overview({ day }: { day: DemoDay }) {
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <ComposedChart data={chartData} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#8A8F86" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#8A8F86" }} axisLine={false} tickLine={false} />
               <YAxis yAxisId="lbs" hide />
               <YAxis yAxisId="temp" hide domain={["dataMin - 15", "dataMax + 5"]} />
               <Tooltip
@@ -457,7 +457,7 @@ export default function Overview({ day }: { day: DemoDay }) {
                 <ul className="divide-y divide-border border-t border-border">
                   {activity.map((item) => (
                     <li key={item.key} className="py-3">
-                      <p className="text-[16px]">{item.text}</p>
+                      <p className="text-body">{item.text}</p>
                       <p className="text-sm text-muted">{activityWhen(item, dayIndex)}</p>
                     </li>
                   ))}

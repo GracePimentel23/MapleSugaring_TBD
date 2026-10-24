@@ -43,21 +43,23 @@ export default function DataSectionPage({ section }: { section: DataSectionId })
     <div className="flex min-h-full w-full flex-col">
       {/* On web the subsections live in the side nav; phones keep the tabs. */}
       <div className="no-scrollbar flex gap-6 overflow-x-auto border-b border-border px-4 pt-2 md:hidden">
-        {dataSections.filter((tab) => shows(`data.${tab.id}`)).map((tab) => {
-          const active = section === tab.id;
-          return (
-            <Link
-              key={tab.id}
-              href={tab.href}
-              className={cx(
-                "-mb-px shrink-0 border-b-2 py-2.5 font-sans text-[16px]",
-                active ? "border-accent font-semibold text-accent" : "border-transparent text-muted",
-              )}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
+        {dataSections
+          .filter((tab) => shows(`data.${tab.id}`))
+          .map((tab) => {
+            const active = section === tab.id;
+            return (
+              <Link
+                key={tab.id}
+                href={tab.href}
+                className={cx(
+                  "-mb-px shrink-0 border-b-[3px] py-2.5 font-sans text-body",
+                  active ? "border-accent font-bold text-accent" : "border-transparent font-normal text-muted",
+                )}
+              >
+                {tab.label}
+              </Link>
+            );
+          })}
       </div>
 
       <div className="flex-1 md:pt-0">

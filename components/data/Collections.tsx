@@ -40,13 +40,7 @@ function ChevronIcon({ open }: { open: boolean }) {
       style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }}
       aria-hidden="true"
     >
-      <path
-        d="M4 6l4 4 4-4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -71,18 +65,13 @@ function EditRowPopup({ entry, onClose }: { entry: CollectionEntry; onClose: () 
       <div className="relative z-10 w-full max-w-xs rounded-2xl bg-white p-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
           <h4 className="font-sans text-sm font-semibold">Edit Entry</h4>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1 hover:bg-gray-100"
-            aria-label="Close"
-          >
+          <button type="button" onClick={onClose} className="rounded-full p-1 hover:bg-gray-100" aria-label="Close">
             <CloseIcon size={14} />
           </button>
         </div>
         <div className="space-y-2.5">
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Bucket</label>
+            <label className="mb-1 block text-sm font-medium text-muted">Bucket</label>
             <input
               defaultValue={entry.bucketName}
               className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
@@ -90,7 +79,7 @@ function EditRowPopup({ entry, onClose }: { entry: CollectionEntry; onClose: () 
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Weight (lbs)</label>
+            <label className="mb-1 block text-sm font-medium text-muted">Weight (lbs)</label>
             <input
               type="number"
               defaultValue={entry.lbs}
@@ -103,7 +92,7 @@ function EditRowPopup({ entry, onClose }: { entry: CollectionEntry; onClose: () 
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-xl border py-2 text-xs font-semibold"
+            className="flex-1 rounded-xl border py-2 text-sm font-semibold"
             style={{ borderColor: "var(--color-border)" }}
           >
             Cancel
@@ -111,7 +100,7 @@ function EditRowPopup({ entry, onClose }: { entry: CollectionEntry; onClose: () 
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-xl py-2 text-xs font-semibold text-white"
+            className="flex-1 rounded-xl py-2 text-sm font-semibold text-white"
             style={{ background: "var(--color-accent)" }}
           >
             Save
@@ -132,9 +121,7 @@ function EditCollectionSheet({
   onClose: () => void;
 }) {
   const [removedBuckets, setRemovedBuckets] = useState<string[]>([]);
-  const waitingBatches = day.batches.filter(
-    (batch) => batch.status === "waiting" || batch.status === "active",
-  );
+  const waitingBatches = day.batches.filter((batch) => batch.status === "waiting" || batch.status === "active");
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
@@ -156,19 +143,14 @@ function EditCollectionSheet({
           <h3 className="font-sans text-base font-semibold">
             Edit Collection {String(collection.collectionNumber).padStart(2, "0")}
           </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1.5 hover:bg-gray-100"
-            aria-label="Close"
-          >
+          <button type="button" onClick={onClose} className="rounded-full p-1.5 hover:bg-gray-100" aria-label="Close">
             <CloseIcon />
           </button>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-5 pb-2">
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Date</label>
+            <label className="mb-1 block text-sm font-medium text-muted">Date</label>
             <input
               type="date"
               defaultValue={collection.date}
@@ -178,7 +160,7 @@ function EditCollectionSheet({
           </div>
 
           <div>
-            <label className="mb-2 block text-xs font-medium text-muted">Buckets</label>
+            <label className="mb-2 block text-sm font-medium text-muted">Buckets</label>
             <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--color-border)" }}>
               {bucketProfiles.map((profile, index) => {
                 const included = collection.entries.some((entry) => entry.bucketName === profile.name);
@@ -206,12 +188,10 @@ function EditCollectionSheet({
                         type="button"
                         onClick={() =>
                           setRemovedBuckets((current) =>
-                            removed
-                              ? current.filter((name) => name !== profile.name)
-                              : [...current, profile.name],
+                            removed ? current.filter((name) => name !== profile.name) : [...current, profile.name],
                           )
                         }
-                        className="rounded-full px-2 py-0.5 text-xs"
+                        className="rounded-full px-2 py-0.5 text-sm"
                         style={{
                           color: removed ? "#16A34A" : "#DC2626",
                           background: removed ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
@@ -222,7 +202,7 @@ function EditCollectionSheet({
                     ) : (
                       <button
                         type="button"
-                        className="rounded-full px-2 py-0.5 text-xs"
+                        className="rounded-full px-2 py-0.5 text-sm"
                         style={{ color: "#2B4A1E", background: "rgba(43,74,30,0.1)" }}
                       >
                         + Add
@@ -235,7 +215,7 @@ function EditCollectionSheet({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Batch</label>
+            <label className="mb-1 block text-sm font-medium text-muted">Batch</label>
             <select
               defaultValue={collection.batchName}
               className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-text outline-none"
@@ -256,7 +236,7 @@ function EditCollectionSheet({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Logged By</label>
+            <label className="mb-1 block text-sm font-medium text-muted">Logged By</label>
             <select
               defaultValue={collection.loggedBy}
               className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-text outline-none"
@@ -269,7 +249,7 @@ function EditCollectionSheet({
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-muted">Notes</label>
+            <label className="mb-1 block text-sm font-medium text-muted">Notes</label>
             <textarea
               rows={2}
               defaultValue={collection.notes}
@@ -280,10 +260,7 @@ function EditCollectionSheet({
           </div>
         </div>
 
-        <div
-          className="flex shrink-0 gap-2 border-t px-5 py-4"
-          style={{ borderColor: "var(--color-border)" }}
-        >
+        <div className="flex shrink-0 gap-2 border-t px-5 py-4" style={{ borderColor: "var(--color-border)" }}>
           <button
             type="button"
             onClick={onClose}
@@ -383,7 +360,7 @@ export default function Collections({ day }: { day: DemoDay }) {
                     </div>
                     <div className="min-w-0">
                       <div className="font-sans text-sm font-semibold">{formatDate(collection.date)}</div>
-                      <div className="text-xs text-muted">
+                      <div className="text-sm text-muted">
                         {collection.entries.length} bucket
                         {collection.entries.length === 1 ? "" : "s"} · {collection.batchName}
                       </div>
@@ -458,7 +435,7 @@ export default function Collections({ day }: { day: DemoDay }) {
                     ))}
                     {collection.notes ? (
                       <div
-                        className="border-t px-4 py-3 text-xs text-muted"
+                        className="border-t px-4 py-3 text-sm text-muted"
                         style={{ borderColor: "var(--color-border)", background: "#F5F5F5" }}
                       >
                         <span className="font-semibold text-text">Note:</span> {collection.notes}
@@ -476,11 +453,7 @@ export default function Collections({ day }: { day: DemoDay }) {
         <LogCollectionModal bucketId={day.buckets[0]?.bucketId ?? 1} onClose={() => setShowAdd(false)} />
       ) : null}
       {editCollection ? (
-        <EditCollectionSheet
-          collection={editCollection}
-          day={day}
-          onClose={() => setEditCollectionId(null)}
-        />
+        <EditCollectionSheet collection={editCollection} day={day} onClose={() => setEditCollectionId(null)} />
       ) : null}
       {editRowEntry ? <EditRowPopup entry={editRowEntry} onClose={() => setEditRowKey(null)} /> : null}
     </div>

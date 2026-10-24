@@ -125,7 +125,7 @@ export default function LogCollectionModal({
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-accent-light text-accent-mid">
             <CheckIcon size={30} />
           </div>
-          <p className="text-[16px] text-muted">
+          <p className="text-body text-muted">
             {weight(receipt.lbs)} from {receipt.bucketName} added to {receipt.batchNumber}.
           </p>
         </div>

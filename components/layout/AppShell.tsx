@@ -145,7 +145,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   href={href}
                   title={collapsed ? label : undefined}
                   className={cx(
-                    "relative flex items-center gap-3 rounded-xl font-sans text-[16px] transition-colors",
+                    "relative flex items-center gap-3 rounded-xl font-sans text-body transition-colors",
                     collapsed ? "justify-center p-3" : "px-3 py-2.5",
                     isActive
                       ? "bg-sidebar-active font-semibold text-white"
@@ -227,11 +227,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 key={id}
                 href={href}
                 className={cx(
-                  "flex flex-1 flex-col items-center gap-1 py-2.5 font-sans text-xs",
-                  isActive ? "font-semibold text-white" : "text-white/65",
+                  "flex flex-1 flex-col items-center gap-1.5 pt-3.5 pb-4 font-sans text-xs",
+                  isActive ? "font-bold text-white" : "font-normal text-white/50",
                 )}
               >
-                <Icon size={24} />
+                <Icon size={24} strokeWidth={isActive ? 2.3 : 1.3} />
                 {label}
               </Link>
             );
