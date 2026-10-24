@@ -1,9 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import LiveRefresh from "@/components/common/LiveRefresh";
-import { sendJson } from "@/lib/api/client";
+import { formValues, sendJson } from "@/lib/api/client";
 import type { DemoState, StationMode } from "./types";
 
 /**
@@ -36,6 +36,8 @@ const MODES: { id: StationMode; label: string; help: string; color: string; bg: 
 ];
 
 const GYM_PLATES_LBS = [5, 10, 25, 45];
+const UNITS = ["lb", "oz", "kg", "g"] as const;
+const INPUT_CLASS = "rounded-xl border px-3 py-2 text-sm outline-none";
 
 function Card({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
   return (
@@ -116,8 +118,12 @@ function Sparkline({ points }: { points: { lbs: number }[] }) {
 export default function DemoPage({ demo }: { demo: DemoState | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
-  const [showCalibration, setShowCalibration] = useState(false);
+  // force: what to send again with force: true, when the API says it would take it that way.
+  // calibration: show it in the Calibration card (where the button was), not at the top.
+  const [message, setMessage] = useState<{ text: string; error: boolean; calibration: boolean; force?: () => void } | null>(null);
+  const [showCalibration, setShowCalibration] = useState(true);
+  const [unit, setUnit] = useState<(typeof UNITS)[number]>("lb");
+  const itemForm = useRef<HTMLFormElement>(null);
 
   if (!demo) {
     return (
@@ -128,23 +134,63 @@ export default function DemoPage({ demo }: { demo: DemoState | null }) {
   }
   const station = demo.station;
 
-  async function run(id: string, path: string, body: Record<string, unknown>, done?: string) {
+  async function run(
+    id: string,
+    path: string,
+    body: Record<string, unknown>,
+    done?: string | ((result: { factor?: number | null }) => string),
+    method: "POST" | "DELETE" = "POST",
+  ) {
     setBusy(id);
     setMessage(null);
+    const calibration = path.startsWith("/demo/calibration");
     try {
-      await sendJson("POST", path, body);
-      if (done) setMessage({ text: done, error: false });
+      const result = await sendJson<{ factor?: number | null }>(method, path, method === "DELETE" ? undefined : body);
+      if (done) setMessage({ text: typeof done === "function" ? done(result) : done, error: false, calibration });
       router.refresh();
     } catch (error) {
-      setMessage({ text: (error as Error).message, error: true });
+      const { message: text, data } = error as Error & { data?: { canForce?: boolean } };
+      const force = data?.canForce ? () => void run(id, path, { ...body, force: true }, done, method) : undefined;
+      setMessage({ text, error: true, calibration, force });
     } finally {
       setBusy(null);
     }
   }
 
+  function recordItem(form: HTMLFormElement, apply: boolean) {
+    const values = formValues(form);
+    if (!values.known) {
+      setMessage({ text: "Type the weight your trusted scale shows for the item.", error: true, calibration: true });
+      return;
+    }
+    const name = values.label ?? `${values.known} ${unit} item`;
+    void run(
+      apply ? "item-apply" : "item",
+      "/demo/calibration/points",
+      { bucketId, known: Number(values.known), unit, label: values.label, apply },
+      (result) => (apply ? `Recorded ${name} and applied ×${result.factor}.` : `Recorded ${name}.`),
+    );
+  }
+
   const bucketId = station?.bucketId;
   const mode = MODES.find((item) => item.id === station?.mode) ?? MODES[0];
   const tipped = demo.alerts.filter((alert) => alert.alert_type === "bucket_tipped");
+  const notice = message ? (
+    <div
+      className="mb-4 rounded-xl px-4 py-3 text-sm"
+      style={{
+        background: message.error ? "rgba(220,38,38,0.08)" : "rgba(22,163,74,0.08)",
+        color: message.error ? "#B91C1C" : "#15803D",
+      }}
+    >
+      {message.text}
+      {message.force ? (
+        <button type="button" className="ml-2 font-semibold underline" onClick={message.force}>
+          Force it
+        </button>
+      ) : null}
+    </div>
+  ) : null;
 
   return (
     <div className="w-full max-w-[880px]" style={{ padding: "24px 27px" }}>
@@ -156,17 +202,7 @@ export default function DemoPage({ demo }: { demo: DemoState | null }) {
         Temporary controls for recording the sponsor update. Changes here affect the real data.
       </p>
 
-      {message ? (
-        <div
-          className="mb-4 rounded-xl px-4 py-3 text-sm"
-          style={{
-            background: message.error ? "rgba(220,38,38,0.08)" : "rgba(22,163,74,0.08)",
-            color: message.error ? "#B91C1C" : "#15803D",
-          }}
-        >
-          {message.text}
-        </div>
-      ) : null}
+      {message?.calibration ? null : notice}
 
       {!station ? (
         <Card title="No station yet">
@@ -329,7 +365,7 @@ export default function DemoPage({ demo }: { demo: DemoState | null }) {
           </Card>
 
           <Card
-            title="Calibration check (optional)"
+            title="Calibration"
             right={
               <button type="button" className="text-sm text-muted underline" onClick={() => setShowCalibration((open) => !open)}>
                 {showCalibration ? "Hide" : "Show"}
@@ -338,59 +374,167 @@ export default function DemoPage({ demo }: { demo: DemoState | null }) {
           >
             {!showCalibration ? (
               <p className="text-sm text-muted">
-                Only needed if the weight looks off. Uses gym plates (5, 10, 25, 45 lb), so do it near the gym.
+                Fix the weight with things from around the house weighed on a scale you trust, or gym plates.
               </p>
             ) : (
               <>
                 <ol className="mb-3 list-decimal pl-5 text-sm text-muted">
-                  <li>Switch to Maintenance mode so the plates don&apos;t raise alerts.</li>
+                  <li>Switch to Maintenance mode so the items don&apos;t raise alerts.</li>
                   <li>With the scale empty, press Tare.</li>
-                  <li>Put one plate on, wait for &quot;steady&quot;, then press the button for that plate. Repeat with others.</li>
-                  <li>Press Apply. Gym plates can be 1 to 3% off their label, so use the heaviest you trust.</li>
+                  <li>
+                    Weigh an item on your trusted scale (a jug of water, a bag of flour, a stack of books), put it on
+                    this one, type what your scale said and press Record. Two or three items of different weights,
+                    the heavier the better.
+                  </li>
+                  <li>
+                    Press Apply, or Record &amp; apply to calibrate from what you have so far at any point. If the
+                    scale won&apos;t settle or the correction is more than 2x (a node that was never calibrated),
+                    you get a Force it button.
+                  </li>
                 </ol>
-                <div className="mb-3 flex flex-wrap gap-2">
+                <p className="mb-3 text-sm">
+                  This scale reads{" "}
+                  <strong>{station.exactWeightLbs === null ? "--" : `${station.exactWeightLbs} lbs`}</strong> now
+                  {station.settled ? " (steady)" : station.measuredAt ? " (settling)" : ""}.
+                </p>
+                {message?.calibration ? notice : null}
+                <form
+                  ref={itemForm}
+                  className="mb-3 flex flex-wrap items-end gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    recordItem(event.currentTarget, false);
+                  }}
+                >
+                  <label className="flex flex-col text-xs font-medium text-muted">
+                    Item
+                    <input
+                      name="label"
+                      maxLength={60}
+                      placeholder="gallon of water"
+                      className={`${INPUT_CLASS} mt-1 w-44`}
+                      style={{ borderColor: "var(--color-border)" }}
+                    />
+                  </label>
+                  <label className="flex flex-col text-xs font-medium text-muted">
+                    Your scale says
+                    <span className="mt-1 flex gap-1">
+                      <input
+                        name="known"
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="8.34"
+                        className={`${INPUT_CLASS} w-24`}
+                        style={{ borderColor: "var(--color-border)" }}
+                      />
+                      <select
+                        value={unit}
+                        onChange={(event) => setUnit(event.target.value as (typeof UNITS)[number])}
+                        className={INPUT_CLASS}
+                        style={{ borderColor: "var(--color-border)" }}
+                        aria-label="Unit"
+                      >
+                        {UNITS.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </span>
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={busy !== null}
+                    className="rounded-xl px-4 py-2.5 font-sans text-sm font-medium disabled:opacity-50"
+                    style={{ background: "#fff", color: "var(--color-text)", border: "1px solid var(--color-border)" }}
+                  >
+                    {busy === "item" ? "Working..." : "Record"}
+                  </button>
+                  <Button
+                    busy={busy === "item-apply"}
+                    tone="primary"
+                    disabled={busy !== null}
+                    onClick={() => itemForm.current && recordItem(itemForm.current, true)}
+                  >
+                    Record &amp; apply
+                  </Button>
+                </form>
+                <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted">
+                  Gym plate on:
                   {GYM_PLATES_LBS.map((lbs) => (
-                    <Button
+                    <button
                       key={lbs}
-                      busy={busy === `plate-${lbs}`}
-                      disabled={!station.settled}
-                      onClick={() => run(`plate-${lbs}`, "/demo/calibration/points", { bucketId, knownLbs: lbs }, `Recorded the ${lbs} lb plate.`)}
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() => run(`plate-${lbs}`, "/demo/calibration/points", { bucketId, knownLbs: lbs, label: `${lbs} lb plate` }, `Recorded the ${lbs} lb plate.`)}
+                      className="rounded-full px-3 py-1 text-sm disabled:opacity-50"
+                      style={{ border: "1px solid var(--color-border)", color: "var(--color-text)" }}
                     >
-                      {lbs} lb is on
-                    </Button>
+                      {busy === `plate-${lbs}` ? "..." : `${lbs} lb`}
+                    </button>
                   ))}
                 </div>
                 {demo.calibration.points.length ? (
                   <table className="mb-3 w-full text-left text-sm">
                     <thead className="text-xs text-muted">
                       <tr>
-                        <th className="py-1 font-medium">Plate</th>
-                        <th className="py-1 font-medium">Scale read</th>
+                        <th className="py-1 font-medium">Item</th>
+                        <th className="py-1 font-medium">Your scale</th>
+                        <th className="py-1 font-medium">This scale read</th>
                         <th className="py-1 font-medium">Reads now</th>
                         <th className="py-1 font-medium">Off by</th>
+                        <th className="py-1 font-medium" title="The correction this item alone asks for">Asks for</th>
+                        <th className="py-1" />
                       </tr>
                     </thead>
                     <tbody>
                       {demo.calibration.points.map((point) => (
                         <tr key={point.id}>
+                          <td className="py-1">{point.label ?? "-"}</td>
                           <td className="py-1">{point.knownLbs} lbs</td>
                           <td className="py-1">{point.measuredLbs} lbs</td>
                           <td className="py-1">{point.readsLbs} lbs</td>
                           <td className="py-1">{point.errorLbs > 0 ? "+" : ""}{point.errorLbs} lbs</td>
+                          <td className="py-1">×{point.factor}</td>
+                          <td className="py-1 text-right">
+                            <button
+                              type="button"
+                              disabled={busy !== null}
+                              className="text-xs text-muted underline disabled:opacity-50"
+                              onClick={() => run(`del-${point.id}`, `/demo/calibration/points/${point.id}`, {}, "Removed that item. Apply again to use the rest.", "DELETE")}
+                            >
+                              Remove
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 ) : null}
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    busy={busy === "apply"}
-                    tone="primary"
-                    disabled={demo.calibration.suggestedFactor === null}
-                    onClick={() => run("apply", "/demo/calibration/apply", { bucketId }, "Calibration applied.")}
-                  >
-                    Apply{demo.calibration.suggestedFactor !== null ? ` (×${demo.calibration.suggestedFactor})` : ""}
-                  </Button>
+                  {demo.calibration.suggestedFactor !== null || demo.calibration.fitFactor === null ? (
+                    <Button
+                      busy={busy === "apply"}
+                      tone="primary"
+                      disabled={demo.calibration.suggestedFactor === null}
+                      onClick={() => run("apply", "/demo/calibration/apply", { bucketId }, (result) => `Calibration applied: ×${result.factor}.`)}
+                    >
+                      Apply{demo.calibration.suggestedFactor !== null ? ` (×${demo.calibration.suggestedFactor})` : ""}
+                    </Button>
+                  ) : (
+                    <Button
+                      busy={busy === "apply"}
+                      tone="danger"
+                      onClick={() => {
+                        if (window.confirm(`That changes every reading ×${demo.calibration.fitFactor}, more than 2x. Apply it anyway?`)) {
+                          void run("apply", "/demo/calibration/apply", { bucketId, force: true }, (result) => `Calibration force-applied: ×${result.factor}.`);
+                        }
+                      }}
+                    >
+                      Force apply (×{demo.calibration.fitFactor})
+                    </Button>
+                  )}
                   <Button
                     busy={busy === "uncal"}
                     tone="danger"

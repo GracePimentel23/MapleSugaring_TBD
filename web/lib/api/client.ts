@@ -1,4 +1,7 @@
-/** Browser-side writes through the /api proxy. Throws with the worker's error message on failure. */
+/**
+ * Browser-side writes through the /api proxy. Throws with the worker's error message on failure;
+ * the error's `data` holds the rest of the error body (e.g. `canForce`).
+ */
 export async function sendJson<T = unknown>(
   method: "POST" | "PATCH" | "DELETE",
   path: string,
@@ -11,7 +14,8 @@ export async function sendJson<T = unknown>(
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error((data as { error?: string }).error ?? `request failed (${response.status})`);
+    const message = (data as { error?: string }).error ?? `request failed (${response.status})`;
+    throw Object.assign(new Error(message), { data });
   }
   return data as T;
 }

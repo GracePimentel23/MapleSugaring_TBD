@@ -1,9 +1,11 @@
 /** Small HTTP helpers shared by the routers: errors with a status, async handlers, input parsing. */
 
 export class HttpError extends Error {
-  constructor(status, message) {
+  /** details: extra fields for the JSON body next to "error", e.g. { canForce: true }. */
+  constructor(status, message, details = undefined) {
     super(message);
     this.status = status;
+    this.details = details;
   }
 }
 

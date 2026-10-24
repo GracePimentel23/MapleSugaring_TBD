@@ -1,14 +1,15 @@
 /**
  * The Demo tab (temporary, for the sponsor video): tare, station modes, reset history, clear alerts,
- * a test email, and an optional calibration with known weights (gym plates). Open to guests on
- * purpose (permission "demo:use" in rbac.config.js); take that out of GUEST to lock it down.
+ * a test email, and a calibration with known weights (gym plates, or household items weighed on a
+ * scale you trust). Open to guests on purpose (permission "demo:use" in rbac.config.js); take that
+ * out of GUEST to lock it down.
  */
 import { Router } from "express";
 import { config } from "./config.js";
 import { pool, withTransaction } from "./db.js";
-import { calibrationFactor, currentMode, MODES, netKg } from "./domain/rules.js";
+import { CALIBRATION_FORCED, calibrationFactor, calibrationFit, currentMode, MODES, netKg } from "./domain/rules.js";
 import { kgToLbs, lbsToKg } from "./domain/units.js";
-import { HttpError, idParam, optionalNumber, wrap } from "./http.js";
+import { HttpError, idParam, optionalNumber, optionalText, wrap } from "./http.js";
 import { emailConfigured, lastEmailError, sendEmail } from "./notify.js";
 import { requirePermission } from "./rbac.js";
 
@@ -16,6 +17,8 @@ import { requirePermission } from "./rbac.js";
 const RECENT_SECONDS = 30;
 /** The last few readings must agree this closely before a tare or calibration point is taken. */
 const SETTLED_KG = 0.05;
+/** Units a known weight can be typed in, to kg. Kitchen and bathroom scales read any of these. */
+const UNIT_TO_KG = { lb: lbsToKg(1), oz: lbsToKg(1) / 16, kg: 1, g: 0.001 };
 
 async function loadBucket(db, bucketId) {
   const bucket = (await db.query("select * from buckets where id = $1", [bucketId])).rows[0];
@@ -40,11 +43,43 @@ async function scaleNow(db, bucket) {
   };
 }
 
-async function settledScale(db, bucket) {
+/** With force, a scale that is still moving is taken as it is (the average of its last readings). */
+async function settledScale(db, bucket, { force = false } = {}) {
   const now = await scaleNow(db, bucket);
   if (!now) throw new HttpError(409, "no reading from the scale in the last 30 seconds: is the bridge running?");
-  if (!now.settled) throw new HttpError(409, "the scale is still settling; wait a few seconds and try again");
+  if (!now.settled && !force) throw new HttpError(409, "the scale is still settling; wait a few seconds and try again", { canForce: true });
   return now;
+}
+
+/** { known, unit } (unit lb, oz, kg or g), or the older { knownLbs }, as kg. */
+function knownKgOf(body) {
+  if (body?.known === undefined && body?.knownLbs !== undefined) {
+    return lbsToKg(optionalNumber(body.knownLbs, "knownLbs", { min: 0.02, max: 120 }));
+  }
+  const unit = String(body?.unit ?? "lb");
+  if (!(unit in UNIT_TO_KG)) throw new HttpError(400, `unit must be one of ${Object.keys(UNIT_TO_KG).join(", ")}`);
+  const known = optionalNumber(body?.known, "known", { min: 0.000001 });
+  if (known === null) throw new HttpError(400, "known (the weight from your trusted scale) is required");
+  const kg = known * UNIT_TO_KG[unit];
+  if (kg < 0.01 || kg > 55) throw new HttpError(400, "the known weight must be between 10 g and 55 kg (121 lb)");
+  return kg;
+}
+
+/** Fits the bucket's points and saves the factor. Without force, a fit more than 2x off is refused. */
+async function applyCalibration(db, bucket, { force = false } = {}) {
+  const { rows } = await db.query("select known_kg, measured_kg from calibration_points where bucket_id = $1", [bucket.id]);
+  const points = rows.map((row) => ({ knownKg: row.known_kg, measuredKg: row.measured_kg }));
+  const factor = calibrationFactor(points, { force });
+  if (factor === null) {
+    const fit = calibrationFit(points);
+    if (fit === null) throw new HttpError(409, "record at least one known weight first");
+    if (force) {
+      throw new HttpError(409, `×${fit} is outside ${CALIBRATION_FORCED[0]} to ${CALIBRATION_FORCED[1]}: check the weights and the tare`);
+    }
+    throw new HttpError(409, `that would change the reading ×${fit} (more than 2x): check the weights and the tare, or force it`, { canForce: true });
+  }
+  await db.query("update buckets set calibration_factor = $2 where id = $1", [bucket.id, factor]);
+  return factor;
 }
 
 function bucketIdOf(req) {
@@ -81,7 +116,7 @@ async function demoState(bucketId) {
         where not is_resolved and (bucket_id = $1 or node_id = $2) order by created_at desc limit 20`,
       [bucket.id, bucket.node_id],
     ),
-    pool.query("select id, known_kg, measured_kg, created_at from calibration_points where bucket_id = $1 order by id", [bucket.id]),
+    pool.query("select id, label, known_kg, measured_kg, created_at from calibration_points where bucket_id = $1 order by id", [bucket.id]),
     scaleNow(pool, bucket),
   ]);
 
@@ -90,13 +125,16 @@ async function demoState(bucketId) {
   const factor = Number(bucket.calibration_factor);
   const pointList = points.rows.map((row) => ({
     id: row.id,
-    knownLbs: kgToLbs(row.known_kg, 1),
+    label: row.label,
+    knownLbs: kgToLbs(row.known_kg, 2),
     measuredLbs: kgToLbs(row.measured_kg, 2),
     // What the scale would read for this weight with the current calibration, and the error.
     readsLbs: kgToLbs(row.measured_kg * factor, 2),
     errorLbs: kgToLbs(row.measured_kg * factor - row.known_kg, 2),
+    // The factor this item alone asks for: one far from the others was weighed or typed wrong.
+    factor: Math.round((row.known_kg / row.measured_kg) * 1000) / 1000,
   }));
-  const suggested = calibrationFactor(points.rows.map((row) => ({ knownKg: row.known_kg, measuredKg: row.measured_kg })));
+  const fitPoints = points.rows.map((row) => ({ knownKg: row.known_kg, measuredKg: row.measured_kg }));
 
   return {
     stations: stations.map((row) => ({ bucketId: row.bucket_id, name: row.name })),
@@ -125,7 +163,9 @@ async function demoState(bucketId) {
     alerts: alerts.rows.map((row) => ({ ...row, created_at: new Date(row.created_at).toISOString() })),
     calibration: {
       points: pointList,
-      suggestedFactor: suggested,
+      suggestedFactor: calibrationFactor(fitPoints),
+      // The best fit even when it is more than 2x off; applying that needs force.
+      fitFactor: calibrationFit(fitPoints),
     },
     email: { configured: emailConfigured(), to: config.email.to.map(maskEmail) },
     modeMinutes: config.modeMinutes,
@@ -206,28 +246,41 @@ export function demoRouter() {
     res.json({ ok: true });
   }));
 
-  /** { bucketId, knownLbs }: the known weight (e.g. a 25 lb plate) sitting on the scale right now. */
+  /**
+   * The known weight sitting on the scale right now: { bucketId, known, unit, label } with the weight
+   * your trusted scale gave (unit lb, oz, kg or g), or { bucketId, knownLbs } for a gym plate.
+   * force: take the reading even if the scale is still settling. apply: also apply the calibration
+   * from every point so far (with the same force), in one step.
+   */
   router.post("/demo/calibration/points", can, wrap(async (req, res) => {
     const bucket = await loadBucket(pool, bucketIdOf(req));
-    const knownLbs = optionalNumber(req.body?.knownLbs, "knownLbs", { min: 1, max: 110 });
-    if (knownLbs === null) throw new HttpError(400, "knownLbs is required");
-    const { rawKg } = await settledScale(pool, bucket);
+    const knownKg = knownKgOf(req.body);
+    const label = optionalText(req.body?.label, "label", 60);
+    const force = req.body?.force === true;
+    const { rawKg } = await settledScale(pool, bucket, { force });
     const measuredKg = rawKg - Number(bucket.tare_kg);
-    if (measuredKg < 0.2) throw new HttpError(409, "the scale reads about 0: put the weight on (and tare it empty first)");
-    await pool.query(
-      "insert into calibration_points (bucket_id, known_kg, measured_kg) values ($1, $2, $3)",
-      [bucket.id, lbsToKg(knownLbs), measuredKg],
-    );
-    res.status(201).json({ ok: true });
+    if (measuredKg < 0.005) throw new HttpError(409, "the scale reads about 0: put the item on (and tare it empty first)");
+    const factor = await withTransaction(async (client) => {
+      await client.query(
+        "insert into calibration_points (bucket_id, known_kg, measured_kg, label) values ($1, $2, $3, $4)",
+        [bucket.id, knownKg, measuredKg, label],
+      );
+      return req.body?.apply === true ? applyCalibration(client, bucket, { force }) : null;
+    });
+    res.status(201).json({ ok: true, factor });
   }));
 
-  /** Use the points taken so far to set the calibration factor. */
+  /** Drop one point (an item that was weighed or typed wrong). The applied factor stays until Apply. */
+  router.delete("/demo/calibration/points/:id", can, wrap(async (req, res) => {
+    const { rowCount } = await pool.query("delete from calibration_points where id = $1", [idParam(req.params.id)]);
+    if (!rowCount) throw new HttpError(404, "no such calibration point");
+    res.json({ ok: true });
+  }));
+
+  /** { bucketId, force }: use the points taken so far to set the calibration factor. */
   router.post("/demo/calibration/apply", can, wrap(async (req, res) => {
     const bucket = await loadBucket(pool, bucketIdOf(req));
-    const { rows } = await pool.query("select known_kg, measured_kg from calibration_points where bucket_id = $1", [bucket.id]);
-    const factor = calibrationFactor(rows.map((row) => ({ knownKg: row.known_kg, measuredKg: row.measured_kg })));
-    if (factor === null) throw new HttpError(409, "those points disagree too much (more than 2x); clear them and try again");
-    await pool.query("update buckets set calibration_factor = $2 where id = $1", [bucket.id, factor]);
+    const factor = await applyCalibration(pool, bucket, { force: req.body?.force === true });
     res.json({ ok: true, factor });
   }));
 

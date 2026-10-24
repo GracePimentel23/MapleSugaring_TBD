@@ -26,20 +26,35 @@ export function currentMode(bucket, now = new Date()) {
   return MODES.includes(mode) ? mode : "normal";
 }
 
+/** A normal calibration moves the reading by at most this much (2x either way); more needs force. */
+export const CALIBRATION_NORMAL = [0.5, 2];
+/** Even forced, the factor stays in what calibration_factor numeric(8, 5) holds and makes sense. */
+export const CALIBRATION_FORCED = [0.01, 500];
+
 /**
- * Calibration factor from known weights: least squares through zero, so a 45 lb plate counts more
- * than a 5 lb one. Points are { knownKg, measuredKg } with measured net of tare. null if unusable.
+ * Least squares fit through zero of known against measured weight, so a 45 lb plate counts more
+ * than a 5 lb one. Points are { knownKg, measuredKg } with measured net of tare. null if no usable point.
  */
-export function calibrationFactor(points) {
+export function calibrationFit(points) {
   let top = 0;
   let bottom = 0;
   for (const { knownKg, measuredKg } of points) {
-    top += knownKg * measuredKg;
-    bottom += measuredKg * measuredKg;
+    top += Number(knownKg) * Number(measuredKg);
+    bottom += Number(measuredKg) ** 2;
   }
   if (!bottom) return null;
-  const factor = top / bottom;
-  return factor > 0.5 && factor < 2 ? Math.round(factor * 100_000) / 100_000 : null;
+  return Math.round((top / bottom) * 100_000) / 100_000;
+}
+
+/**
+ * Calibration factor from known weights, or null if unusable. Without force a factor more than 2x
+ * off is taken for a mistake (wrong weight typed, scale not tared); force accepts anything sane,
+ * e.g. for a node still on its default counts per kg.
+ */
+export function calibrationFactor(points, { force = false } = {}) {
+  const factor = calibrationFit(points);
+  const [min, max] = force ? CALIBRATION_FORCED : CALIBRATION_NORMAL;
+  return factor !== null && factor > min && factor < max ? factor : null;
 }
 
 /** Collected or knocked over: weight falls by at least 1 kg and by at least half. */

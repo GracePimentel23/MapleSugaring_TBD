@@ -23,8 +23,19 @@ export interface DemoState {
   } | null;
   alerts: { id: number; alert_type: string; severity: string; message: string; created_at: string }[];
   calibration: {
-    points: { id: number; knownLbs: number; measuredLbs: number; readsLbs: number; errorLbs: number }[];
+    points: {
+      id: number;
+      label: string | null;
+      knownLbs: number;
+      measuredLbs: number;
+      readsLbs: number;
+      errorLbs: number;
+      /** The factor this item alone asks for. */
+      factor: number;
+    }[];
     suggestedFactor: number | null;
+    /** Best fit even when more than 2x off (applying it then needs force). */
+    fitFactor: number | null;
   };
   email: { configured: boolean; to: string[] };
   modeMinutes: number;

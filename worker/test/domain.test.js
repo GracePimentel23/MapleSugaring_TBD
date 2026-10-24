@@ -81,4 +81,7 @@ test("calibration factor from known weights", () => {
   assert.ok(Math.abs(calibrationFactor(points) - 1 / 0.98) < 0.0001);
   assert.equal(calibrationFactor([]), null);
   assert.equal(calibrationFactor([{ knownKg: 10, measuredKg: 1 }]), null); // 10x off: a mistake, not a calibration
+  // Forced, 10x is taken: a node still on its default counts per kg can be that far off.
+  assert.equal(calibrationFactor([{ knownKg: 10, measuredKg: 1 }], { force: true }), 10);
+  assert.equal(calibrationFactor([{ knownKg: 1, measuredKg: 1000 }], { force: true }), null);
 });

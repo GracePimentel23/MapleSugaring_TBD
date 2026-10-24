@@ -169,6 +169,26 @@ test("demo: modes decide what a drop means, and tare and calibration change the 
   assert.ok(Math.abs(applied.body.factor - 11.3398 / 11) < 0.001);
   assert.equal((await call("GET", `/demo?bucket=${bucketId}`)).body.station.weightLbs, 25);
 
+  // A household item weighed on a trusted scale (a 3.80 kg jug of water) that reads 1.52 kg net:
+  // 2.5x off, so applying it needs force, and a still-moving scale needs force too.
+  assert.equal((await call("POST", "/demo/calibration/reset", { bucketId })).status, 200);
+  await send(3.52); await send(3.52); await send(3.52);
+  const jug = { bucketId, known: 3.8, unit: "kg", label: "jug of water", apply: true };
+  const refused = await call("POST", "/demo/calibration/points", jug);
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.canForce, true);
+  const forced = await call("POST", "/demo/calibration/points", { ...jug, force: true });
+  assert.equal(forced.status, 201);
+  assert.ok(forced.body.factor > 2 && forced.body.factor < 3);
+  await send(5);
+  assert.equal((await call("POST", "/demo/calibration/points", { bucketId, known: 120, unit: "oz" })).body.canForce, true);
+  const state = (await call("GET", `/demo?bucket=${bucketId}`)).body.calibration;
+  assert.equal(state.points.find((point) => point.label === "jug of water").factor, 2.5);
+  for (const point of state.points) {
+    assert.equal((await call("DELETE", `/demo/calibration/points/${point.id}`)).status, 200);
+  }
+  assert.equal((await call("POST", "/demo/calibration/apply", { bucketId, force: true })).status, 409);
+
   assert.ok((await call("POST", "/demo/clear-alerts", {})).body.cleared >= 1);
   assert.equal((await call("POST", "/demo/reset", { bucketId })).status, 200);
   const after = (await call("GET", `/demo?bucket=${bucketId}`)).body;

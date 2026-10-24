@@ -302,7 +302,7 @@ export function createApp() {
   app.use((error, _req, res, _next) => {
     const status = error.status ?? (error.type === "entity.parse.failed" ? 400 : 500);
     if (status >= 500) console.error(error);
-    res.status(status).json({ error: status >= 500 ? "internal error" : error.message });
+    res.status(status).json(status >= 500 ? { error: "internal error" } : { ...error.details, error: error.message });
   });
 
   return app;
