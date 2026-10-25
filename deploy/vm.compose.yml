@@ -1,0 +1,79 @@
+# TBD on its own VM (maplesugaring02): Postgres, the worker (API + LoRa ingest) and the web app.
+# The site is published on port 3000, the port ITS opened; the worker and the database stay on
+# the internal Docker network (the browser reaches the API through the web app's /api proxy).
+#
+#   setup:  cp deploy/.env.example deploy/.env   then fill it in (it is gitignored)
+#   start:  deploy/update.sh all                  (or: sudo docker compose -f deploy/vm.compose.yml up -d --build)
+#   stop:   sudo docker compose -f deploy/vm.compose.yml down   (add -v to drop the data)
+#
+# deploy/.env is read twice: by Compose for ${...} below, and passed whole to the worker.
+name: tbd
+
+x-node-build: &node-build
+  dockerfile_inline: |
+    FROM node:22-alpine
+    WORKDIR /app
+    COPY package*.json ./
+    RUN npm ci
+    COPY . .
+    RUN npm run build
+    ENV NODE_ENV=production
+    CMD ["npm", "start"]
+
+x-node-healthcheck: &node-healthcheck
+  test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  interval: 15s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+
+services:
+  db:
+    container_name: TBD_DB
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tbd
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: tbd
+    volumes:
+      - tbd_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tbd -d tbd"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    container_name: TBD_WKR
+    build:
+      context: ../worker
+      <<: *node-build
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgres://tbd:${POSTGRES_PASSWORD}@db:5432/tbd
+    healthcheck: *node-healthcheck
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    container_name: TBD_WEB
+    build:
+      context: ../web
+      <<: *node-build
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      WORKER_URL: http://worker:4000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    healthcheck: *node-healthcheck
+    depends_on:
+      worker:
+        condition: service_healthy
+
+volumes:
+  tbd_pg:

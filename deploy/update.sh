@@ -5,8 +5,8 @@
 #   deploy/update.sh all        rebuild everything
 #
 # Runs automatically after every `git pull` once deploy/install-hook.sh has been run.
-# COMPOSE_FILE picks the stack (default: the TBD preview). Point it at the shared file once
-# the maintainer's /srv/msdocker stack is up, e.g. in deploy/.env: COMPOSE_FILE=/srv/msdocker/docker-compose.yml
+# COMPOSE_FILE picks the stack (default: the TBD preview). On maplesugaring02 deploy/.env sets
+# COMPOSE_FILE=deploy/vm.compose.yml (see deploy/.env.example).
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

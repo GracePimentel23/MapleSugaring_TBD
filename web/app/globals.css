@@ -1,30 +1,60 @@
 @import "tailwindcss";
 
+/* Rebrand palette: deep forest green, warm off-white, and three status hues
+   (filling green, due amber, problem red) plus a muted slate for weather. */
 @theme inline {
   --font-sans: var(--font-dm-sans);
-  --font-body: var(--font-inter);
+  --font-body: var(--font-dm-sans);
 
-  --color-sidebar: #2b4a1e;
-  --color-sidebar-hover: #3a6129;
-  --color-sidebar-active: #4a7a33;
-  --color-bg: #f5f3f0;
+  --color-sidebar: #1f3a1c;
+  --color-sidebar-hover: #284a25;
+  --color-sidebar-active: #2e5b2b;
+  --color-bg: #f5f5f0;
   --color-card: #ffffff;
-  --color-accent: #2b4a1e;
-  --color-accent-light: #e8f0e0;
-  --color-accent-mid: #3d6b28;
-  --color-border: #e0ddd6;
-  --color-text: #1c1c1e;
-  --color-muted: #6b7280;
-  --color-status-online: #22c55e;
-  --color-status-attention: #f59e0b;
-  --color-status-offline: #ef4444;
-  --color-status-progress: #3b82f6;
-  --color-season-badge: #2b4a1e;
-  --color-progress-track: #e5e7eb;
-  --color-chart-bar: #3d6b28;
+  --color-accent: #1f3a1c;
+  --color-accent-light: #e3efdf;
+  --color-accent-mid: #2e5b2b;
+  --color-border: #e2e2da;
+  --color-text: #1a2318;
+  --color-muted: #666b63;
+
+  --color-status-online: #2e6b2b;
+  --color-status-attention: #dfa800;
+  --color-status-offline: #c4372b;
+  --color-status-due: #94650a;
+  --color-status-problem: #b3261e;
+  --color-status-maintenance: #7a5a1e;
+
+  --color-attention-bg: #fdf4f2;
+  --color-attention-border: #edbcb4;
+  --color-weather-bg: #e4ecf2;
+  --color-weather-text: #2e4a62;
+  --color-slate: #3b5a72;
+
+  --color-season-badge: #1f3a1c;
+  --color-progress-track: #e6e6df;
+  --color-chart-bar: #2e5b2b;
+  --color-chart-bar-light: #b9c8b3;
   --color-chart-bar-today: #6b9e45;
-  --color-alert: #dc2626;
+  --color-alert: #b3261e;
 }
+
+/* Type scale, one step up from Tailwind's defaults so everything reads more easily. */
+@theme {
+  --text-xs: 0.8125rem; /* 13px */
+  --text-sm: 0.9375rem; /* 15px */
+  --text-base: 1.0625rem; /* 17px */
+  --text-lg: 1.1875rem; /* 19px */
+  --text-xl: 1.3125rem; /* 21px */
+  --text-2xl: 1.625rem; /* 26px */
+  --text-3xl: 2rem; /* 32px */
+  --text-4xl: 2.375rem; /* 38px */
+  --text-5xl: 3.125rem; /* 50px */
+  /* Body copy in cards and modals: between sm and base */
+  --text-body: 1rem; /* 16px */
+  --text-body--line-height: 1.5;
+}
+
 
 * {
   box-sizing: border-box;
@@ -37,10 +67,10 @@ body {
 
 body {
   margin: 0;
-  font-family: var(--font-inter), sans-serif;
+  font-family: var(--font-dm-sans), sans-serif;
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 h1,
@@ -58,4 +88,296 @@ h5 {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Small uppercase column headings used by every data table. */
+.table-head {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* Card art on the dashboard. Gentle, slow, and off for anyone who asks for less motion. */
+@keyframes leaf-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+@keyframes drop-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes sun-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes cloud-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(10px);
+  }
+}
+@keyframes weather-fall {
+  0% {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(46px);
+    opacity: 0;
+  }
+}
+@keyframes bolt-flash {
+  0%,
+  86%,
+  100% {
+    opacity: 0.25;
+  }
+  88%,
+  92% {
+    opacity: 1;
+  }
+}
+.anim-sway {
+  transform-origin: 50% 95%;
+  animation: leaf-sway 11s ease-in-out infinite;
+}
+.anim-bob {
+  animation: drop-bob 7s ease-in-out infinite;
+}
+.anim-spin {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: sun-spin 80s linear infinite;
+}
+.anim-drift {
+  animation: cloud-drift 9s ease-in-out infinite;
+}
+.anim-fall {
+  animation: weather-fall 2.4s linear infinite;
+}
+.anim-flash {
+  animation: bolt-flash 5s linear infinite;
+}
+/* Scene layers: always moving, each piece on its own delay so nothing lines up. */
+@keyframes leaf-fall {
+  0% {
+    transform: translate(0, -40px) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-90px, 360px) rotate(320deg);
+    opacity: 0;
+  }
+}
+@keyframes sap-drip {
+  0% {
+    transform: translateY(0) scaleY(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.8;
+    transform: translateY(0) scaleY(1);
+  }
+  85% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(120px) scaleY(1.1);
+    opacity: 0;
+  }
+}
+@keyframes bubble-rise {
+  0% {
+    transform: translateY(0) scale(0.5);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(-230px) scale(1.05);
+    opacity: 0;
+  }
+}
+@keyframes wave-shift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-40px);
+  }
+}
+@keyframes drift-across {
+  from {
+    left: -35%;
+  }
+  to {
+    left: 105%;
+  }
+}
+@keyframes precip-fall {
+  0% {
+    transform: translate(0, -30px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-18px, 320px);
+    opacity: 0;
+  }
+}
+@keyframes snow-fall {
+  0% {
+    transform: translate(0, -30px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(14px, 140px);
+  }
+  100% {
+    transform: translate(-6px, 300px);
+    opacity: 0;
+  }
+}
+@keyframes glow-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.6;
+  }
+}
+/* Background particles take their phone size from --p and grow on wider screens. */
+.particle {
+  width: var(--p);
+  height: auto;
+}
+.particle-round {
+  width: var(--p);
+  height: var(--p);
+}
+@media (min-width: 48rem) {
+  .particle {
+    width: calc(var(--p) * 1.6);
+  }
+  .particle-round {
+    width: calc(var(--p) * 1.6);
+    height: calc(var(--p) * 1.6);
+  }
+}
+
+.anim-leaf-fall {
+  animation: leaf-fall linear infinite;
+}
+.anim-drip {
+  transform-origin: top;
+  animation: sap-drip 6.5s ease-in infinite;
+}
+.anim-bubble {
+  animation: bubble-rise linear infinite;
+}
+.anim-wave {
+  animation: wave-shift 6s linear infinite;
+}
+.anim-across {
+  animation: drift-across linear infinite;
+}
+.anim-precip {
+  animation: precip-fall linear infinite;
+}
+.anim-snow {
+  animation: snow-fall linear infinite;
+}
+.anim-glow {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: glow-pulse 9s ease-in-out infinite;
+}
+/* Bars grow in from the left when a page opens. */
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+.anim-grow {
+  transform-origin: left center;
+  animation: bar-grow 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/*
+ * Motion off: the Background animations setting (data-motion="off" on the app
+ * shell) or the device asking for reduced motion. Everything stops; pieces that
+ * only make sense while moving (falling leaves, drips, bubbles, rain, snow, the
+ * filling pulse) are hidden, and the rest stays as a still picture.
+ */
+[data-motion="off"] [class*="anim-"],
+[data-motion="off"] .animate-ping {
+  animation: none !important;
+}
+[data-motion="off"] :is(.anim-leaf-fall, .anim-drip, .anim-bubble, .anim-precip, .anim-snow, .animate-ping) {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*="anim-"] {
+    animation: none !important;
+  }
+  :is(.anim-leaf-fall, .anim-drip, .anim-bubble, .anim-precip, .anim-snow) {
+    display: none;
+  }
+}
+
+/* Web view: bigger, and every size a multiple of 4. Nothing is under 16px except captions
+   (xs, 12px: footnotes, count bubbles, table headings, chart ticks). Phones keep the sizes above. */
+@media (min-width: 48rem) {
+  :root {
+    --text-xs: 0.75rem; /* 12px, captions only */
+    --text-sm: 1rem; /* 16px */
+    --text-body: 1rem; /* 16px */
+    --text-base: 1.25rem; /* 20px */
+    --text-lg: 1.5rem; /* 24px */
+    --text-xl: 1.75rem; /* 28px */
+    --text-2xl: 2rem; /* 32px */
+    --text-3xl: 2.5rem; /* 40px */
+    --text-4xl: 3rem; /* 48px */
+    --text-5xl: 3.5rem; /* 56px */
+  }
+  body {
+    font-size: 16px;
+  }
+  .table-head {
+    font-size: 12px;
+  }
 }

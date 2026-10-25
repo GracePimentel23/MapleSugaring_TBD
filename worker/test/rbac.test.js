@@ -32,8 +32,8 @@ test("roles inherit, and each one can do strictly more than the one before", () 
   assert.equal(permissionsFor("nobody").size, 0);
 });
 
-test("guests can only read the dashboard and stations; only owners manage people", () => {
-  assert.deepEqual(sorted(permissionsFor("guest")), ["dashboard:view", "stations:view"]);
+test("guests can only read the dashboard and stations (and the temporary demo); only owners manage people", () => {
+  assert.deepEqual(sorted(permissionsFor("guest")), ["dashboard:view", "demo:use", "stations:view"]);
   for (const role of ["guest", "member", "manager"]) assert.equal(permissionsFor(role).has("users:manage"), false, role);
 });
 
@@ -84,8 +84,9 @@ test("components follow permissions, or an explicit list of roles", () => {
   assert.deepEqual(guest, { "nav.settings": false, "dash.card": true, "signin.prompt": true });
   const owner = visibleComponents(accessFor({ authEnabled: true, user: { role: "owner" } }), components);
   assert.deepEqual(owner, { "nav.settings": true, "dash.card": true, "signin.prompt": false });
-  // Sign-in off shows everything.
-  assert.ok(Object.values(visibleComponents(accessFor({ authEnabled: false }), components)).every(Boolean));
+  // Sign-in off shows what the owner sees: every permission, but not guest-only prompts.
+  const off = visibleComponents(accessFor({ authEnabled: false }), components);
+  assert.deepEqual(off, { "nav.settings": true, "dash.card": true, "signin.prompt": false });
 });
 
 test("requirePermission: next for allowed, 401 for guests, 403 for a signed-in role without it", () => {

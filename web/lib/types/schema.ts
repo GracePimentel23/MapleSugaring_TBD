@@ -65,24 +65,91 @@ export interface Metric {
   recorded_at: string;
 }
 
-export type StationUiStatus = "online" | "attention" | "offline";
+/**
+ * What a station card says about its bucket, most urgent first:
+ * maintenance (set by a manager) > offline > full > low battery > due > filling.
+ */
+export type StationStatus =
+  | "filling"
+  | "due"
+  | "full"
+  | "lowBattery"
+  | "offline"
+  | "maintenance";
 
-/** Derived for the card UI: a full bucket reads Complete, offline always wins. */
-export type StationDisplayStatus = "complete" | "in_progress" | "offline";
+export type UserRole = "admin" | "student" | "guest";
+
+export interface StationNote {
+  id?: number;
+  text: string;
+  author: string;
+  createdAt: string;
+}
+
+/** tipped and sensor come from the worker (bucket_tipped, sensor_missing / out_of_range); the rest are judged here. */
+export type AlertKind = "offline" | "full" | "due" | "sapAge" | "battery" | "weather" | "tipped" | "sensor";
+
+export type AlertSeverity = "warn" | "critical";
+
+/** A live condition that needs someone's attention. Derived from the day's readings. */
+export interface ClubAlert {
+  /** Stable across days for the same condition on the same bucket */
+  key: string;
+  kind: AlertKind;
+  severity: AlertSeverity;
+  /** null for grove-wide alerts such as weather */
+  bucketId: number | null;
+  /** "#02", or "All" */
+  bucketLabel: string;
+  title: string;
+  /** Short advice, for the dashboard */
+  advice: string;
+  /** Location and since, for the Alerts page */
+  context: string;
+  /** Status word shown in history tables: "Due", "Full", "No signal"... */
+  label: string;
+  /** The worker's alert row behind this, if any: acknowledging or resolving it goes to the API */
+  alertId?: number;
+  acknowledgedBy?: string | null;
+  acknowledgedAt?: string | null;
+}
 
 export interface StationView {
   bucketId: number;
   nodeId: number;
   name: string;
+  /** "#02" */
+  shortName: string;
+  location: string;
+  /** "North Grove, tree 2" */
+  treeLabel: string;
+  sensorId: string;
   treeSpecies: string;
-  status: StationUiStatus;
-  displayStatus: StationDisplayStatus;
+  lat: number;
+  lon: number;
+  status: StationStatus;
+  /** Hardware state, independent of the maintenance toggle */
+  isOffline: boolean;
+  inMaintenance: boolean;
+  /** Live alerts for this bucket, before acknowledgement */
+  alerts: ClubAlert[];
+  /** Newest first */
+  notes: StationNote[];
   lastUpdated: string;
   currentLbs: number;
   capacityLbs: number;
   fillPercent: number;
-  batteryLevel: number;
+  /** null until the node reports a battery level */
+  batteryLevel: number | null;
   sapFlowLph: number;
+  /** When maintenance or collection mode switches itself off (ISO), or null in normal mode */
+  modeUntil: string | null;
+  /** false while the map pin is only a placeholder spot */
+  hasPosition: boolean;
+  /** Hours the sap has sat thawed since the last collection */
+  sapAgeHours: number;
+  /** Emptied by a collection logged in the app today */
+  loggedToday: boolean;
   trend: number[];
 }
 
@@ -158,9 +225,13 @@ export interface Batch {
   brix: number;
   createdBy: string;
   notes?: string;
+  /** Time on the evaporator, once finished */
+  boilMinutes?: number;
 }
 
 export interface SeasonFlowPoint {
+  /** ISO date of the day, when known */
+  date?: string;
   week: string;
   lbs: number;
   temp: number;

@@ -95,7 +95,9 @@ export function visibleComponents(access, components = defaults.COMPONENTS) {
   return Object.fromEntries(
     Object.entries(components).map(([id, rule]) => [
       id,
-      Array.isArray(rule) ? access.role === null || rule.includes(access.role) : access.permissions.has(rule),
+      // With sign-in off and no view picked (role null) a list rule follows the owner, so
+      // guest-only notes like "sign in to see more" stay hidden.
+      Array.isArray(rule) ? rule.includes(access.role ?? OWNER_ROLE) : access.permissions.has(rule),
     ]),
   );
 }

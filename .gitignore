@@ -53,3 +53,8 @@ next-env.d.ts
 # VM deploy state (deploy/update.sh)
 deploy/.last-deploy
 deploy/.env
+
+# gateway bridge: local settings (holds the key) and readings saved while the app was unreachable
+bridge/bridge.env
+bridge/spool.jsonl
+__pycache__/

@@ -9,13 +9,16 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 import { Router } from "express";
 import { config } from "./config.js";
 import { pool, withTransaction } from "./db.js";
-import { accessFor, ASSIGNABLE_ROLES, describeAccess, GUEST_ROLE, NEW_USER_ROLE, OWNER_ROLE } from "./rbac.js";
+import { PERMISSIONS } from "./rbac.config.js";
+import { accessFor, ASSIGNABLE_ROLES, describeAccess, GUEST_ROLE, NEW_USER_ROLE, OWNER_ROLE, rolesSummary } from "./rbac.js";
 
 export const SESSION_COOKIE = "tbd_session";
 /** The "View as" test switch in the profile menu. Only read while sign-in is off. */
 export const VIEW_AS_COOKIE = "tbd_view_as";
 /** What "View as" offers: "all" (no limits) or one view. */
 export const VIEW_AS_CHOICES = ["all", GUEST_ROLE, ...ASSIGNABLE_ROLES];
+/** On Vercel (a public site) View as offers the demo roles but not "all" (no limits at all). */
+export const PUBLIC_VIEW_AS_CHOICES = [GUEST_ROLE, ...ASSIGNABLE_ROLES];
 const STATE_COOKIE = "tbd_oauth";
 const STATE_MAX_AGE_S = 10 * 60;
 const GOOGLE_ISSUERS = new Set(["https://accounts.google.com", "accounts.google.com"]);
@@ -142,7 +145,7 @@ async function loadSessionUser(req) {
   const token = sessionToken(req);
   if (!token) return null;
   const { rows } = await pool.query(
-    `select u.id, u.email, u.full_name as name, r.role_name as role
+    `select u.id, u.email, u.full_name as name, u.pronouns, r.role_name as role
        from sessions s join users u on u.id = s.user_id left join roles r on r.id = u.role_id
       where s.id = $1 and s.expires_at > now()`,
     [hashToken(token)],
@@ -177,9 +180,10 @@ async function upsertUser(account) {
       );
       if (account.admin && existing.role !== OWNER_ROLE) {
         await client.query(
-          `insert into audit_log (entity, entity_id, action, before, after, reason)
-           values ('user', $1, 'role_change', $2, $3, 'listed in ADMIN_EMAILS')`,
-          [String(existing.id), { role: existing.role ?? null }, { role: OWNER_ROLE }],
+          `insert into audit_log (entity, entity_id, action, before, after, reason, record, change)
+           values ('user', $1, 'role_change', $2, $3, 'listed in ADMIN_EMAILS', $4, $5)`,
+          [String(existing.id), { role: existing.role ?? null }, { role: OWNER_ROLE }, account.email,
+            `${existing.role ?? "none"} to ${OWNER_ROLE} (ADMIN_EMAILS)`],
         );
       }
       return existing.id;
@@ -207,14 +211,17 @@ function fail(res, reason) {
 export function authRouter() {
   const router = Router();
 
-  // Who is asking and what they may see: { authEnabled, user, role, permissions, components }.
-  // viewAs is only offered with sign-in off (local testing): the choices for the profile menu.
+  // Who is asking and what they may see: { authEnabled, user, role, permissions, components, roles }.
+  // viewAs is only offered with sign-in off: the demo roles for the login page and profile menu.
   router.get("/auth/me", (req, res) => {
     res.json({
       authEnabled: config.auth.enabled,
       user: req.user,
       ...describeAccess(req.access),
-      viewAs: config.auth.enabled ? null : VIEW_AS_CHOICES,
+      viewAs: config.auth.enabled ? null : config.onVercel ? PUBLIC_VIEW_AS_CHOICES : VIEW_AS_CHOICES,
+      // The whole rulebook, so the web app can label roles and show the permissions table without a copy.
+      roles: rolesSummary(),
+      permissionLabels: PERMISSIONS,
     });
   });
 
@@ -331,10 +338,13 @@ export function identify() {
 /**
  * With sign-in off, which role to act as: the "View as" cookie if set, else DEV_ROLE, else none (all).
  * With sign-in on it is always null, so the cookie can never change what a signed-in person may do.
+ * On Vercel (until Google sign-in is on) the cookie may pick a demo role, never "all"; without one,
+ * DEV_ROLE (default guest) applies.
  */
-export function previewRole(req, { authEnabled = config.auth.enabled, devRole = config.devRole } = {}) {
+export function previewRole(req, { authEnabled = config.auth.enabled, devRole = config.devRole, onVercel = config.onVercel } = {}) {
   if (authEnabled) return null;
   const chosen = parseCookies(req.get("cookie"))[VIEW_AS_COOKIE];
+  if (onVercel) return PUBLIC_VIEW_AS_CHOICES.includes(chosen) ? chosen : devRole;
   if (chosen === "all") return null;
   return VIEW_AS_CHOICES.includes(chosen) ? chosen : devRole;
 }

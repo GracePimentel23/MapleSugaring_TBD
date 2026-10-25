@@ -7,7 +7,13 @@ pg.types.setTypeParser(pg.types.builtins.INT8, (value) => Number.parseInt(value,
 // Keep DATE columns as "YYYY-MM-DD" instead of a local-midnight Date.
 pg.types.setTypeParser(pg.types.builtins.DATE, (value) => value);
 
-export const pool = new pg.Pool({ connectionString: config.databaseUrl, max: 10 });
+// On Vercel every function instance has its own pool, so keep each one small and let idle clients go
+// (use the pooled connection string from Neon there).
+export const pool = new pg.Pool(
+  config.onVercel
+    ? { connectionString: config.databaseUrl, max: 3, idleTimeoutMillis: 10_000 }
+    : { connectionString: config.databaseUrl, max: 10 },
+);
 
 pool.on("error", (error) => {
   console.error("postgres pool error", error.message);

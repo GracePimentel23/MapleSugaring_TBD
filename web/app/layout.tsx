@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { DM_Sans, Inter } from "next/font/google";
-import { AccessProvider } from "@/components/auth/AccessContext";
+import BatchStateProvider from "@/components/data/BatchStateProvider";
 import AppShell from "@/components/layout/AppShell";
+import LiveProvider from "@/components/live/LiveProvider";
+import ClubSettingsProvider from "@/components/session/ClubSettingsProvider";
+import SessionProvider from "@/components/session/SessionProvider";
+import StationStateProvider from "@/components/stations/StationStateProvider";
 import { loadAuth } from "@/lib/api/server";
-import { loadShell } from "@/lib/data/source";
+import { loadLive } from "@/lib/live/load";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -32,17 +36,22 @@ export default async function RootLayout({
 }>) {
   // Sign-in is optional: signed-out visitors get the guest view. The worker enforces every
   // permission; `access` only tells the UI what to show (see docs/RBAC.md).
-  const [access, shell] = await Promise.all([loadAuth(), loadShell()]);
+  const [access, data] = await Promise.all([loadAuth(), loadLive()]);
 
   return (
-    <html
-      lang="en"
-      className={`${dmSans.variable} ${inter.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`${dmSans.variable} ${inter.variable} h-full antialiased`}>
       <body className="min-h-full">
-        <AccessProvider access={access}>
-          <AppShell shell={shell}>{children}</AppShell>
-        </AccessProvider>
+        <LiveProvider data={data}>
+          <SessionProvider access={access}>
+            <ClubSettingsProvider>
+              <StationStateProvider>
+                <BatchStateProvider>
+                  <AppShell>{children}</AppShell>
+                </BatchStateProvider>
+              </StationStateProvider>
+            </ClubSettingsProvider>
+          </SessionProvider>
+        </LiveProvider>
       </body>
     </html>
   );

@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-// Why a sign-in failed (?auth_error=... from the worker). Unstyled on purpose so the designers can restyle it.
+// Why a sign-in failed (?auth_error=... from the worker).
 
 const ERRORS: Record<string, string> = {
   domain_not_allowed: "That Google account isn't allowed. Sign in with your RIT Google account.",
@@ -16,7 +16,14 @@ const ERRORS: Record<string, string> = {
 function Message() {
   const code = useSearchParams().get("auth_error");
   if (!code) return null;
-  return <p role="alert">{ERRORS[code] ?? "Sign-in failed. Try again."}</p>;
+  return (
+    <p
+      role="alert"
+      className="mx-4 mb-2 rounded-xl border border-attention-border bg-attention-bg px-4 py-2.5 text-sm md:mx-6 lg:mx-10"
+    >
+      {ERRORS[code] ?? "Sign-in failed. Try again."}
+    </p>
+  );
 }
 
 export default function AuthError() {

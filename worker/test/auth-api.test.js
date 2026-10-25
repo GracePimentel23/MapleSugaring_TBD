@@ -139,8 +139,8 @@ test("signed out is the guest view: dashboard and stations only; health, ingest 
   assert.equal(me.body.viewAs, null);
   assert.equal(me.body.user, null);
   assert.equal(me.body.role, "guest");
-  assert.deepEqual(me.body.permissions, ["dashboard:view", "stations:view"]);
-  assert.equal(me.body.components["dashboard.sapChart"], true);
+  assert.deepEqual(me.body.permissions, ["dashboard:view", "stations:view", "demo:use"]);
+  assert.equal(me.body.components["dashboard.summary"], true);
   assert.equal(me.body.components["nav.data"], false);
   assert.equal(me.body.components["data.collections.add"], false);
   const ingest = await call("POST", "/ingest", { body: { gateway: "GW-A", lines: [] } });

@@ -6,6 +6,7 @@ import { config } from "./config.js";
 import { pool } from "./db.js";
 import { KG_TO_LBS, cToF, kgToLbs, round } from "./domain/units.js";
 import { clockLabel, localDate, sapSeason } from "./domain/time.js";
+import { currentMode, netKg } from "./domain/rules.js";
 
 const SHORT_DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -30,16 +31,36 @@ function iso(value) {
 
 export async function getAlerts({ openOnly = true } = {}) {
   const { rows } = await pool.query(
-    `select id, node_id, bucket_id, alert_type, severity, message, is_resolved, created_at, resolved_at
-       from alerts ${openOnly ? "where is_resolved = false" : ""}
+    `select id, node_id, bucket_id, alert_type, severity, message, is_resolved, created_at, resolved_at,
+            resolved_by, acknowledged_at, acknowledged_by
+       from alerts ${openOnly ? "where is_resolved = false" : "where is_resolved = false or resolved_at > now() - interval '7 days'"}
       order by created_at desc limit 200`,
   );
-  return rows.map((row) => ({ ...row, created_at: iso(row.created_at), resolved_at: iso(row.resolved_at) }));
+  return rows.map((row) => ({
+    ...row,
+    created_at: iso(row.created_at),
+    resolved_at: iso(row.resolved_at),
+    acknowledged_at: iso(row.acknowledged_at),
+  }));
+}
+
+/** Notes on stations and batches, newest first: { bucket: { 3: [...] }, batch: { 1: [...] } }. */
+export async function getNotes() {
+  const { rows } = await pool.query(
+    "select id, subject, subject_id, text, author, created_at from notes order by created_at desc, id desc limit 1000",
+  );
+  const notes = { bucket: {}, batch: {} };
+  for (const row of rows) {
+    const list = (notes[row.subject][row.subject_id] ??= []);
+    list.push({ id: row.id, text: row.text, author: row.author ?? "", createdAt: iso(row.created_at) });
+  }
+  return notes;
 }
 
 export async function getStations() {
   const { rows } = await pool.query(
     `select b.id as bucket_id, b.label, b.location, b.tree_species, b.capacity_liters, b.tare_kg,
+            b.calibration_factor, b.mode, b.mode_until, b.lat, b.lon, b.retired,
             n.id as node_id, n.node_code, n.node_name, n.status as node_status, n.battery_level, n.battery_v,
             n.last_seen, n.last_rssi, n.last_snr, n.packets_received, n.packets_lost, n.hx_ok, n.calibrated,
             r.weight_kg, r.measured_at, r.kind as reading_kind,
@@ -79,7 +100,7 @@ export async function getStations() {
     const readingIsNewer =
       row.measured_at && (!row.metric_at || new Date(row.measured_at) >= new Date(row.metric_at));
     const currentKg = readingIsNewer
-      ? Math.max(row.weight_kg - (row.tare_kg ?? 0), 0)
+      ? Math.max(netKg(row.weight_kg, row), 0)
       : ((row.fill_level_percent ?? 0) / 100) * capacityKg;
     const fillPercent = capacityKg ? round((currentKg / capacityKg) * 100, 1) : 0;
     const offline = row.node_status === "offline";
@@ -100,7 +121,7 @@ export async function getStations() {
       currentLbs: kgToLbs(currentKg),
       capacityLbs: kgToLbs(capacityKg),
       fillPercent,
-      batteryLevel: row.battery_level ?? 0,
+      batteryLevel: row.battery_level ?? null,
       sapFlowLph: row.sap_flow_rate_lph ?? 0,
       trend: trend.slice(-7),
       // Extra fields the current UI does not read yet.
@@ -115,6 +136,11 @@ export async function getStations() {
       sensorOk: row.hx_ok,
       calibrated: row.calibrated,
       isTestReading: row.reading_kind === "test",
+      mode: currentMode(row),
+      modeUntil: currentMode(row) === "normal" ? null : iso(row.mode_until),
+      lat: row.lat,
+      lon: row.lon,
+      retired: row.retired,
     };
   });
 
@@ -128,6 +154,19 @@ export async function getStations() {
     alertCount,
     summaryLabel: `${onlineCount} online · ${alertCount} alert${alertCount === 1 ? "" : "s"}`,
   };
+}
+
+/** See GET /live: cheap to compute (primary-key maxima and two small counts). */
+export async function getLiveVersion() {
+  const { rows } = await pool.query(
+    `select (select coalesce(max(id), 0) from readings) as readings,
+            (select coalesce(max(id), 0) from alerts) as alerts,
+            (select count(*) from alerts where is_resolved = false) as open_alerts,
+            (select coalesce(max(id), 0) from collection_logs) as collections,
+            (select count(*) from node where status = 'offline') as offline`,
+  );
+  const row = rows[0];
+  return [row.readings, row.alerts, row.open_alerts, row.collections, row.offline].join(".");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -192,6 +231,7 @@ export async function getBatches() {
     brix: row.brix,
     createdBy: row.created_by ?? "",
     ...(row.notes ? { notes: row.notes } : {}),
+    ...(row.boil_minutes ? { boilMinutes: row.boil_minutes } : {}),
   }));
 }
 
@@ -239,6 +279,7 @@ export async function getSeasons() {
         totalBatches: seasonBatches.length,
         avgTempF: dayTemps.length ? Math.round(cToF(dayTemps.reduce((a, b) => a + b, 0) / dayTemps.length)) : 0,
         weeklyFlow: days.map((day) => ({
+          date: day,
           week: monthDay(day),
           lbs: round(byDay.get(day), 1),
           temp: tempByDay.has(day) ? Math.round(cToF(tempByDay.get(day))) : 0,
