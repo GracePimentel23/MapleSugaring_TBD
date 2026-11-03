@@ -27,6 +27,7 @@ build
 # ai
 AGENTS.md
 CLAUDE.md
+.claude/
 .cursor/
 
 # debug

@@ -304,3 +304,21 @@ export function SortIcon(props: IconProps) {
     </Svg>
   );
 }
+
+/** Freeze-thaw: a snowflake. */
+export function SnowflakeIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M10 2.5v15M3.5 6.25l13 7.5M16.5 6.25l-13 7.5M8 4l2 1.5 2-1.5M8 16l2-1.5 2 1.5" />
+    </Svg>
+  );
+}
+
+/** Best day: a trophy. */
+export function TrophyIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M6 3.5h8v4a4 4 0 0 1-8 0zM6 5H3.5v1A2.5 2.5 0 0 0 6.2 8.5M14 5h2.5v1a2.5 2.5 0 0 1-2.7 2.5M10 11.5v3M7 17h6M8 14.5h4" />
+    </Svg>
+  );
+}

@@ -336,6 +336,17 @@ h5 {
   transform-origin: left center;
   animation: bar-grow 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+/* Syrup rising in the goal bottle when the page opens. */
+@keyframes fill-rise {
+  from {
+    transform: scaleY(0);
+  }
+}
+.anim-rise {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: fill-rise 1200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
 
 /*
  * Motion off: the Background animations setting (data-motion="off" on the app

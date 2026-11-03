@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ShowFor } from "@/components/auth/AccessContext";
 import NextSteps from "@/components/dashboard/NextSteps";
 import StationTile from "@/components/dashboard/StationTile";
+import { ChevronRightIcon } from "@/components/icons";
 import SummaryCards from "@/components/dashboard/SummaryCards";
 import { useLive } from "@/components/live/LiveProvider";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
@@ -14,7 +16,10 @@ import { useStationCards } from "@/components/stations/StationStateProvider";
 import { Button } from "@/components/ui/ui";
 import { greeting, seasonPhase } from "@/lib/selectors/season";
 import { shortDate } from "@/lib/time";
-import { getStationSummary } from "@/lib/selectors/stations";
+import { byUrgency, getStationSummary } from "@/lib/selectors/stations";
+
+/** The dashboard shows this many buckets, most urgent first; the rest are a tap away on Stations. */
+const DASHBOARD_BUCKETS = 4;
 
 /** "Sam R." -> "Sam"; titles like "Mr. Adams" stay whole. */
 function firstName(name: string): string {
@@ -30,6 +35,8 @@ export default function Home() {
   const stations = useStationCards();
   const [openBucket, setOpenBucket] = useState<number | null>(null);
   const { onlineCount, attentionCount } = getStationSummary(stations);
+  const shown = [...stations].sort(byUrgency).slice(0, DASHBOARD_BUCKETS);
+  const hidden = stations.length - shown.length;
   const phase = seasonPhase(day.date, seasons);
   const seasonLine =
     phase?.kind === "during"
@@ -67,11 +74,19 @@ export default function Home() {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(280px,1.15fr)]">
         <ShowFor id="dashboard.stations">
           <section>
-            <h2 className="mb-4 font-sans text-xl font-semibold max-md:pt-4 md:text-2xl">
-              Buckets · {onlineCount} Online
-            </h2>
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {stations.map((station) => (
+            <div className="mb-4 flex items-center justify-between gap-3 max-md:pt-4">
+              <h2 className="font-sans text-xl font-semibold md:text-2xl">Buckets · {onlineCount} Online</h2>
+              <Link
+                href="/stations"
+                className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-white py-1.5 pr-2 pl-3.5 font-sans text-sm font-semibold text-accent transition-colors hover:border-accent hover:bg-accent-light"
+              >
+                {hidden > 0 ? `All ${stations.length}` : "Stations"}
+                <ChevronRightIcon size={18} />
+              </Link>
+            </div>
+            {/* Two by two beside Next Steps, a row of four when there is room, one column on phones */}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-2">
+              {shown.map((station) => (
                 <StationTile key={station.bucketId} station={station} onOpen={() => setOpenBucket(station.bucketId)} />
               ))}
             </div>

@@ -7,21 +7,34 @@ import { useLive } from "@/components/live/LiveProvider";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { barCursor, tooltipContentStyle, tooltipItemStyle, tooltipLabelStyle } from "@/components/ui/chartTheme";
+import { CalendarIcon, SnowflakeIcon, TrophyIcon } from "@/components/icons";
 import { Card, PageHeader } from "@/components/ui/ui";
 import { sapSeasonOf, type LiveDay } from "@/lib/live/day";
 import { activityWhen, getRecentActivity } from "@/lib/selectors/activity";
 import { cycleDays } from "@/lib/selectors/analysis";
-import { flowRating, flowRatingMeta, seasonDay, seasonPhase, TYPICAL_SEASON_DAYS } from "@/lib/selectors/season";
+import {
+  flowRating,
+  flowRatingMeta,
+  seasonDay,
+  seasonPhase,
+  TYPICAL_SEASON_DAYS,
+  type FlowRating,
+} from "@/lib/selectors/season";
 import { shortDate, weekdayName } from "@/lib/time";
 import type { Batch, SeasonSummary } from "@/lib/types/schema";
 
 const IDEAL_BRIX = { low: 66, high: 68, min: 60, max: 70 };
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
   return (
-    <div>
-      <div className="text-sm text-muted">{label}</div>
-      <div className="font-sans text-lg font-bold">{value}</div>
+    <div className="flex items-center gap-3">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent-light text-accent">
+        {icon}
+      </span>
+      <div>
+        <div className="text-sm text-muted">{label}</div>
+        <div className="font-sans text-lg font-bold">{value}</div>
+      </div>
     </div>
   );
 }
@@ -54,29 +67,61 @@ function Panel({
 }
 
 /** Ring showing how far the syrup is toward the season goal. */
-function GoalRing({ percent }: { percent: number }) {
-  const radius = 34;
-  const circumference = 2 * Math.PI * radius;
-  const filled = (Math.min(percent, 100) / 100) * circumference;
+/** Outline of a maple syrup bottle: cap, neck, rounded shoulders and body (viewBox 0 0 60 92). */
+const BOTTLE_PATH = "M24 14h12v9c0 4 16 7 16 17v40a8 8 0 0 1-8 8H16a8 8 0 0 1-8-8V40c0-10 16-13 16-17z";
+/** Syrup fills from the bottle's base (y 88) up to the neck (y 26). */
+const FILL_BOTTOM = 88;
+const FILL_TOP = 26;
+
+/** The syrup goal as a bottle that fills up, with the percent on its label. */
+function GoalBottle({ percent }: { percent: number }) {
+  const share = Math.min(Math.max(percent, 0), 100) / 100;
+  const level = FILL_BOTTOM - share * (FILL_BOTTOM - FILL_TOP);
   return (
-    <div className="relative h-24 w-24 shrink-0">
-      <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90" aria-hidden="true">
-        <circle cx="40" cy="40" r={radius} fill="none" stroke="#D9CCBB" strokeWidth="7" />
-        <circle
-          cx="40"
-          cy="40"
-          r={radius}
-          fill="none"
-          stroke="#C47A1E"
-          strokeWidth="7"
-          strokeLinecap="round"
-          strokeDasharray={`${filled} ${circumference}`}
-        />
+    <div className="relative h-28 w-[74px] shrink-0 md:h-36 md:w-[94px]">
+      <svg viewBox="0 0 60 92" className="h-full w-full overflow-visible" aria-hidden="true">
+        <defs>
+          <clipPath id="goal-bottle">
+            <path d={BOTTLE_PATH} />
+          </clipPath>
+        </defs>
+        <rect x="21" y="5" width="18" height="10" rx="2.5" fill="#8A5A1C" />
+        <path d={BOTTLE_PATH} fill="#F3E2C8" />
+        <g clipPath="url(#goal-bottle)">
+          {share > 0 ? (
+            <rect className="anim-rise" x="0" y={level} width="60" height={FILL_BOTTOM - level + 4} fill="#C47A1E" />
+          ) : null}
+          {/* A soft shine down the left side of the glass */}
+          <path d="M14 42v34" stroke="#FFFFFF" strokeOpacity="0.45" strokeWidth="3" strokeLinecap="round" />
+        </g>
+        <path d={BOTTLE_PATH} fill="none" stroke="#B98A4E" strokeWidth="1.6" />
+        {/* The label, where the percent sits */}
+        <rect x="14" y="50" width="32" height="20" rx="4" fill="#FFFFFF" fillOpacity="0.92" />
       </svg>
-      <span className="absolute inset-0 flex items-center justify-center font-sans text-lg font-bold text-[#4A2E0E]">
+      <span className="absolute inset-x-0 top-[54%] flex h-[22%] items-center justify-center font-sans text-sm font-bold text-[#4A2E0E]">
         {Math.round(percent)}%
       </span>
     </div>
+  );
+}
+
+/** How fast sap should run that day: three drops, filled by the rating (good 3, fair 2, slow 1). */
+function FlowDrops({ rating }: { rating: FlowRating }) {
+  const filled = rating === "good" ? 3 : rating === "fair" ? 2 : 1;
+  const { color } = flowRatingMeta[rating];
+  return (
+    <span className="flex items-center gap-0.5" aria-hidden="true">
+      {[0, 1, 2].map((index) => (
+        <svg key={index} viewBox="0 0 12 16" width="12" height="16">
+          <path
+            d="M6 1S1 7.5 1 10.5a5 5 0 0 0 10 0C11 7.5 6 1 6 1z"
+            fill={index < filled ? color : "none"}
+            stroke={index < filled ? color : "#C8CCC2"}
+            strokeWidth="1.4"
+          />
+        </svg>
+      ))}
+    </span>
   );
 }
 
@@ -272,10 +317,19 @@ export default function Overview({ day }: { day: LiveDay }) {
                   : "Typical end, early April"}
               </span>
             </div>
-            <div className="mt-5 flex flex-wrap gap-x-12 gap-y-3">
-              <Stat label="Freeze-Thaw Days" value={`${cycles.filter(Boolean).length} so far`} />
-              <Stat label="Best Day" value={peak ? `${peakDate} · ${weight(peak.lbs)}` : "—"} />
+            <div className="mt-5 flex flex-wrap gap-x-10 gap-y-4">
               <Stat
+                icon={<SnowflakeIcon size={20} />}
+                label="Freeze-Thaw Days"
+                value={`${cycles.filter(Boolean).length} so far`}
+              />
+              <Stat
+                icon={<TrophyIcon size={20} />}
+                label="Best Day"
+                value={peak ? `${peakDate} · ${weight(peak.lbs)}` : "—"}
+              />
+              <Stat
+                icon={<CalendarIcon size={20} />}
                 label="Next Good Day"
                 value={
                   nextGood
@@ -289,7 +343,7 @@ export default function Overview({ day }: { day: LiveDay }) {
           <section className="rounded-2xl border border-[#F0D9BC] bg-[#FAEBD7] p-5">
             <h2 className="mb-4 font-sans text-lg font-semibold text-[#4A2E0E]">Syrup Goal</h2>
             <div className="flex items-center gap-5">
-              <GoalRing percent={goalPercent} />
+              <GoalBottle percent={goalPercent} />
               <div>
                 <p className="font-sans text-2xl font-bold text-[#4A2E0E]">
                   {weight(syrup)} of {weight(syrupGoalLbs)}
@@ -310,30 +364,31 @@ export default function Overview({ day }: { day: LiveDay }) {
         </Card>
       )}
 
-      <div className="mb-5 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
+      {/* Sap Collected and Syrup Made share a row even on phones; Brix and the ratio take the full width there. */}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-4">
+        <Card className="max-sm:p-4">
           <div className="text-sm text-muted">Sap Collected</div>
-          <div className="mt-1 font-sans text-3xl font-bold">{weight(season.totalSapLbs)}</div>
+          <div className="mt-1 font-sans text-2xl font-bold sm:text-3xl">{weight(season.totalSapLbs)}</div>
           <div className="mt-1 text-sm text-muted">
             {isCurrent ? `${weight(today?.lbs ?? 0)} today` : `${season.totalCollections} collections`}
           </div>
         </Card>
-        <Card>
+        <Card className="max-sm:p-4">
           <div className="text-sm text-muted">Syrup Made</div>
-          <div className="mt-1 font-sans text-3xl font-bold">{weight(syrup)}</div>
+          <div className="mt-1 font-sans text-2xl font-bold sm:text-3xl">{weight(syrup)}</div>
           <div className="mt-1 text-sm text-muted">
             {isCurrent
               ? `${closed.length} of ${batches.length} batches boiled`
               : `${season.totalBatches} batches boiled`}
           </div>
         </Card>
-        <Card>
+        <Card className="max-sm:col-span-2">
           <div className="text-sm text-muted">Syrup Brix</div>
           <div className="mt-1 font-sans text-3xl font-bold">{brix ? `${brix.toFixed(1)}°` : "—"}</div>
           <div className="mt-1 text-sm text-muted">Average of closed batches</div>
           <BrixScale brix={brix} />
         </Card>
-        <Card>
+        <Card className="max-sm:col-span-2">
           <div className="text-sm text-muted">Sap to Syrup</div>
           <div className="mt-1 font-sans text-3xl font-bold">{ratio ? `${ratio.toFixed(1)} : 1` : "—"}</div>
           <div className="mt-1 text-sm text-muted">Closed batches only. Lower is better.</div>
@@ -400,21 +455,26 @@ export default function Overview({ day }: { day: LiveDay }) {
         {isCurrent ? (
           <Panel
             title="Outlook"
-            subtitle="Sap runs best when nights drop below freezing and days climb past about 40°F."
+            subtitle="Sap runs best when nights drop below freezing and days climb past about 40°F. More drops, faster sap."
           >
             {outlook.length === 0 ? (
               <p className="text-sm text-muted">No forecast right now.</p>
             ) : (
               <ul className="divide-y divide-border border-t border-border">
                 {outlook.map((item) => {
-                  const rating = flowRatingMeta[flowRating(item.lowF, item.highF)];
+                  const level = flowRating(item.lowF, item.highF);
+                  const rating = flowRatingMeta[level];
                   return (
                     <li key={item.date} className="grid grid-cols-[1fr_auto_1fr] items-center py-3">
                       <span className="font-sans text-base font-semibold">{weekdayName(item.date, "short")}</span>
                       <span className="text-sm text-muted">
                         {temp(item.highF, false)} / {temp(item.lowF, false)}
                       </span>
-                      <span className="text-right font-sans text-base font-semibold" style={{ color: rating.color }}>
+                      <span
+                        className="flex items-center justify-end gap-2 font-sans text-base font-semibold"
+                        style={{ color: rating.color }}
+                      >
+                        <FlowDrops rating={level} />
                         {rating.label}
                       </span>
                     </li>
@@ -426,7 +486,7 @@ export default function Overview({ day }: { day: LiveDay }) {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {isCurrent ? (
           <>
             <Panel title="Batches" subtitle="Where each one is right now.">
@@ -468,18 +528,6 @@ export default function Overview({ day }: { day: LiveDay }) {
             </Panel>
           </>
         ) : null}
-
-        <section className="rounded-2xl border border-[#D3DFC9] bg-[#E7EFE0] p-5 lg:col-start-3">
-          <h2 className="mb-3 font-sans text-lg font-semibold">Sugaring Tips</h2>
-          <p className="font-sans text-base font-semibold">Collect within a day.</p>
-          <p className="mb-4 text-sm text-muted">
-            Sap spoils fast once it warms up, so empty buckets quickly after a thaw.
-          </p>
-          <p className="font-sans text-base font-semibold">Boil the same day if you can.</p>
-          <p className="text-sm text-muted">
-            Fresh sap makes lighter, cleaner syrup. Aim for {IDEAL_BRIX.low} to {IDEAL_BRIX.high}° Brix.
-          </p>
-        </section>
       </div>
     </div>
   );
