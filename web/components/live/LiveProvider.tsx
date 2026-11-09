@@ -29,6 +29,8 @@ interface LiveValue {
    * shows in a banner. Resolves to whether it worked.
    */
   send: (method: "POST" | "PATCH" | "DELETE", path: string, body?: unknown) => Promise<boolean>;
+  /** Like send, but hands back the worker's reply (e.g. a new id), or null if it failed */
+  call: <T>(method: "POST" | "PATCH" | "DELETE", path: string, body?: unknown) => Promise<T | null>;
 }
 
 const LiveContext = createContext<LiveValue | null>(null);
@@ -68,19 +70,24 @@ export default function LiveProvider({ data, children }: { data: LiveData; child
     return () => clearInterval(timer);
   }, [router, data.source]);
 
-  const send = useCallback<LiveValue["send"]>(
-    async (method, path, body) => {
+  const call = useCallback(
+    async <T,>(method: "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<T | null> => {
       try {
-        await sendJson(method, path, body);
+        const data = await sendJson<T>(method, path, body);
         setError(null);
         router.refresh();
-        return true;
+        return data;
       } catch (err) {
         setError((err as Error).message);
-        return false;
+        return null;
       }
     },
     [router],
+  );
+
+  const send = useCallback<LiveValue["send"]>(
+    async (method, path, body) => (await call(method, path, body)) !== null,
+    [call],
   );
 
   const value = useMemo<LiveValue>(
@@ -92,8 +99,9 @@ export default function LiveProvider({ data, children }: { data: LiveData; child
       source: data.source,
       refresh,
       send,
+      call,
     }),
-    [day, data.weather, data.notes, data.source, refresh, send],
+    [day, data.weather, data.notes, data.source, refresh, send, call],
   );
 
   return (

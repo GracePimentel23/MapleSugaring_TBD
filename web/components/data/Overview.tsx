@@ -8,7 +8,7 @@ import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { barCursor, tooltipContentStyle, tooltipItemStyle, tooltipLabelStyle } from "@/components/ui/chartTheme";
 import { CalendarIcon, SnowflakeIcon, TrophyIcon } from "@/components/icons";
-import { Card, PageHeader } from "@/components/ui/ui";
+import { Card, ChartEmpty, PageHeader } from "@/components/ui/ui";
 import { sapSeasonOf, type LiveDay } from "@/lib/live/day";
 import { activityWhen, getRecentActivity } from "@/lib/selectors/activity";
 import { cycleDays } from "@/lib/selectors/analysis";
@@ -410,46 +410,50 @@ export default function Overview({ day }: { day: LiveDay }) {
               <span className="font-semibold">{peak ? `${weight(peak.lbs)} · ${peakDate}` : "—"}</span>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <ComposedChart data={chartData} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
-              <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#8A8F86" }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="lbs" hide />
-              <YAxis yAxisId="temp" hide domain={["dataMin - 15", "dataMax + 5"]} />
-              <Tooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                itemStyle={tooltipItemStyle}
-                cursor={barCursor}
-                formatter={(value, name) => (name === "temp" ? [`${value}°F`, "Temp"] : [`${value} lbs`, "Sap"])}
-              />
-              <Bar
-                yAxisId="lbs"
-                dataKey="lbs"
-                radius={[4, 4, 4, 4]}
-                maxBarSize={38}
-                isAnimationActive={animations}
-                animationDuration={900}
-              >
-                {chartData.map((point) => (
-                  <Cell
-                    key={point.day}
-                    fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"}
-                  />
-                ))}
-              </Bar>
-              <Line
-                yAxisId="temp"
-                type="monotone"
-                dataKey="temp"
-                stroke="var(--color-slate)"
-                strokeWidth={2}
-                strokeDasharray="4 4"
-                dot={false}
-                isAnimationActive={animations}
-                animationDuration={900}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {chartData.some((point) => point.lbs > 0) ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={chartData} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
+                <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#8A8F86" }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="lbs" hide />
+                <YAxis yAxisId="temp" hide domain={["dataMin - 15", "dataMax + 5"]} />
+                <Tooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  itemStyle={tooltipItemStyle}
+                  cursor={barCursor}
+                  formatter={(value, name) => (name === "temp" ? [`${value}°F`, "Temp"] : [`${value} lbs`, "Sap"])}
+                />
+                <Bar
+                  yAxisId="lbs"
+                  dataKey="lbs"
+                  radius={[4, 4, 4, 4]}
+                  maxBarSize={38}
+                  isAnimationActive={animations}
+                  animationDuration={900}
+                >
+                  {chartData.map((point) => (
+                    <Cell
+                      key={point.day}
+                      fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"}
+                    />
+                  ))}
+                </Bar>
+                <Line
+                  yAxisId="temp"
+                  type="monotone"
+                  dataKey="temp"
+                  stroke="var(--color-slate)"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  dot={false}
+                  isAnimationActive={animations}
+                  animationDuration={900}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <ChartEmpty height={220} />
+          )}
         </Panel>
 
         {isCurrent ? (

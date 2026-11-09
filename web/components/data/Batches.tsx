@@ -13,6 +13,7 @@ import {
   DataTable,
   EmptyState,
   Field,
+  InfoBox,
   inputClass,
   Modal,
   PageHeader,
@@ -22,16 +23,25 @@ import { batchStatusLabel } from "@/lib/batchStatus";
 import type { LiveDay } from "@/lib/live/day";
 import { monthDay, noteStamp, shortDate } from "@/lib/time";
 import { sapSeasonOf } from "@/lib/live/day";
-import type { Batch, BatchStatus } from "@/lib/types/schema";
+import type { Batch, BatchStatus, Collection } from "@/lib/types/schema";
 
-const stages = ["Collecting", "Boiling", "Finishing", "Closed"] as const;
+const stages = ["Collecting", "Waiting", "Boiling", "Completed"] as const;
 
-/** Where each status sits on the four-stage track. Waiting is still before boiling. */
+/** Where each status sits on the track: collecting, then waiting in storage, then boiling, then done. */
 const stageIndex: Record<BatchStatus, number> = {
-  waiting: 0,
   active: 0,
-  processing: 1,
+  waiting: 1,
+  processing: 2,
   completed: 3,
+};
+
+const stageOrder: BatchStatus[] = ["active", "waiting", "processing", "completed"];
+
+/** The button that moves a batch on to its next stage. */
+const nextStep: Partial<Record<BatchStatus, { to: BatchStatus; label: string }>> = {
+  active: { to: "waiting", label: "Done Collecting" },
+  waiting: { to: "processing", label: "Start Boiling" },
+  processing: { to: "completed", label: "Finish Batch" },
 };
 
 function formatDuration(minutes?: number): string {
@@ -49,13 +59,8 @@ function StageTrack({ status }: { status: BatchStatus }) {
             className="anim-grow h-2.5 rounded-full"
             style={{
               animationDelay: `${index * 140}ms`,
-              // Stages already passed are pale green; the current one is stronger.
-              background:
-                index > current
-                  ? "var(--color-progress-track)"
-                  : index === current && current > 0
-                    ? "#6FA867"
-                    : "#A9C99F",
+              // Stages already done are pale green, the current one is strong, the rest are still to come.
+              background: index > current ? "var(--color-progress-track)" : index === current ? "#4F8F45" : "#B9D3AE",
             }}
           />
           <div
@@ -66,6 +71,64 @@ function StageTrack({ status }: { status: BatchStatus }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/** "#05" */
+function collectionLabel(collection: Collection): string {
+  return `#${String(collection.collectionNumber).padStart(2, "0")}`;
+}
+
+/**
+ * Pick collections for a batch: each row is one logged collection with its date, buckets and weight.
+ * `choices` are the ones not in another batch (plus this batch's own when editing).
+ */
+function CollectionPicker({
+  choices,
+  selected,
+  onChange,
+}: {
+  choices: Collection[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const { weight } = useClubSettings();
+  if (choices.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-bg px-4 py-4 text-sm text-muted">
+        No collections waiting for a batch. Log a collection first.
+      </div>
+    );
+  }
+  return (
+    <ul className="max-h-72 divide-y divide-border overflow-y-auto rounded-2xl border border-border">
+      {choices.map((collection) => {
+        const on = selected.includes(collection.id);
+        return (
+          <li key={collection.id}>
+            <label className={cx("flex cursor-pointer items-center gap-3 px-4 py-3", on && "bg-accent-light")}>
+              <input
+                type="checkbox"
+                checked={on}
+                onChange={() =>
+                  onChange(on ? selected.filter((id) => id !== collection.id) : [...selected, collection.id])
+                }
+                className="h-4 w-4 accent-[var(--color-accent)]"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block font-sans text-body font-semibold">
+                  Collection {collectionLabel(collection)} · {monthDay(collection.date)}
+                </span>
+                <span className="block truncate text-sm text-muted">
+                  {collection.entries.map((entry) => entry.bucketName).join(", ")}
+                </span>
+              </span>
+              <span className="font-sans text-body font-semibold">{weight(collection.totalLbs)}</span>
+            </label>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -100,9 +163,21 @@ function BatchNotes({ view }: { view: BatchView }) {
   );
 }
 
-function OpenBatchCard({ view, onEdit }: { view: BatchView; onEdit: (() => void) | null }) {
-  const { weight } = useClubSettings();
+function OpenBatchCard({
+  view,
+  collections,
+  onEdit,
+  onAdvance,
+}: {
+  view: BatchView;
+  collections: Collection[];
+  onEdit: (() => void) | null;
+  onAdvance: (() => void) | null;
+}) {
+  const { weight, weightUnit } = useClubSettings();
   const { batch } = view;
+  const mine = collections.filter((collection) => batch.collectionIds?.includes(collection.id));
+  const next = nextStep[batch.status];
 
   return (
     <Card className="md:px-8 md:py-7">
@@ -115,7 +190,7 @@ function OpenBatchCard({ view, onEdit }: { view: BatchView; onEdit: (() => void)
             </span>
           </div>
           <div className="mt-0.5 text-body text-muted">
-            {monthDay(batch.date)} · {batch.createdBy}
+            Started {monthDay(batch.date)} · {batch.createdBy}
           </div>
         </div>
         {onEdit ? (
@@ -130,14 +205,152 @@ function OpenBatchCard({ view, onEdit }: { view: BatchView; onEdit: (() => void)
         ) : null}
       </div>
 
-      <div className="mb-5">
-        <div className="text-body text-muted">Sap in</div>
-        <div className="font-sans text-3xl font-bold md:text-4xl">{weight(batch.sapInLbs)}</div>
+      <div className="mb-5 grid grid-cols-2 gap-3 md:max-w-md">
+        <InfoBox label="Sap in" value={weight(batch.sapInLbs, false)} unit={weightUnit} large />
+        <InfoBox label="Collections" value={mine.length} large />
       </div>
+      {mine.length ? (
+        <p className="mb-5 text-sm text-muted">
+          {mine.map((collection) => `${collectionLabel(collection)} (${monthDay(collection.date)})`).join(" · ")}
+        </p>
+      ) : null}
 
       <StageTrack status={batch.status} />
+      {next && onAdvance ? (
+        <Button className="mt-5" onClick={onAdvance}>
+          {next.label}
+        </Button>
+      ) : null}
       <BatchNotes view={view} />
     </Card>
+  );
+}
+
+/** Completing a batch: the only time syrup out, Brix and boil time are entered. */
+function FinishFields({
+  syrupOut,
+  setSyrupOut,
+  brix,
+  setBrix,
+  hours,
+  setHours,
+}: {
+  syrupOut: string;
+  setSyrupOut: (value: string) => void;
+  brix: string;
+  setBrix: (value: string) => void;
+  hours: string;
+  setHours: (value: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Field label="Syrup out (lbs)">
+        <input
+          type="number"
+          inputMode="decimal"
+          value={syrupOut}
+          onChange={(event) => setSyrupOut(event.target.value)}
+          placeholder="0.0"
+          className={inputClass}
+        />
+      </Field>
+      <Field label="Brix (°)" hint="Grade A is 66 to 68°.">
+        <input
+          type="number"
+          inputMode="decimal"
+          value={brix}
+          onChange={(event) => setBrix(event.target.value)}
+          placeholder="66.5"
+          className={inputClass}
+        />
+      </Field>
+      <Field label="Boil time (hours)">
+        <input
+          type="number"
+          inputMode="decimal"
+          value={hours}
+          onChange={(event) => setHours(event.target.value)}
+          placeholder="5.5"
+          className={inputClass}
+        />
+      </Field>
+    </div>
+  );
+}
+
+/** Numbers from the finish fields, or null where one is missing or not a number. */
+function finishValues(syrupOut: string, brix: string, hours: string) {
+  const out = Number.parseFloat(syrupOut);
+  const grade = Number.parseFloat(brix);
+  const time = Number.parseFloat(hours);
+  return {
+    syrupOutLbs: Number.isFinite(out) && out > 0 ? out : null,
+    brix: Number.isFinite(grade) && grade > 0 ? grade : null,
+    boilMinutes: Number.isFinite(time) && time > 0 ? Math.round(time * 60) : undefined,
+  };
+}
+
+function FinishBatchModal({ view, onClose }: { view: BatchView; onClose: () => void }) {
+  const { saveBatch } = useBatchState();
+  const { batch } = view;
+  const [syrupOut, setSyrupOut] = useState("");
+  const [brix, setBrix] = useState("");
+  const [hours, setHours] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const values = finishValues(syrupOut, brix, hours);
+
+  async function save() {
+    if (values.syrupOutLbs === null || values.brix === null) return;
+    setSaving(true);
+    const ok = await saveBatch(
+      batch,
+      { status: "completed", syrupOutLbs: values.syrupOutLbs, brix: values.brix, boilMinutes: values.boilMinutes },
+      note,
+    );
+    setSaving(false);
+    if (ok) onClose();
+  }
+
+  return (
+    <Modal
+      title={`Finish ${batch.batchNumber}`}
+      width="lg"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={saving || values.syrupOutLbs === null || values.brix === null}>
+            {saving ? "Saving…" : "Complete Batch"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4 pb-2">
+        <p className="text-body text-muted">
+          Enter what came off the evaporator. Once completed, the batch is locked; only the Owner / IT can change it.
+        </p>
+        <FinishFields
+          syrupOut={syrupOut}
+          setSyrupOut={setSyrupOut}
+          brix={brix}
+          setBrix={setBrix}
+          hours={hours}
+          setHours={setHours}
+        />
+        <Field label="Note (optional)">
+          <textarea
+            rows={2}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            placeholder="Color, taste, anything worth remembering…"
+            className={`${inputClass} resize-none`}
+          />
+        </Field>
+      </div>
+    </Modal>
   );
 }
 
@@ -189,7 +402,7 @@ function ClosedRowMenu({ view, canEdit, onEdit }: { view: BatchView; canEdit: bo
         </>
       ) : null}
       {showNotes ? (
-        <Modal title={`${view.batch.batchNumber} notes`} onClose={() => setShowNotes(false)}>
+        <Modal title={`${view.batch.batchNumber} Notes`} onClose={() => setShowNotes(false)}>
           <div className="pb-6">
             {view.notes.length ? <NotesList notes={view.notes} /> : <p className="text-muted">No notes yet.</p>}
           </div>
@@ -199,34 +412,42 @@ function ClosedRowMenu({ view, canEdit, onEdit }: { view: BatchView; canEdit: bo
   );
 }
 
-/** Everything from New Batch, plus a note. Each save is stamped with who and when. */
+/**
+ * Edit a batch: its stage, which collections are in it, and a note. The start date never changes.
+ * Choosing Completed asks for syrup out, Brix and boil time.
+ */
 function EditBatchModal({ view, day, onClose }: { view: BatchView; day: LiveDay; onClose: () => void }) {
   const { saveBatch } = useBatchState();
   const { user } = useSession();
+  const { weight, weightUnit } = useClubSettings();
   const { batch } = view;
-  const [date, setDate] = useState(batch.date);
   const [status, setStatus] = useState<BatchStatus>(batch.status);
-  const [sapIn, setSapIn] = useState(String(batch.sapInLbs));
-  const [syrupOut, setSyrupOut] = useState(String(batch.syrupOutLbs));
-  const [brix, setBrix] = useState(String(batch.brix));
+  const [collectionIds, setCollectionIds] = useState<string[]>(batch.collectionIds ?? []);
+  const [syrupOut, setSyrupOut] = useState(batch.syrupOutLbs ? String(batch.syrupOutLbs) : "");
+  const [brix, setBrix] = useState(batch.brix ? String(batch.brix) : "");
+  const [hours, setHours] = useState(batch.boilMinutes ? String(Math.round((batch.boilMinutes / 60) * 10) / 10) : "");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-
-  function numberOr(value: string, fallback: number): number {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-  }
+  // Collections not in any batch, plus this batch's own.
+  const choices = day.collections
+    .filter((collection) => collection.batchName === "Unassigned" || batch.collectionIds?.includes(collection.id))
+    .sort((a, b) => a.collectionNumber - b.collectionNumber);
+  const sapIn = choices
+    .filter((collection) => collectionIds.includes(collection.id))
+    .reduce((sum, collection) => sum + collection.totalLbs, 0);
+  const finishing = status === "completed";
+  const values = finishValues(syrupOut, brix, hours);
+  const valid = collectionIds.length > 0 && (!finishing || (values.syrupOutLbs !== null && values.brix !== null));
 
   async function save() {
+    if (!valid) return;
     setSaving(true);
     const ok = await saveBatch(
       batch,
       {
-        date: date || batch.date,
         status,
-        sapInLbs: numberOr(sapIn, batch.sapInLbs),
-        syrupOutLbs: numberOr(syrupOut, batch.syrupOutLbs),
-        brix: numberOr(brix, batch.brix),
+        collectionIds,
+        ...(finishing ? { syrupOutLbs: values.syrupOutLbs!, brix: values.brix!, boilMinutes: values.boilMinutes } : {}),
       },
       note,
     );
@@ -237,62 +458,74 @@ function EditBatchModal({ view, day, onClose }: { view: BatchView; day: LiveDay;
   return (
     <Modal
       title={`Edit ${batch.batchNumber}`}
+      eyebrow={`Started ${monthDay(batch.date)} by ${batch.createdBy || "someone"}`}
+      width="lg"
       onClose={onClose}
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={saving}>
+          <Button onClick={save} disabled={saving || !valid}>
             {saving ? "Saving…" : "Save Changes"}
           </Button>
         </>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-5">
         {batch.status === "completed" ? (
           <p className="rounded-xl border border-attention-border bg-attention-bg px-4 py-2.5 text-sm">
-            This batch is closed. Saving overrides the lock and is written to the audit log.
+            This batch is completed. Saving overrides the lock and is written to the audit log.
           </p>
         ) : null}
-        <Field label="Date">
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={inputClass} />
-        </Field>
-        <Field label="Stage">
-          <select value={status} onChange={(event) => setStatus(event.target.value as BatchStatus)} className={inputClass}>
-            {(["waiting", "active", "processing", "completed"] as BatchStatus[]).map((option) => (
-              <option key={option} value={option}>
+
+        <div>
+          <span className="mb-1.5 block text-sm text-muted">Stage</span>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Stage">
+            {stageOrder.map((option) => (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={status === option}
+                onClick={() => setStatus(option)}
+                className={cx(
+                  "rounded-xl border px-3 py-2.5 font-sans text-body font-semibold transition-colors",
+                  status === option
+                    ? "border-accent bg-accent text-white"
+                    : "border-border bg-white hover:border-accent/40",
+                )}
+              >
                 {batchStatusLabel[option]}
-              </option>
+              </button>
             ))}
-          </select>
-        </Field>
-        <Field label="Sap in (lbs)">
-          <input
-            type="number"
-            value={sapIn}
-            onChange={(event) => setSapIn(event.target.value)}
-            className={inputClass}
-          />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Syrup out (lbs)">
-            <input
-              type="number"
-              value={syrupOut}
-              onChange={(event) => setSyrupOut(event.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Brix (°)">
-            <input
-              type="number"
-              value={brix}
-              onChange={(event) => setBrix(event.target.value)}
-              className={inputClass}
-            />
-          </Field>
+          </div>
         </div>
+
+        {finishing ? (
+          <FinishFields
+            syrupOut={syrupOut}
+            setSyrupOut={setSyrupOut}
+            brix={brix}
+            setBrix={setBrix}
+            hours={hours}
+            setHours={setHours}
+          />
+        ) : null}
+
+        <div>
+          <div className="mb-1.5 flex items-baseline justify-between gap-3">
+            <span className="text-sm text-muted">Collections in this batch</span>
+            <span className="text-sm text-muted">
+              Sap in <span className="font-sans font-semibold text-text">{weight(sapIn, false)}</span> {weightUnit}
+            </span>
+          </div>
+          <CollectionPicker choices={choices} selected={collectionIds} onChange={setCollectionIds} />
+          {collectionIds.length === 0 ? (
+            <p className="mt-1 text-sm text-status-problem">A batch needs at least one collection.</p>
+          ) : null}
+        </div>
+
         <Field label="Add a note" hint={`Saved as ${user.name}, ${noteStamp(day.date)}`}>
           <textarea
             rows={3}
@@ -313,82 +546,55 @@ function EditBatchModal({ view, day, onClose }: { view: BatchView; day: LiveDay;
   );
 }
 
-function NewBatchModal({ today, onClose }: { today: string; onClose: () => void }) {
+/** Start a batch from collections already logged. It starts Collecting, dated today. */
+function NewBatchModal({ day, onClose }: { day: LiveDay; onClose: () => void }) {
   const { createBatch } = useBatchState();
-  const [date, setDate] = useState(today);
-  const [sapIn, setSapIn] = useState("");
-  const [syrupOut, setSyrupOut] = useState("");
-  const [brix, setBrix] = useState("");
+  const { weight, weightUnit } = useClubSettings();
+  const [collectionIds, setCollectionIds] = useState<string[]>([]);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
-  const number = (value: string) => {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  };
+  const choices = day.collections
+    .filter((collection) => collection.batchName === "Unassigned")
+    .sort((a, b) => a.collectionNumber - b.collectionNumber);
+  const sapIn = choices
+    .filter((collection) => collectionIds.includes(collection.id))
+    .reduce((sum, collection) => sum + collection.totalLbs, 0);
 
   async function save() {
+    if (collectionIds.length === 0) return;
     setSaving(true);
-    const ok = await createBatch({
-      date,
-      // Left empty, sap in is the total of the collections assigned to the batch.
-      sapInLbs: number(sapIn),
-      syrupOutLbs: number(syrupOut) ?? 0,
-      brix: number(brix) ?? 0,
-      notes: notes.trim(),
-    });
+    const ok = await createBatch({ collectionIds, notes: notes.trim() });
     setSaving(false);
     if (ok) onClose();
   }
 
   return (
     <Modal
-      title="New batch"
+      title="New Batch"
+      eyebrow={`Starts today, ${monthDay(day.date)}`}
+      width="lg"
       onClose={onClose}
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={saving}>
-            {saving ? "Saving…" : "Save Batch"}
+          <Button onClick={save} disabled={saving || collectionIds.length === 0}>
+            {saving ? "Starting…" : "Start Batch"}
           </Button>
         </>
       }
     >
-      <div className="space-y-4">
-        <Field label="Date">
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={inputClass} />
-        </Field>
-        <Field label="Sap in (lbs)" hint="Leave empty to add up the collections logged into this batch.">
-          <input
-            type="number"
-            placeholder="0.0"
-            value={sapIn}
-            onChange={(event) => setSapIn(event.target.value)}
-            className={inputClass}
-          />
-        </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Syrup out (lbs)">
-            <input
-              type="number"
-              placeholder="0.0"
-              value={syrupOut}
-              onChange={(event) => setSyrupOut(event.target.value)}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Brix (°)">
-            <input
-              type="number"
-              placeholder="66.0"
-              value={brix}
-              onChange={(event) => setBrix(event.target.value)}
-              className={inputClass}
-            />
-          </Field>
+      <div className="space-y-5">
+        <div>
+          <span className="mb-1.5 block text-sm text-muted">Choose the collections going into this batch</span>
+          <CollectionPicker choices={choices} selected={collectionIds} onChange={setCollectionIds} />
         </div>
-        <Field label="Notes">
+        <div className="grid grid-cols-2 gap-3">
+          <InfoBox label="Sap in" value={weight(sapIn, false)} unit={weightUnit} />
+          <InfoBox label="Collections" value={collectionIds.length} />
+        </div>
+        <Field label="Notes (optional)">
           <textarea
             rows={3}
             value={notes}
@@ -407,6 +613,8 @@ export default function Batches({ day }: { day: LiveDay }) {
   const { weight } = useClubSettings();
   const [showNew, setShowNew] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const [finishing, setFinishing] = useState<string | null>(null);
+  const { saveBatch } = useBatchState();
 
   // This season's batches; older seasons are on the Overview and Analysis pages.
   const views = day.batches.filter((batch) => sapSeasonOf(batch.date) === sapSeasonOf(day.date)).map(viewBatch);
@@ -429,6 +637,7 @@ export default function Batches({ day }: { day: LiveDay }) {
   }
 
   const editingView = views.find((view) => view.batch.batchNumber === editing) ?? null;
+  const finishingView = views.find((view) => view.batch.batchNumber === finishing) ?? null;
 
   return (
     <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
@@ -472,9 +681,25 @@ export default function Batches({ day }: { day: LiveDay }) {
             <section className="mb-8">
               <h2 className="mb-3 font-sans text-lg font-semibold max-md:pt-4">Open</h2>
               <div className="space-y-5">
-                {open.map((view) => (
-                  <OpenBatchCard key={view.batch.id} view={view} onEdit={editHandler(view.batch)} />
-                ))}
+                {open.map((view) => {
+                  const next = nextStep[view.batch.status];
+                  return (
+                    <OpenBatchCard
+                      key={view.batch.id}
+                      view={view}
+                      collections={day.collections}
+                      onEdit={editHandler(view.batch)}
+                      onAdvance={
+                        next && can("batches:manage")
+                          ? () =>
+                              next.to === "completed"
+                                ? setFinishing(view.batch.batchNumber)
+                                : void saveBatch(view.batch, { status: next.to }, "")
+                          : null
+                      }
+                    />
+                  );
+                })}
               </div>
             </section>
           ) : null}
@@ -530,7 +755,8 @@ export default function Batches({ day }: { day: LiveDay }) {
         </>
       )}
 
-      {showNew ? <NewBatchModal today={day.date} onClose={() => setShowNew(false)} /> : null}
+      {showNew ? <NewBatchModal day={day} onClose={() => setShowNew(false)} /> : null}
+      {finishingView ? <FinishBatchModal view={finishingView} onClose={() => setFinishing(null)} /> : null}
       {editingView ? (
         <EditBatchModal
           key={editingView.batch.batchNumber}

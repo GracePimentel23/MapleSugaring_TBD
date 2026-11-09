@@ -38,7 +38,7 @@ export default function StationTile({
         <span className="ml-1.5 text-body text-muted">/ {weight(station.capacityLbs)}</span>
       </div>
       <div className={cx(inactive && "opacity-60")}>
-        <ProgressBar percent={percent} color={meta.bar} height={10} />
+        <ProgressBar percent={percent} color={meta.bar} height={10} filling={station.status === "filling"} />
       </div>
       <p className="mt-3 text-body text-muted">
         {percent}% full · Last reading {station.lastUpdated}

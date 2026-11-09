@@ -9,18 +9,9 @@ import { EditBucketModal, NotesList } from "@/components/stations/StationForms";
 import StatusBadge from "@/components/stations/StatusBadge";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
 import { lineCursor, tooltipContentStyle, tooltipItemStyle, tooltipLabelStyle } from "@/components/ui/chartTheme";
-import { Button, Modal, ProgressBar, Toggle } from "@/components/ui/ui";
+import { Button, ChartEmpty, InfoBox, Modal, ProgressBar, Toggle } from "@/components/ui/ui";
 import { stationStatusMeta } from "@/lib/selectors/stations";
 import type { StationView } from "@/lib/types/schema";
-
-function Tile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-bg px-4 py-3">
-      <div className="text-sm text-muted">{label}</div>
-      <div className="mt-0.5 font-sans text-xl font-bold md:text-2xl">{value}</div>
-    </div>
-  );
-}
 
 function StationDetail({
   station,
@@ -34,7 +25,7 @@ function StationDetail({
   onEdit: () => void;
 }) {
   const { can, shows } = useSession();
-  const { weight, animations } = useClubSettings();
+  const { weight, weightUnit, animations } = useClubSettings();
   const { toggleMaintenance, maintenance } = useStationState();
   const meta = stationStatusMeta[station.status];
   const percent = Math.round(Math.min(station.fillPercent, 100));
@@ -45,6 +36,7 @@ function StationDetail({
   return (
     <Modal
       title={station.name}
+      width="lg"
       subtitle={`${station.treeLabel} · Updated ${station.lastUpdated}`}
       badge={<StatusBadge status={station.status} />}
       onClose={onClose}
@@ -64,8 +56,8 @@ function StationDetail({
       }
     >
       <div className="mb-5 grid grid-cols-2 gap-3">
-        <Tile label="Current" value={weight(station.currentLbs, true, true)} />
-        <Tile label="Target" value={weight(station.capacityLbs)} />
+        <InfoBox label="Current" value={weight(station.currentLbs, false, true)} unit={weightUnit} />
+        <InfoBox label="Target" value={weight(station.capacityLbs, false)} unit={weightUnit} />
       </div>
 
       <div className="mb-5">
@@ -73,13 +65,17 @@ function StationDetail({
           <span className="text-body">Fill</span>
           <span className="font-sans text-body font-semibold">{percent}%</span>
         </div>
-        <ProgressBar percent={percent} color={meta.bar} height={10} />
+        <ProgressBar percent={percent} color={meta.bar} height={10} filling={station.status === "filling"} />
       </div>
 
       <div className="mb-5 grid grid-cols-3 gap-3">
-        <Tile label="Sap age" value={`${station.sapAgeHours} h`} />
-        <Tile label="Flow" value={`${station.sapFlowLph.toFixed(2)} L/h`} />
-        <Tile label="Battery" value={station.batteryLevel === null ? "—" : `${Math.round(station.batteryLevel)}%`} />
+        <InfoBox label="Sap age" value={station.sapAgeHours} unit="h" />
+        <InfoBox label="Flow" value={station.sapFlowLph.toFixed(2)} unit="L/h" />
+        <InfoBox
+          label="Battery"
+          value={station.batteryLevel === null ? "—" : Math.round(station.batteryLevel)}
+          unit={station.batteryLevel === null ? undefined : "%"}
+        />
       </div>
 
       {station.alerts.length > 0 && shows("stations.alerts") ? (
@@ -98,30 +94,34 @@ function StationDetail({
       <h3 className="mb-2 font-sans text-base font-semibold">
         Fill trend, {chartData.length} day{chartData.length === 1 ? "" : "s"}
       </h3>
-      <div className="h-[110px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 6, right: 4, bottom: 0, left: 4 }}>
-            <XAxis dataKey="day" hide />
-            <YAxis hide domain={[0, station.capacityLbs]} />
-            <Tooltip
-              contentStyle={tooltipContentStyle}
-              labelStyle={tooltipLabelStyle}
-              itemStyle={tooltipItemStyle}
-              cursor={lineCursor}
-              formatter={(value) => [`${value} lbs`, "Fill"]}
-            />
-            <Line
-              type="linear"
-              dataKey="lbs"
-              stroke="var(--color-accent-mid)"
-              strokeWidth={3}
-              dot={false}
-              isAnimationActive={animations}
-              animationDuration={900}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+      {chartData.length < 2 ? (
+        <ChartEmpty height={110} />
+      ) : (
+        <div className="h-[110px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 6, right: 4, bottom: 0, left: 4 }}>
+              <XAxis dataKey="day" hide />
+              <YAxis hide domain={[0, station.capacityLbs]} />
+              <Tooltip
+                contentStyle={tooltipContentStyle}
+                labelStyle={tooltipLabelStyle}
+                itemStyle={tooltipItemStyle}
+                cursor={lineCursor}
+                formatter={(value) => [`${value} lbs`, "Fill"]}
+              />
+              <Line
+                type="linear"
+                dataKey="lbs"
+                stroke="var(--color-accent-mid)"
+                strokeWidth={3}
+                dot={false}
+                isAnimationActive={animations}
+                animationDuration={900}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {can("stations:maintenance") ? (
         <div className="mt-5 flex items-start gap-4 border-t border-border pt-5">
@@ -171,9 +171,7 @@ export default function StationDialogs({ bucketId, onClose }: { bucketId: number
   if (bucketId === null || !station) return null;
 
   if (mode === "log") {
-    return (
-      <LogCollectionModal bucketId={station.bucketId} onClose={onClose} onBackToStation={() => setMode("detail")} />
-    );
+    return <LogCollectionModal bucketId={station.bucketId} onClose={onClose} />;
   }
   if (mode === "edit") {
     return <EditBucketModal station={station} onClose={() => setMode("detail")} />;

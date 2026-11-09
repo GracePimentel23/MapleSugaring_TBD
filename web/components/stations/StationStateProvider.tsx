@@ -36,15 +36,36 @@ export interface UserResolution extends AlertStamp {
   bucketLabel: string;
   /** ISO date it was resolved on */
   date: string;
+  /** How it was resolved, from the resolve pop-up */
+  note?: string;
+  /**
+   * The worker's alert row it closed, if any. That row's own history lists it under Resolved; the
+   * app's matching alert stays hidden only until the worker raises a new one.
+   */
+  alertId?: number;
 }
 
-/** A collection to log (POST /collections): one bucket, from the Log Collection flow. */
-export interface NewCollection {
+/** An alert put off with "Schedule for later": hidden until `until`, then back as a reminder. */
+export interface Snooze {
+  key: string;
+  /** ms */
+  until: number;
+  by: string;
+}
+
+/** One bucket emptied into a collection. */
+export interface CollectionEntry {
   bucketId: number;
   lbs: number;
+  collectedBy: string;
+}
+
+/** A collection to log (POST /collections): one or more buckets, from the Log Collection flow. */
+export interface NewCollection {
+  entries: CollectionEntry[];
   /** "b3", or "" for none */
   batchId: string;
-  collectedBy: string;
+  loggedBy: string;
   /** ISO date */
   date: string;
   note: string;
@@ -62,13 +83,16 @@ interface StationStateValue {
   addStation: (station: Record<string, unknown>) => Promise<boolean>;
   retired: ReadonlySet<number>;
   retireTree: (bucketId: number) => void;
-  logCollection: (entry: NewCollection) => Promise<boolean>;
-  acks: Record<string, AlertStamp>;
-  acknowledge: (alert: ClubAlert) => void;
-  /** Take back an acknowledgement, e.g. from Undo */
-  unacknowledge: (alert: ClubAlert) => void;
+  /** Logs a collection; resolves with its id ("c12"), or null if it failed */
+  logCollection: (collection: NewCollection) => Promise<string | null>;
+  /** Adds buckets to a collection already logged ("Log Another Bucket") */
+  addToCollection: (collectionId: string, entries: CollectionEntry[]) => Promise<boolean>;
   resolutions: UserResolution[];
-  resolve: (alert: ClubAlert) => void;
+  /** Mark an alert handled, with a note of how (shown under Resolved) */
+  resolve: (alert: ClubAlert, note?: string) => void;
+  snoozes: Snooze[];
+  /** Put an alert off for `hours`; it comes back as a reminder after that */
+  snooze: (alert: ClubAlert, hours: number) => void;
   /** Set when an alert is opened, so the Stations page can jump to it */
   focusedBucketId: number | null;
   focusStation: (bucketId: number) => void;
@@ -97,7 +121,7 @@ function stampOf(iso: string): string {
 
 /**
  * Local memory for alerts the worker has no row for (due, sap age, battery, weather: judged in the
- * browser from thresholds). Acknowledging or resolving those is kept in this browser for the day.
+ * browser from thresholds). Resolving or snoozing those is kept in this browser.
  */
 function useLocalList<T>(key: string): [T[], (update: (current: T[]) => T[]) => void] {
   const [items, setItems] = useState<T[]>([]);
@@ -132,11 +156,11 @@ function useLocalList<T>(key: string): [T[], (update: (current: T[]) => T[]) => 
  * logging collections, and the Active / Acknowledged / Resolved alert flow.
  */
 export default function StationStateProvider({ children }: { children: ReactNode }) {
-  const { day, notes: apiNotes, send } = useLive();
+  const { day, notes: apiNotes, send, call } = useLive();
   const { user } = useSession();
   const { maintenanceDefaults } = useClubSettings();
-  const [localAcks, setLocalAcks] = useLocalList<{ key: string; date: string; stamp: AlertStamp }>("acks");
   const [resolutions, setResolutions] = useLocalList<UserResolution>("resolutions");
+  const [snoozes, setSnoozes] = useLocalList<Snooze>("snoozes");
   const [focusedBucketId, setFocusedBucketId] = useState<number | null>(null);
 
   const by = user.name;
@@ -212,67 +236,59 @@ export default function StationStateProvider({ children }: { children: ReactNode
   const retireTree = useCallback((bucketId: number) => void saveStation(bucketId, { retired: true }), [saveStation]);
 
   const logCollection = useCallback(
-    async (entry: NewCollection) => {
-      const saved = await send("POST", "/collections", {
-        date: entry.date,
-        batchId: entry.batchId || undefined,
-        loggedBy: entry.collectedBy,
-        notes: entry.note || undefined,
-        entries: [{ bucketId: entry.bucketId, lbs: entry.lbs, collectedBy: entry.collectedBy }],
+    async (collection: NewCollection) => {
+      const saved = await call<{ id: string }>("POST", "/collections", {
+        date: collection.date,
+        batchId: collection.batchId || undefined,
+        loggedBy: collection.loggedBy,
+        notes: collection.note || undefined,
+        entries: collection.entries,
         by,
       });
-      if (saved && entry.note) await addNote(entry.bucketId, entry.note);
-      return saved;
+      // The note also goes on each bucket, so it shows in the station pop-up.
+      if (saved && collection.note) {
+        for (const entry of collection.entries) await addNote(entry.bucketId, collection.note);
+      }
+      return saved?.id ?? null;
     },
-    [send, addNote, by],
+    [call, addNote, by],
   );
 
-  // Acknowledgements: the worker's for alerts it has a row for, this browser's for the rest (today only).
-  const acks = useMemo(() => {
-    const merged: Record<string, AlertStamp> = {};
-    for (const item of localAcks) if (item.date === day.date) merged[item.key] = item.stamp;
-    return merged;
-  }, [localAcks, day.date]);
-
-  const acknowledge = useCallback(
-    (alert: ClubAlert) => {
-      if (alert.alertId) {
-        void send("PATCH", `/alerts/${alert.alertId}`, { acknowledged: true, by });
-        return;
-      }
-      setLocalAcks((current) => [
-        ...current.filter((item) => item.key !== alert.key),
-        { key: alert.key, date: day.date, stamp: nowStamp() },
-      ]);
-    },
-    [send, by, setLocalAcks, day.date, nowStamp],
-  );
-
-  const unacknowledge = useCallback(
-    (alert: ClubAlert) => {
-      if (alert.alertId) {
-        void send("PATCH", `/alerts/${alert.alertId}`, { acknowledged: false, by });
-        return;
-      }
-      setLocalAcks((current) => current.filter((item) => item.key !== alert.key));
-    },
-    [send, by, setLocalAcks],
+  const addToCollection = useCallback(
+    (collectionId: string, entries: CollectionEntry[]) =>
+      send("POST", `/collections/${collectionId}/entries`, { entries, by }),
+    [send, by],
   );
 
   const resolve = useCallback(
-    (alert: ClubAlert) => {
-      if (alert.alertId) {
-        void send("PATCH", `/alerts/${alert.alertId}`, { is_resolved: true, by });
-        return;
-      }
+    (alert: ClubAlert, note?: string) => {
+      setSnoozes((current) => current.filter((item) => item.key !== alert.key));
+      if (alert.alertId) void send("PATCH", `/alerts/${alert.alertId}`, { is_resolved: true, note, by });
       // Keep a week of them for Resolved This Week.
       const weekAgo = new Date(new Date(`${day.date}T12:00:00Z`).getTime() - 7 * 86_400_000).toISOString().slice(0, 10);
       setResolutions((current) => [
-        { ...nowStamp(), key: alert.key, label: alert.label, bucketLabel: alert.bucketLabel, date: day.date },
+        {
+          ...nowStamp(),
+          key: alert.key,
+          label: alert.label,
+          bucketLabel: alert.bucketLabel,
+          date: day.date,
+          note,
+          alertId: alert.alertId,
+        },
         ...current.filter((item) => item.date > weekAgo),
       ]);
     },
-    [send, by, setResolutions, nowStamp, day.date],
+    [send, by, setResolutions, setSnoozes, nowStamp, day.date],
+  );
+
+  const snooze = useCallback(
+    (alert: ClubAlert, hours: number) =>
+      setSnoozes((current) => [
+        ...current.filter((item) => item.key !== alert.key && item.until > Date.now()),
+        { key: alert.key, until: Date.now() + hours * 3_600_000, by },
+      ]),
+    [setSnoozes, by],
   );
 
   const focusStation = useCallback((bucketId: number) => setFocusedBucketId(bucketId), []);
@@ -291,11 +307,11 @@ export default function StationStateProvider({ children }: { children: ReactNode
       retired,
       retireTree,
       logCollection,
-      acks,
-      acknowledge,
-      unacknowledge,
+      addToCollection,
       resolutions,
       resolve,
+      snoozes,
+      snooze,
       focusedBucketId,
       focusStation,
       clearFocus,
@@ -312,11 +328,11 @@ export default function StationStateProvider({ children }: { children: ReactNode
       retired,
       retireTree,
       logCollection,
-      acks,
-      acknowledge,
-      unacknowledge,
+      addToCollection,
       resolutions,
       resolve,
+      snoozes,
+      snooze,
       focusedBucketId,
       focusStation,
       clearFocus,
@@ -356,35 +372,39 @@ export interface MaintenanceAlert {
   startedLabel: string;
 }
 
-/** Live alerts split by where they are in the Active / Acknowledged / Resolved flow. */
+/**
+ * Live alerts: active (needs resolving), snoozed (put off with "Schedule for later") and stations in
+ * maintenance. Resolved ones are gone from here and listed under Resolved on the Alerts page.
+ */
 export function useAlerts() {
   const { day } = useLive();
   const { thresholds, seasons } = useClubSettings();
   const stations = useStationCards();
-  const { acks, resolutions, maintenance } = useStationState();
+  const { resolutions, snoozes, maintenance } = useStationState();
 
   return useMemo(() => {
-    const resolvedToday = new Set(resolutions.filter((item) => item.date === day.date).map((item) => item.key));
+    // Resolved today stays hidden today. One tied to a worker alert row only hides that row's alert
+    // (or the app's copy of it once the row is closed), so a bucket that fills again still alerts.
+    const resolvedToday = new Map(
+      resolutions.filter((item) => item.date === day.date).map((item) => [item.key, item.alertId]),
+    );
+    const isResolved = (alert: ClubAlert) =>
+      resolvedToday.has(alert.key) &&
+      (resolvedToday.get(alert.key) === undefined || !alert.alertId || alert.alertId === resolvedToday.get(alert.key));
     // Freeze and heat warnings only matter while sap is running.
     const inSeason = seasonPhase(day.date, seasons)?.kind === "during";
     const live = [...(inSeason ? getWeatherAlerts(day, thresholds) : []), ...stations.flatMap((station) => station.alerts)]
-      .filter((alert) => !resolvedToday.has(alert.key))
+      .filter((alert) => !isResolved(alert))
       .sort((a, b) => Number(b.severity === "critical") - Number(a.severity === "critical"));
 
-    const stampFor = (alert: ClubAlert): AlertStamp | undefined =>
-      alert.alertId
-        ? alert.acknowledgedAt
-          ? { by: alert.acknowledgedBy || "Someone", at: stampOf(alert.acknowledgedAt) }
-          : undefined
-        : acks[alert.key];
-    const allAcks: Record<string, AlertStamp> = {};
-    for (const alert of live) {
-      const stamp = stampFor(alert);
-      if (stamp) allAcks[alert.key] = stamp;
-    }
-
-    const active = live.filter((alert) => !allAcks[alert.key]);
-    const acknowledged = live.filter((alert) => allAcks[alert.key]);
+    // A snooze runs out by itself; until then the alert waits under Snoozed.
+    // eslint-disable-next-line react-hooks/purity -- re-evaluated on every live refresh (5 s)
+    const now = Date.now();
+    const snoozedUntil = new Map(snoozes.filter((item) => item.until > now).map((item) => [item.key, item.until]));
+    const active = live.filter((alert) => !snoozedUntil.has(alert.key));
+    const snoozed = live
+      .filter((alert) => snoozedUntil.has(alert.key))
+      .map((alert) => ({ alert, untilLabel: clockTime(new Date(snoozedUntil.get(alert.key)!)) }));
 
     const maintenanceAlerts: MaintenanceAlert[] = Object.entries(maintenance).flatMap(([bucketId, entry]) => {
       const station = stations.find((item) => item.bucketId === Number(bucketId));
@@ -400,6 +420,6 @@ export function useAlerts() {
       ];
     });
 
-    return { active, acknowledged, maintenanceAlerts, acks: allAcks };
-  }, [day, thresholds, seasons, stations, acks, resolutions, maintenance]);
+    return { active, snoozed, maintenanceAlerts };
+  }, [day, thresholds, seasons, stations, resolutions, snoozes, maintenance]);
 }

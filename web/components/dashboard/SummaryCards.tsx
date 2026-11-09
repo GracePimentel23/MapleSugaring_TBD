@@ -5,30 +5,15 @@ import { useLive } from "@/components/live/LiveProvider";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { DropArt, LeafArt, WeatherArt, weatherKind } from "@/components/dashboard/CardArt";
 import { sapSeasonOf } from "@/lib/live/day";
-import { sapStory, seasonPhase } from "@/lib/selectors/season";
+import { sapStory } from "@/lib/selectors/season";
 import { weekdayName } from "@/lib/time";
-
-function Footnote({ label, value, tone }: { label: string; value: string; tone: string }) {
-  return (
-    <div>
-      <div className="text-sm" style={{ color: tone }}>
-        {label}
-      </div>
-      <div className="font-sans text-lg font-bold text-text">{value}</div>
-    </div>
-  );
-}
 
 export default function SummaryCards() {
   const { day, dayIndex, weather } = useLive();
-  const { weight, temp, seasons, syrupGoalLbs } = useClubSettings();
+  const { weight, temp, syrupGoalLbs } = useClubSettings();
   const { viewBatch } = useBatchState();
 
   const today = day.dailyTotals[day.dailyTotals.length - 1];
-  const collectedToday = day.collections
-    .filter((collection) => collection.date === day.date)
-    .reduce((sum, collection) => sum + collection.entries.length, 0);
-  const phase = seasonPhase(day.date, seasons);
 
   // This season's batches only.
   const season = sapSeasonOf(day.date);
@@ -38,8 +23,6 @@ export default function SummaryCards() {
     .map((view) => view.batch);
   const closed = batches.filter((batch) => batch.status === "completed");
   const syrup = closed.reduce((sum, batch) => sum + batch.syrupOutLbs, 0);
-  const sapBoiled = closed.reduce((sum, batch) => sum + batch.sapInLbs, 0);
-  const avgBrix = closed.length ? closed.reduce((sum, batch) => sum + batch.brix, 0) / closed.length : 0;
 
   const forecast = weather.slice(dayIndex + 1, dayIndex + 4).filter((item) => item.available);
   const sapTone = "#3E6B35";
@@ -58,15 +41,6 @@ export default function SummaryCards() {
               {weight(today?.lbs ?? 0)}
             </div>
             <p className="mt-3 max-w-md text-body text-text md:text-base">{sapStory(day)}</p>
-            <div className="mt-6 flex flex-wrap gap-x-10 gap-y-3">
-              <Footnote tone={sapTone} label="Season Total" value={weight(day.meta.production.sapCollectedLbs)} />
-              <Footnote tone={sapTone} label="Collections Today" value={String(collectedToday)} />
-              <Footnote
-                tone={sapTone}
-                label="Season Day"
-                value={phase?.kind === "during" ? String(phase.day) : "Off season"}
-              />
-            </div>
           </div>
         </section>
 
@@ -79,15 +53,12 @@ export default function SummaryCards() {
             <div className="mt-1 font-sans text-5xl font-bold tracking-tight text-[#4A2E0E] md:text-6xl">
               {weight(syrup)}
             </div>
-            <div className="mt-auto flex flex-wrap gap-x-10 gap-y-3 pt-8">
-              <Footnote tone={syrupTone} label="Avg Brix" value={avgBrix ? `${avgBrix.toFixed(1)}°` : "—"} />
-              <Footnote tone={syrupTone} label="Boiled" value={`${closed.length} of ${batches.length}`} />
-              <Footnote
-                tone={syrupTone}
-                label="Sap to Syrup"
-                value={syrup ? `${(sapBoiled / syrup).toFixed(1)} : 1` : "—"}
-              />
-            </div>
+            {/* One line, like the sap card; the season's numbers live on Data > Overview. */}
+            <p className="mt-3 max-w-xs text-body md:text-base" style={{ color: syrupTone }}>
+              {syrupGoalLbs
+                ? `${Math.round((syrup / syrupGoalLbs) * 100)}% of the ${weight(syrupGoalLbs)} goal · ${closed.length} of ${batches.length} batches boiled`
+                : `${closed.length} of ${batches.length} batches boiled`}
+            </p>
           </div>
         </section>
       </div>

@@ -17,7 +17,7 @@ type TabId = "thresholds" | "users" | "trees" | "notifications" | "units" | "dis
 const tabs: { id: TabId; label: string }[] = [
   { id: "thresholds", label: "Thresholds" },
   { id: "users", label: "Users & Roles" },
-  { id: "trees", label: "Trees & Sensors" },
+  { id: "trees", label: "Trees & Stations" },
   { id: "notifications", label: "Notifications" },
   { id: "units", label: "Units & Season" },
   { id: "display", label: "Display" },

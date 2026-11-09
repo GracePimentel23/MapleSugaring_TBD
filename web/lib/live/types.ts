@@ -66,6 +66,8 @@ export interface ApiAlert {
   created_at: string;
   resolved_at: string | null;
   resolved_by: string | null;
+  /** How it was resolved, from the resolve pop-up */
+  resolution_note: string | null;
   acknowledged_at: string | null;
   acknowledged_by: string | null;
 }

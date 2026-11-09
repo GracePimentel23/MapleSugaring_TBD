@@ -4,9 +4,20 @@ import { useState } from "react";
 import { ChevronRightIcon, PlusIcon } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
-import { AddStationModal } from "@/components/stations/StationForms";
+import { AddStationModal, cleanName, LocationSelect } from "@/components/stations/StationForms";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
-import { Button, Card, CardTitle, Checkbox, DataTable, Field, inputClass, Modal, Toggle } from "@/components/ui/ui";
+import {
+  Button,
+  Card,
+  CardTitle,
+  Checkbox,
+  ConfirmModal,
+  DataTable,
+  Field,
+  inputClass,
+  Modal,
+  Toggle,
+} from "@/components/ui/ui";
 import type { StationView } from "@/lib/types/schema";
 
 const species = ["Sugar Maple", "Red Maple", "Black Maple", "Silver Maple", "Norway Maple"];
@@ -24,13 +35,15 @@ function EditTreeModal({ station, onClose }: { station: StationView; onClose: ()
   const { can } = useSession();
   const { maintenanceDefaults } = useClubSettings();
   const { editTree, retireTree, toggleMaintenance } = useStationState();
-  const [treeLabel, setTreeLabel] = useState(station.treeLabel);
+  const [treeLabel, setTreeLabel] = useState(station.location === "No location set" ? "" : station.location);
+  const [confirmRetire, setConfirmRetire] = useState(false);
   const [treeSpecies, setTreeSpecies] = useState(station.treeSpecies);
   const [maintenance, setMaintenance] = useState(station.inMaintenance);
 
   async function save() {
+    if (!treeLabel.trim()) return;
     const edit = {
-      ...(treeLabel !== station.treeLabel ? { treeLabel } : {}),
+      ...(cleanName(treeLabel) !== station.location ? { treeLabel: cleanName(treeLabel) } : {}),
       ...(treeSpecies !== station.treeSpecies ? { treeSpecies } : {}),
     };
     if (Object.keys(edit).length && !(await editTree(station.bucketId, edit))) return;
@@ -39,13 +52,13 @@ function EditTreeModal({ station, onClose }: { station: StationView; onClose: ()
   }
 
   return (
-    <Modal title="Edit tree and sensor" onClose={onClose}>
+    <Modal title={`Edit ${station.name}`} width="lg" onClose={onClose}>
       <div className="space-y-4">
         <Field label="Bucket">
           <input value={station.shortName} disabled className={inputClass} />
         </Field>
         <Field label="Tree location">
-          <input value={treeLabel} onChange={(event) => setTreeLabel(event.target.value)} className={inputClass} />
+          <LocationSelect value={treeLabel} onChange={setTreeLabel} />
         </Field>
         <Field label="Species">
           <select value={treeSpecies} onChange={(event) => setTreeSpecies(event.target.value)} className={inputClass}>
@@ -56,7 +69,10 @@ function EditTreeModal({ station, onClose }: { station: StationView; onClose: ()
             ))}
           </select>
         </Field>
-        <Field label="Sensor ID" hint="The LoRa node's own ID. A new node shows up as its own station the first time it reports.">
+        <Field
+          label="Sensor ID"
+          hint="The LoRa node's own ID. A new node shows up as its own station the first time it reports."
+        >
           <input value={station.sensorId} disabled className={inputClass} />
         </Field>
         <div className="flex items-start gap-4 pt-1">
@@ -77,24 +93,34 @@ function EditTreeModal({ station, onClose }: { station: StationView; onClose: ()
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={save}>Save Changes</Button>
-        </div>
-        <div className="border-t border-border pt-5 pb-6">
-          <h3 className="font-sans text-lg font-semibold">Retire this tree</h3>
-          <p className="mb-4 text-sm text-muted">
-            Hides it from the dashboard and keeps all its data. Delete is only offered when a tree
-            has no collections.
-          </p>
-          <Button
-            variant="danger"
-            onClick={() => {
-              retireTree(station.bucketId);
-              onClose();
-            }}
-          >
-            Retire Tree
+          <Button onClick={save} disabled={!treeLabel.trim()}>
+            Save Changes
           </Button>
         </div>
+        <div className="border-t border-border pt-5 pb-6">
+          <h3 className="font-sans text-lg font-semibold">Retire this station</h3>
+          <p className="mb-4 text-sm text-muted">
+            Hides it from the dashboard and keeps all its data. Delete is only offered when a station has no
+            collections.
+          </p>
+          <Button variant="danger" onClick={() => setConfirmRetire(true)}>
+            Retire Station
+          </Button>
+        </div>
+        {confirmRetire ? (
+          <ConfirmModal
+            title={`Retire ${station.name}?`}
+            message="It disappears from the dashboard, Stations and alerts. Its collections and history are kept."
+            confirmLabel="Retire Station"
+            danger
+            onCancel={() => setConfirmRetire(false)}
+            onConfirm={() => {
+              retireTree(station.bucketId);
+              setConfirmRetire(false);
+              onClose();
+            }}
+          />
+        ) : null}
       </div>
     </Modal>
   );
@@ -115,13 +141,13 @@ export default function TreesTab() {
     <>
       <Card className="md:px-8 md:py-7">
         <CardTitle
-          title="Trees and Sensors"
-          subtitle="Each bucket has one tree and one sensor. Retiring a tree keeps its history; deleting is only possible if it has no data."
+          title="Trees and Stations"
+          subtitle="Each station is one bucket on one tree, with one sensor. Retiring a station keeps its history; deleting is only possible if it has no data."
           action={
             canEditTrees ? (
               <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
                 <PlusIcon size={14} />
-                Add Tree
+                Add Station
               </Button>
             ) : null
           }

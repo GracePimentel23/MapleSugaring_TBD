@@ -6,20 +6,22 @@ import { useSession } from "@/components/session/SessionProvider";
 import { longDate, noteStamp } from "@/lib/time";
 import type { Batch, BatchStatus, StationNote } from "@/lib/types/schema";
 
-/** Fields a user can change from the batch Edit sheet. */
+/**
+ * Fields a user can change on a batch. The date is when it was started and never changes; sap in is
+ * the total of its collections; syrup out, Brix and boil time are entered when it is completed.
+ */
 export interface BatchEdit {
-  date: string;
-  sapInLbs: number;
-  syrupOutLbs: number;
-  brix: number;
   status?: BatchStatus;
+  /** The batch's full list of collections ("c3") */
+  collectionIds?: string[];
+  syrupOutLbs?: number;
+  brix?: number;
+  boilMinutes?: number;
 }
 
+/** A new batch is started from collections already logged; it starts Collecting, today. */
 export interface NewBatch {
-  date: string;
-  sapInLbs: number | null;
-  syrupOutLbs: number;
-  brix: number;
+  collectionIds: string[];
   notes: string;
 }
 
@@ -66,10 +68,8 @@ export default function BatchStateProvider({ children }: { children: ReactNode }
   const createBatch = useCallback<BatchStateValue["createBatch"]>(
     (batch) =>
       send("POST", "/batches", {
-        date: batch.date || undefined,
-        sapInLbs: batch.sapInLbs ?? undefined,
-        syrupOutLbs: batch.syrupOutLbs,
-        brix: batch.brix,
+        collectionIds: batch.collectionIds,
+        status: "active",
         notes: batch.notes || undefined,
         createdBy: user.name,
         by: user.name,

@@ -12,6 +12,8 @@ export interface ResolvedAlert {
   kind: ClubAlert["kind"];
   bucketLabel: string;
   resolvedBy: string;
+  /** How it was resolved; empty when it cleared by itself */
+  note: string;
 }
 
 /** The worker's alert types, as the Alerts page names them. */
@@ -61,6 +63,7 @@ export function getResolvedHistory(day: LiveDay, days = 7): ResolvedAlert[] {
         kind: meta.kind,
         bucketLabel: alertBucketLabel(day, alert),
         resolvedBy: alert.resolved_by ?? "Auto",
+        note: alert.resolution_note ?? (alert.resolved_by ? "" : "Cleared by itself"),
       };
     });
 }

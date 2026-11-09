@@ -21,7 +21,7 @@ function EditMemberModal({ member, onClose }: { member: Member; onClose: () => v
   }
 
   return (
-    <Modal title="Edit member" onClose={onClose}>
+    <Modal title="Edit Member" onClose={onClose}>
       <div className="space-y-4">
         <Field label="Name" hint="Set by the member on their Account page.">
           <input value={member.name} disabled className={inputClass} />

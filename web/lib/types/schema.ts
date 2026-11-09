@@ -224,6 +224,8 @@ export interface Batch {
   syrupOutLbs: number;
   brix: number;
   createdBy: string;
+  /** The collections in this batch ("c3"), oldest first; its sap in is their total */
+  collectionIds?: string[];
   notes?: string;
   /** Time on the evaporator, once finished */
   boilMinutes?: number;

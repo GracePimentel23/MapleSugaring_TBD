@@ -82,7 +82,7 @@ function StationCard({
             / {weight(station.capacityLbs)} · {percent}%
           </span>
         </div>
-        <ProgressBar percent={percent} color={meta.bar} height={8} />
+        <ProgressBar percent={percent} color={meta.bar} height={8} filling={station.status === "filling"} />
         <div className="mt-4 flex gap-6 text-sm text-muted">
           <span>Sap age {station.sapAgeHours} h</span>
           <span>Battery {station.batteryLevel === null ? "—" : `${Math.round(station.batteryLevel)}%`}</span>

@@ -5,7 +5,9 @@ import { useState } from "react";
 import { useLive } from "@/components/live/LiveProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import LogCollectionModal from "@/components/stations/LogCollectionModal";
-import { Button, EmptyState, PageHeader } from "@/components/ui/ui";
+import { useStationCards } from "@/components/stations/StationStateProvider";
+import PersonPicker from "@/components/ui/PersonPicker";
+import { Button, ConfirmModal, EmptyState, Field, inputClass, Modal, PageHeader } from "@/components/ui/ui";
 import { batchStatusLabel } from "@/lib/batchStatus";
 import type { LiveDay } from "@/lib/live/day";
 import type { Collection, CollectionEntry } from "@/lib/types/schema";
@@ -51,95 +53,91 @@ function CloseIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-function EditRowPopup({
-  collection,
-  entry,
+/** Who may be named as collecting: active accounts whose role may log collections. */
+function useCollectors() {
+  const { members, grants } = useSession();
+  return members
+    .filter((member) => member.status === "active" && (grants[member.role]?.includes("collections:log") ?? true))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * The small pop-up for one bucket in a collection: its weight and who collected it. Used to edit a
+ * bucket already in the collection (Save) and to add one (Add).
+ */
+function BucketEntryPopup({
+  title,
+  initialLbs,
+  initialCollectedBy,
+  submitLabel,
+  onSubmit,
   onClose,
 }: {
-  collection: Collection;
-  entry: CollectionEntry;
+  title: string;
+  initialLbs: number;
+  initialCollectedBy: string;
+  submitLabel: string;
+  onSubmit: (lbs: number, collectedBy: string) => Promise<boolean>;
   onClose: () => void;
 }) {
-  const { send } = useLive();
   const { user } = useSession();
-  const [lbs, setLbs] = useState(String(entry.lbs));
-  const [collectedBy, setCollectedBy] = useState(entry.collectedBy);
+  const collectors = useCollectors();
+  const [lbs, setLbs] = useState(String(initialLbs));
+  const [collectedBy, setCollectedBy] = useState(initialCollectedBy || user.name);
+  const [saving, setSaving] = useState(false);
   const parsed = Number.parseFloat(lbs);
+  const valid = Number.isFinite(parsed) && parsed > 0 && !saving;
 
-  async function save() {
-    if (!Number.isFinite(parsed) || parsed < 0) return;
-    const entries = collection.entries.map((item) =>
-      item.bucketId === entry.bucketId
-        ? { bucketId: item.bucketId, lbs: parsed, collectedBy: collectedBy.trim() || item.collectedBy }
-        : { bucketId: item.bucketId, lbs: item.lbs, collectedBy: item.collectedBy },
-    );
-    if (await send("PATCH", `/collections/${collection.id}`, { entries, by: user.name })) onClose();
+  async function submit() {
+    if (!valid) return;
+    setSaving(true);
+    const ok = await onSubmit(Math.round(parsed * 10) / 10, collectedBy.trim() || user.name);
+    setSaving(false);
+    if (ok) onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default bg-black/30"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div className="relative z-10 w-full max-w-xs rounded-2xl bg-white p-4 shadow-xl">
-        <div className="mb-3 flex items-center justify-between">
-          <h4 className="font-sans text-sm font-semibold">Edit {entry.bucketName}</h4>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-1 hover:bg-gray-100"
-            aria-label="Close"
-          >
-            <CloseIcon size={14} />
-          </button>
-        </div>
-        <div className="space-y-2.5">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Weight (lbs)</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={lbs}
-              onChange={(event) => setLbs(event.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Collected by</label>
-            <input
-              value={collectedBy}
-              onChange={(event) => setCollectedBy(event.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            />
-          </div>
-        </div>
-        <div className="mt-3 flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl border py-2 text-sm font-semibold"
-            style={{ borderColor: "var(--color-border)" }}
-          >
+    <Modal
+      title={title}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="outline" className="border-border text-text" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            disabled={!Number.isFinite(parsed) || parsed < 0}
-            className="flex-1 rounded-xl py-2 text-sm font-semibold text-white disabled:opacity-50"
-            style={{ background: "var(--color-accent)" }}
-          >
-            Save
-          </button>
-        </div>
+          </Button>
+          <Button onClick={submit} disabled={!valid}>
+            {saving ? "Saving…" : submitLabel}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4 pb-2">
+        <Field label="Weight (lbs)">
+          <input
+            type="number"
+            inputMode="decimal"
+            value={lbs}
+            onChange={(event) => setLbs(event.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Collected by">
+          <PersonPicker
+            label="Collected by"
+            people={collectors}
+            value={collectedBy}
+            onChange={setCollectedBy}
+            currentUserId={user.id}
+          />
+        </Field>
       </div>
-    </div>
+    </Modal>
   );
+}
+
+/** Every bucket in a collection as it goes to the worker. */
+function entryList(collection: Collection) {
+  return collection.entries.map((item) => ({ bucketId: item.bucketId, lbs: item.lbs, collectedBy: item.collectedBy }));
 }
 
 function EditCollectionSheet({
@@ -152,234 +150,222 @@ function EditCollectionSheet({
   onClose: () => void;
 }) {
   const { send } = useLive();
-  const { user, members } = useSession();
+  const { user } = useSession();
+  const stations = useStationCards();
+  const collectors = useCollectors();
   const [date, setDate] = useState(collection.date);
   const [batchId, setBatchId] = useState(
     day.batches.find((batch) => batch.batchNumber === collection.batchName)?.id ?? "",
   );
   const [loggedBy, setLoggedBy] = useState(collection.loggedBy);
   const [notes, setNotes] = useState(collection.notes ?? "");
-  // bucketId -> weight, for every bucket in the collection (added ones start at their sensor reading)
-  const [entries, setEntries] = useState<Record<number, CollectionEntry>>(() =>
-    Object.fromEntries(collection.entries.map((entry) => [entry.bucketId, entry])),
-  );
   const [saving, setSaving] = useState(false);
-  const waitingBatches = day.batches.filter(
-    (batch) => batch.status === "waiting" || batch.status === "active",
+  const [editing, setEditing] = useState<CollectionEntry | null>(null);
+  const [adding, setAdding] = useState<number | null>(null);
+  const [removing, setRemoving] = useState<CollectionEntry | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const number = String(collection.collectionNumber).padStart(2, "0");
+  // Buckets not in this collection yet, whose sensor is working.
+  const addable = stations.filter(
+    (station) =>
+      station.status !== "offline" &&
+      !station.alerts.some((alert) => alert.kind === "sensor") &&
+      !collection.entries.some((entry) => entry.bucketId === station.bucketId),
   );
-  const people = [
-    ...new Set([collection.loggedBy, user.name, ...members.map((member) => member.name)].filter(Boolean)),
-  ];
-
-  function toggle(bucketId: number) {
-    setEntries((current) => {
-      const next = { ...current };
-      if (next[bucketId]) {
-        delete next[bucketId];
-      } else {
-        const bucket = day.buckets.find((item) => item.bucketId === bucketId);
-        next[bucketId] = {
-          bucketId,
-          bucketName: bucket?.name ?? `Bucket #${bucketId}`,
-          collectedBy: loggedBy,
-          lbs: bucket?.fillLbs ?? 0,
-        };
-      }
-      return next;
-    });
-  }
+  const addingStation = stations.find((station) => station.bucketId === adding) ?? null;
 
   async function save() {
-    const list = Object.values(entries);
-    if (list.length === 0) return;
     setSaving(true);
     const ok = await send("PATCH", `/collections/${collection.id}`, {
       date,
       batchId: batchId || null,
       loggedBy,
       notes,
-      entries: list.map((entry) => ({ bucketId: entry.bucketId, lbs: entry.lbs, collectedBy: entry.collectedBy })),
       by: user.name,
     });
     setSaving(false);
     if (ok) onClose();
   }
 
-  async function remove() {
-    if (!window.confirm(`Delete collection ${String(collection.collectionNumber).padStart(2, "0")}? This cannot be undone.`)) {
-      return;
-    }
+  /** Takes one bucket out of the collection; the rest stay. */
+  async function removeEntry(entry: CollectionEntry) {
+    const rest = entryList(collection).filter((item) => item.bucketId !== entry.bucketId);
+    const ok = await send("PATCH", `/collections/${collection.id}`, { entries: rest, by: user.name });
+    if (ok) setRemoving(null);
+  }
+
+  async function deleteCollection() {
     if (await send("DELETE", `/collections/${collection.id}`)) onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 md:items-center md:p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default bg-black/40"
-        aria-label="Close"
-        onClick={onClose}
-      />
-      <div
-        className="relative z-10 flex w-full flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:max-w-md md:rounded-2xl"
-        style={{ maxHeight: "92vh" }}
-      >
-        <div className="flex shrink-0 justify-center pt-3 pb-1 md:hidden">
-          <div className="h-1 w-10 rounded-full bg-gray-200" />
-        </div>
-
-        <div className="flex shrink-0 items-center justify-between px-5 pt-3 pb-2">
-          <h3 className="font-sans text-base font-semibold">
-            Edit Collection {String(collection.collectionNumber).padStart(2, "0")}
-          </h3>
-          <button type="button" onClick={onClose} className="rounded-full p-1.5 hover:bg-gray-100" aria-label="Close">
-            <CloseIcon />
-          </button>
-        </div>
-
-        <div className="flex-1 space-y-4 overflow-y-auto px-5 pb-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-muted">Buckets</label>
-            <div className="overflow-hidden rounded-xl border" style={{ borderColor: "var(--color-border)" }}>
-              {day.buckets.map((bucket, index) => {
-                const included = Boolean(entries[bucket.bucketId]);
-                const wasIn = collection.entries.some((entry) => entry.bucketId === bucket.bucketId);
-
-                return (
-                  <div
-                    key={bucket.bucketId}
-                    className="flex items-center justify-between px-3 py-2.5 text-sm"
-                    style={{
-                      background: index % 2 === 0 ? "white" : "#F5F5F5",
-                      borderTop: index > 0 ? "1px solid var(--color-border)" : "none",
-                    }}
-                  >
-                    <span
-                      style={{
-                        color: !included && wasIn ? "var(--color-muted)" : "var(--color-text)",
-                        textDecoration: !included && wasIn ? "line-through" : "none",
-                      }}
-                    >
-                      {bucket.name}
-                      {included ? <span className="ml-2 text-sm text-muted">{entries[bucket.bucketId]!.lbs} lbs</span> : null}
-                    </span>
-                    {included ? (
-                      <button
-                        type="button"
-                        onClick={() => toggle(bucket.bucketId)}
-                        className="rounded-full px-2 py-0.5 text-sm"
-                        style={{ color: "#DC2626", background: "rgba(239,68,68,0.1)" }}
-                      >
-                        Remove
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => toggle(bucket.bucketId)}
-                        className="rounded-full px-2 py-0.5 text-sm"
-                        style={{
-                          color: wasIn ? "#16A34A" : "#2B4A1E",
-                          background: wasIn ? "rgba(34,197,94,0.1)" : "rgba(43,74,30,0.1)",
-                        }}
-                      >
-                        {wasIn ? "Restore" : "+ Add"}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Batch</label>
-            <select
-              value={batchId}
-              onChange={(event) => setBatchId(event.target.value)}
-              className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-text outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            >
-              <option value="">— Unassigned —</option>
-              {day.batches.map((batch) => (
-                <option key={batch.id} value={batch.id}>
-                  {batch.batchNumber} ({batchStatusLabel[batch.status]})
-                </option>
-              ))}
-            </select>
-            {waitingBatches.length > 0 ? (
-              <p className="mt-1 text-xs text-muted">
-                Batches waiting for sap: {waitingBatches.map((batch) => batch.batchNumber).join(", ")}
-              </p>
-            ) : null}
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Logged By</label>
-            <select
-              value={loggedBy}
-              onChange={(event) => setLoggedBy(event.target.value)}
-              className="w-full rounded-xl border bg-white px-3 py-2 text-sm text-text outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            >
-              {people.map((person) => (
-                <option key={person}>{person}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Notes</label>
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              placeholder="Observations, conditions…"
-              className="w-full resize-none rounded-xl border px-3 py-2 text-sm outline-none"
-              style={{ borderColor: "var(--color-border)" }}
-            />
-          </div>
-        </div>
-
-        <div className="flex shrink-0 gap-2 border-t px-5 py-4" style={{ borderColor: "var(--color-border)" }}>
-          <button
-            type="button"
-            onClick={remove}
-            className="rounded-xl border px-4 py-2.5 font-sans text-sm font-semibold"
-            style={{ borderColor: "#FCA5A5", color: "#DC2626" }}
-          >
+    <Modal
+      title={`Edit Collection #${number}`}
+      width="lg"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="danger" className="mr-auto" onClick={() => setConfirmDelete(true)}>
             Delete
-          </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-xl border py-2.5 font-sans text-sm font-semibold"
-            style={{ borderColor: "var(--color-border)" }}
-          >
+          </Button>
+          <Button variant="outline" className="border-border text-text" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving || Object.keys(entries).length === 0}
-            className="flex-1 rounded-xl py-2.5 font-sans text-sm font-semibold text-white disabled:opacity-50"
-            style={{ background: "var(--color-accent)" }}
-          >
+          </Button>
+          <Button onClick={save} disabled={saving}>
             {saving ? "Saving…" : "Save"}
-          </button>
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4 pb-2">
+        <Field label="Date">
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={inputClass} />
+        </Field>
+
+        <div>
+          <span className="mb-1.5 block text-sm text-muted">Buckets in this collection</span>
+          <ul className="divide-y divide-border rounded-2xl border border-border">
+            {collection.entries.map((entry) => (
+              <li key={entry.bucketId} className="flex items-center gap-3 px-4 py-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-sans text-body font-semibold">{entry.bucketName}</span>
+                  <span className="block text-sm text-muted">{entry.collectedBy || "—"}</span>
+                </span>
+                <span className="font-sans text-body font-semibold">{entry.lbs} lbs</span>
+                <button
+                  type="button"
+                  onClick={() => setEditing(entry)}
+                  className="rounded-lg p-1.5 text-muted hover:bg-bg hover:text-text"
+                  aria-label={`Edit ${entry.bucketName}`}
+                >
+                  <EditIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRemoving(entry)}
+                  className="rounded-lg p-1.5 text-muted hover:bg-attention-bg hover:text-status-problem"
+                  aria-label={`Remove ${entry.bucketName} from this collection`}
+                >
+                  <CloseIcon size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+          {/* Add one more bucket: pick it, then its weight and who collected it. */}
+          <select
+            value=""
+            disabled={addable.length === 0}
+            onChange={(event) => event.target.value && setAdding(Number(event.target.value))}
+            className={`${inputClass} mt-2`}
+            aria-label="Add a bucket to this collection"
+          >
+            <option value="" disabled>
+              {addable.length === 0 ? "Every working bucket is in this collection" : "+ Add Bucket"}
+            </option>
+            {addable.map((station) => (
+              <option key={station.bucketId} value={station.bucketId}>
+                {station.name} · {station.location}
+              </option>
+            ))}
+          </select>
         </div>
+
+        <Field label="Batch">
+          <select value={batchId} onChange={(event) => setBatchId(event.target.value)} className={inputClass}>
+            <option value="">Not in a batch</option>
+            {day.batches.map((batch) => (
+              <option key={batch.id} value={batch.id}>
+                {batch.batchNumber} ({batchStatusLabel[batch.status]})
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Logged by">
+          <PersonPicker
+            label="Logged by"
+            people={collectors}
+            value={loggedBy}
+            onChange={setLoggedBy}
+            currentUserId={user.id}
+          />
+        </Field>
+
+        <Field label="Notes">
+          <textarea
+            rows={2}
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Observations, conditions…"
+            className={`${inputClass} resize-none`}
+          />
+        </Field>
       </div>
-    </div>
+
+      {editing ? (
+        <BucketEntryPopup
+          title={`Edit ${editing.bucketName}`}
+          initialLbs={editing.lbs}
+          initialCollectedBy={editing.collectedBy}
+          submitLabel="Save"
+          onClose={() => setEditing(null)}
+          onSubmit={(lbs, collectedBy) =>
+            send("PATCH", `/collections/${collection.id}`, {
+              entries: entryList(collection).map((item) =>
+                item.bucketId === editing.bucketId ? { bucketId: item.bucketId, lbs, collectedBy } : item,
+              ),
+              by: user.name,
+            })
+          }
+        />
+      ) : null}
+      {addingStation ? (
+        <BucketEntryPopup
+          title={`Add ${addingStation.name}`}
+          initialLbs={addingStation.currentLbs}
+          initialCollectedBy={loggedBy}
+          submitLabel="Add"
+          onClose={() => setAdding(null)}
+          onSubmit={(lbs, collectedBy) =>
+            send("POST", `/collections/${collection.id}/entries`, {
+              entries: [{ bucketId: addingStation.bucketId, lbs, collectedBy }],
+              by: user.name,
+            })
+          }
+        />
+      ) : null}
+      {removing ? (
+        collection.entries.length === 1 ? (
+          <ConfirmModal
+            title={`Delete Collection #${number}?`}
+            message={`${removing.bucketName} is the only bucket in it, so removing it deletes the whole collection. This cannot be undone.`}
+            confirmLabel="Delete Collection"
+            danger
+            onCancel={() => setRemoving(null)}
+            onConfirm={deleteCollection}
+          />
+        ) : (
+          <ConfirmModal
+            title={`Remove ${removing.bucketName}?`}
+            message={`Only ${removing.bucketName} (${removing.lbs} lbs) comes out of this collection. The other buckets stay.`}
+            confirmLabel="Remove Bucket"
+            danger
+            onCancel={() => setRemoving(null)}
+            onConfirm={() => void removeEntry(removing)}
+          />
+        )
+      ) : null}
+      {confirmDelete ? (
+        <ConfirmModal
+          title={`Delete Collection #${number}?`}
+          message="Every bucket in it is removed from the records. This cannot be undone."
+          confirmLabel="Delete Collection"
+          danger
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={deleteCollection}
+        />
+      ) : null}
+    </Modal>
   );
 }
 
@@ -392,7 +378,8 @@ export default function Collections({ day }: { day: LiveDay }) {
     bucketId: number;
   } | null>(null);
 
-  const { can } = useSession();
+  const { can, user } = useSession();
+  const { send } = useLive();
   // What you may do comes from lib/rbac.config.ts.
   const canAdd = can("collections:log");
   const isAdmin = can("collections:edit");
@@ -538,14 +525,26 @@ export default function Collections({ day }: { day: LiveDay }) {
         </div>
       )}
 
-      {showAdd ? (
-        <LogCollectionModal bucketId={day.buckets[0]?.bucketId ?? 1} onClose={() => setShowAdd(false)} />
-      ) : null}
+      {showAdd ? <LogCollectionModal bucketId={null} onClose={() => setShowAdd(false)} /> : null}
       {editCollection ? (
         <EditCollectionSheet collection={editCollection} day={day} onClose={() => setEditCollectionId(null)} />
       ) : null}
       {editRowCollection && editRowEntry ? (
-        <EditRowPopup collection={editRowCollection} entry={editRowEntry} onClose={() => setEditRowKey(null)} />
+        <BucketEntryPopup
+          title={`Edit ${editRowEntry.bucketName}`}
+          initialLbs={editRowEntry.lbs}
+          initialCollectedBy={editRowEntry.collectedBy}
+          submitLabel="Save"
+          onClose={() => setEditRowKey(null)}
+          onSubmit={(lbs, collectedBy) =>
+            send("PATCH", `/collections/${editRowCollection.id}`, {
+              entries: entryList(editRowCollection).map((item) =>
+                item.bucketId === editRowEntry.bucketId ? { bucketId: item.bucketId, lbs, collectedBy } : item,
+              ),
+              by: user.name,
+            })
+          }
+        />
       ) : null}
     </div>
   );

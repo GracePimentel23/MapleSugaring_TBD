@@ -32,7 +32,7 @@ function iso(value) {
 export async function getAlerts({ openOnly = true } = {}) {
   const { rows } = await pool.query(
     `select id, node_id, bucket_id, alert_type, severity, message, is_resolved, created_at, resolved_at,
-            resolved_by, acknowledged_at, acknowledged_by
+            resolved_by, resolution_note, acknowledged_at, acknowledged_by
        from alerts ${openOnly ? "where is_resolved = false" : "where is_resolved = false or resolved_at > now() - interval '7 days'"}
       order by created_at desc limit 200`,
   );
@@ -217,7 +217,9 @@ export async function getBatches() {
             coalesce(bt.sap_in_kg, (
               select sum(coalesce(l.weight_kg, l.volume_collected_liters))
                 from collections c join collection_logs l on l.collection_id = c.id
-               where c.batch_id = bt.id), 0) as sap_kg
+               where c.batch_id = bt.id), 0) as sap_kg,
+            (select coalesce(array_agg('c' || c.id order by c.collected_on, c.id), '{}')
+               from collections c where c.batch_id = bt.id) as collection_ids
        from batches bt
       order by bt.started_on desc, bt.id desc`,
   );
@@ -230,6 +232,7 @@ export async function getBatches() {
     syrupOutLbs: kgToLbs(row.syrup_out_kg),
     brix: row.brix,
     createdBy: row.created_by ?? "",
+    collectionIds: row.collection_ids,
     ...(row.notes ? { notes: row.notes } : {}),
     ...(row.boil_minutes ? { boilMinutes: row.boil_minutes } : {}),
   }));

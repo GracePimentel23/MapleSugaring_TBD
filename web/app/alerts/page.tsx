@@ -1,9 +1,10 @@
 "use client";
 
 import { CheckCircleIcon } from "@/components/icons";
-import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, type ReactNode } from "react";
 import AlertIcon, { alertLabelColor, type AlertIconKind } from "@/components/alerts/AlertIcon";
+import ResolveAlertModal from "@/components/alerts/ResolveAlertModal";
 import { Can } from "@/components/auth/AccessContext";
 import { useLive } from "@/components/live/LiveProvider";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
@@ -13,7 +14,7 @@ import { Button, Card, DataTable, EmptyState, FilterPill, PageHeader } from "@/c
 import { getResolvedHistory } from "@/lib/selectors/alerts";
 import type { ClubAlert } from "@/lib/types/schema";
 
-type Section = "active" | "acknowledged" | "resolved";
+type Section = "active" | "resolved";
 
 function AlertRow({
   kind,
@@ -40,30 +41,44 @@ function AlertRow({
   );
 }
 
-export default function AlertsPage() {
+function AlertsContent() {
   const router = useRouter();
+  const params = useSearchParams();
   const { day } = useLive();
   const { maintenanceDefaults } = useClubSettings();
   const { can } = useSession();
-  const { active, acknowledged, maintenanceAlerts, acks } = useAlerts();
-  const { acknowledge, resolve, resolutions, focusStation, extendMaintenance, toggleMaintenance } = useStationState();
+  const { active, snoozed, maintenanceAlerts } = useAlerts();
+  const { resolutions, focusStation, extendMaintenance, toggleMaintenance } = useStationState();
   const [filter, setFilter] = useState<Section | null>(null);
+  const [openKey, setOpenKey] = useState<string | null>(null);
+
+  // A notification links here with ?alert=<key>: open that alert's resolve pop-up.
+  const wanted = openKey ?? params.get("alert");
+  const opened = [...active, ...snoozed.map((item) => item.alert)].find((alert) => alert.key === wanted) ?? null;
+
+  function closeResolve() {
+    setOpenKey(null);
+    if (params.get("alert")) router.replace("/alerts");
+  }
 
   const history = getResolvedHistory(day);
   const resolvedRows = [
+    // Ones tied to a worker alert are listed from the worker's own history below.
     ...resolutions
+      .filter((item) => item.alertId === undefined)
       .map((item) => ({
-        key: `user-${item.key}-${item.date}`,
+        key: `user-${item.key}-${item.date}-${item.at}`,
         when: item.at,
         label: item.label,
         kind: item.key.split("-")[0] as AlertIconKind,
         bucketLabel: item.bucketLabel,
         resolvedBy: item.by,
+        note: item.note ?? "",
       })),
     ...history,
   ];
 
-  const acknowledgedCount = acknowledged.length + maintenanceAlerts.length;
+  const activeCount = active.length + maintenanceAlerts.length + snoozed.length;
   const show = (section: Section) => filter === null || filter === section;
 
   function viewStation(bucketId: number | null) {
@@ -72,32 +87,38 @@ export default function AlertsPage() {
     router.push("/stations");
   }
 
-  function stationButton(alert: ClubAlert) {
-    return alert.bucketId !== null ? (
-      <Button variant="outline" onClick={() => viewStation(alert.bucketId)}>
-        View Station
-      </Button>
-    ) : null;
+  function actionsFor(alert: ClubAlert) {
+    return (
+      <>
+        {alert.bucketId !== null ? (
+          <Button variant="outline" onClick={() => viewStation(alert.bucketId)}>
+            View Station
+          </Button>
+        ) : null}
+        <Can permission="alerts:resolve">
+          <Button onClick={() => setOpenKey(alert.key)}>{alert.kind === "weather" ? "Acknowledge" : "Resolve"}</Button>
+        </Can>
+      </>
+    );
   }
 
   return (
     <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
       <PageHeader
         title="Alerts"
-        subtitle="Active means nobody is on it yet. Acknowledged means someone is. Resolved means it is fixed."
+        subtitle="Resolve each alert to clear it; the pop-up walks you through what to do. Weather alerts only need acknowledging."
       />
 
       <div className="no-scrollbar -mx-4 mb-8 flex items-center gap-2 overflow-x-auto px-4 py-1 md:mx-0 md:px-0">
         <FilterPill
           label="All"
-          count={active.length + acknowledgedCount + resolvedRows.length}
+          count={activeCount + resolvedRows.length}
           active={filter === null}
           onClick={() => setFilter(null)}
         />
         {(
           [
-            ["active", "Active", active.length],
-            ["acknowledged", "Acknowledged", acknowledgedCount],
+            ["active", "Active", activeCount],
             ["resolved", "Resolved", resolvedRows.length],
           ] as [Section, string, number][]
         ).map(([id, label, count]) => (
@@ -107,13 +128,13 @@ export default function AlertsPage() {
 
       {show("active") ? (
         <section className="mb-8">
-          <h2 className="max-md:pt-4 mb-3 font-sans text-lg font-semibold">Active</h2>
-          {active.length === 0 ? (
+          <h2 className="mb-3 font-sans text-lg font-semibold max-md:pt-4">Active</h2>
+          {active.length + maintenanceAlerts.length === 0 ? (
             <EmptyState
               compact
               icon={<CheckCircleIcon size={22} />}
               title="Nothing active"
-              description="Every alert has someone on it."
+              description="Every alert is resolved."
             />
           ) : (
             <div className="space-y-4">
@@ -123,35 +144,9 @@ export default function AlertsPage() {
                   kind={alert.kind}
                   title={alert.title}
                   context={alert.context}
-                  actions={
-                    <>
-                      <Can permission="alerts:resolve">
-                        <Button variant="outline" onClick={() => acknowledge(alert)}>
-                          Acknowledge
-                        </Button>
-                      </Can>
-                      {stationButton(alert)}
-                    </>
-                  }
+                  actions={actionsFor(alert)}
                 />
               ))}
-            </div>
-          )}
-        </section>
-      ) : null}
-
-      {show("acknowledged") ? (
-        <section className="mb-8">
-          <h2 className="max-md:pt-4 mb-3 font-sans text-lg font-semibold">Acknowledged</h2>
-          {acknowledgedCount === 0 ? (
-            <EmptyState
-              compact
-              icon={<CheckCircleIcon size={22} />}
-              title="Nothing acknowledged"
-              description="When someone takes an alert, it shows here until it is fixed."
-            />
-          ) : (
-            <div className="space-y-4">
               {maintenanceAlerts.map((item) => (
                 <AlertRow
                   key={`maintenance-${item.bucketId}`}
@@ -166,45 +161,44 @@ export default function AlertsPage() {
                             Extend 1 Hour
                           </Button>
                         ) : null}
-                        <Button onClick={() => toggleMaintenance(item.bucketId)}>Resolve</Button>
+                        <Button onClick={() => toggleMaintenance(item.bucketId)}>End Maintenance</Button>
                       </>
                     ) : null
                   }
                 />
               ))}
-              {acknowledged.map((alert) => {
-                const stamp = acks[alert.key];
-                return (
+            </div>
+          )}
+
+          {snoozed.length > 0 ? (
+            <>
+              <h3 className="mt-6 mb-3 font-sans text-base font-semibold text-muted">Snoozed</h3>
+              <div className="space-y-4">
+                {snoozed.map(({ alert, untilLabel }) => (
                   <AlertRow
                     key={alert.key}
                     kind={alert.kind}
                     title={alert.title}
-                    context={`${alert.context}${stamp ? ` Acknowledged by ${stamp.by} at ${stamp.at.split(", ")[1]}.` : ""}`}
-                    actions={
-                      <>
-                        {stationButton(alert)}
-                        <Can permission="alerts:resolve">
-                          <Button onClick={() => resolve(alert)}>Resolve</Button>
-                        </Can>
-                      </>
-                    }
+                    context={`Back as a reminder at ${untilLabel}. ${alert.context}`}
+                    actions={actionsFor(alert)}
                   />
-                );
-              })}
-            </div>
-          )}
+                ))}
+              </div>
+            </>
+          ) : null}
         </section>
       ) : null}
 
       {show("resolved") ? (
         <Card className="md:px-7">
-          <h2 className="max-md:pt-4 mb-4 font-sans text-lg font-semibold">Resolved This Week</h2>
+          <h2 className="mb-4 font-sans text-lg font-semibold max-md:pt-4">Resolved This Week</h2>
           <DataTable
             empty="Nothing resolved in the last seven days."
             columns={[
               { key: "when", label: "Time" },
               { key: "alert", label: "Alert" },
               { key: "bucket", label: "Bucket" },
+              { key: "how", label: "How" },
               { key: "by", label: "Resolved by" },
             ]}
             rows={resolvedRows.map((row) => ({
@@ -217,12 +211,23 @@ export default function AlertsPage() {
                   </span>
                 ),
                 bucket: row.bucketLabel,
+                how: row.note || <span className="text-muted">—</span>,
                 by: row.resolvedBy,
               },
             }))}
           />
         </Card>
       ) : null}
+
+      {opened ? <ResolveAlertModal alert={opened} onClose={closeResolve} /> : null}
     </div>
+  );
+}
+
+export default function AlertsPage() {
+  return (
+    <Suspense>
+      <AlertsContent />
+    </Suspense>
   );
 }

@@ -79,7 +79,7 @@ function EditSeasonModal({
   }
 
   return (
-    <Modal title={isNew ? "Start new season" : "Edit season"} onClose={onClose}>
+    <Modal title={isNew ? "Start New Season" : "Edit Season"} onClose={onClose}>
       <div className="space-y-4">
         <Field label="Season name">
           <input value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />

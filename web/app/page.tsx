@@ -94,7 +94,7 @@ export default function Home() {
         </ShowFor>
         <ShowFor id="dashboard.nextSteps">
           <div className="xl:pt-[52px]">
-            <NextSteps stations={stations} />
+            <NextSteps />
           </div>
         </ShowFor>
       </div>

@@ -25,14 +25,8 @@ import {
   tooltipLabelStyle,
 } from "@/components/ui/chartTheme";
 
-import { Button, Card, DataTable, StatCard } from "@/components/ui/ui";
-import {
-  bucketYields,
-  cycleDays,
-  overduePickups,
-  seasonStats,
-  treeCount,
-} from "@/lib/selectors/analysis";
+import { Button, Card, ChartEmpty, DataTable, StatCard } from "@/components/ui/ui";
+import { bucketYields, cycleDays, overduePickups, seasonStats, treeCount } from "@/lib/selectors/analysis";
 import { sapSeasonOf, type LiveDay } from "@/lib/live/day";
 import { daysBetween, monthDay } from "@/lib/time";
 import type { SeasonSummary } from "@/lib/types/schema";
@@ -116,8 +110,7 @@ function emptySeason(year: number): SeasonSummary {
 
 export default function Analysis({ day }: { day: LiveDay }) {
   const { weather } = useLive();
-  const seasons =
-    day.seasons.length > 1 ? day.seasons : [...day.seasons, emptySeason(sapSeasonOf(day.date) - 1)];
+  const seasons = day.seasons.length > 1 ? day.seasons : [...day.seasons, emptySeason(sapSeasonOf(day.date) - 1)];
   const TREE_COUNT = treeCount(day);
   const { weight, temp, thresholds, seasons: seasonRecords, animations } = useClubSettings();
   const { can } = useSession();
@@ -312,38 +305,42 @@ export default function Analysis({ day }: { day: LiveDay }) {
 
       <div className="mb-6 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
         <Panel title="Daily Sap Collected (lbs)" subtitle={`Season ${py} against ${cy}, by day of the season.`}>
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={dailyData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-              <CartesianGrid vertical={false} stroke="#ECECE6" />
-              <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
-              <YAxis tick={axisTick} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                itemStyle={tooltipItemStyle}
-                cursor={lineCursor}
-              />
-              <Line
-                type="linear"
-                dataKey={py}
-                stroke="#1A2318"
-                strokeWidth={2}
-                dot={false}
-                isAnimationActive={animations}
-                animationDuration={900}
-              />
-              <Line
-                type="linear"
-                dataKey={cy}
-                stroke="var(--color-slate)"
-                strokeWidth={2}
-                strokeDasharray="5 4"
-                dot={false}
-                isAnimationActive={animations}
-                animationDuration={900}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          {dailyData.some((point) => Object.values(point).some((value) => typeof value === "number" && value > 0)) ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={dailyData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+                <CartesianGrid vertical={false} stroke="#ECECE6" />
+                <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
+                <YAxis tick={axisTick} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  itemStyle={tooltipItemStyle}
+                  cursor={lineCursor}
+                />
+                <Line
+                  type="linear"
+                  dataKey={py}
+                  stroke="#1A2318"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={animations}
+                  animationDuration={900}
+                />
+                <Line
+                  type="linear"
+                  dataKey={cy}
+                  stroke="var(--color-slate)"
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                  dot={false}
+                  isAnimationActive={animations}
+                  animationDuration={900}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <ChartEmpty height={240} />
+          )}
           <div className="mt-2 flex gap-5 text-xs text-muted">
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-0.5 w-4 bg-text" /> {py}
@@ -376,37 +373,47 @@ export default function Analysis({ day }: { day: LiveDay }) {
           title="Freeze-Thaw Days vs Sap per Day"
           subtitle={`Dark bars had a hard freeze overnight and a thaw by midday. The dashed line is ${cy}.`}
         >
-          <ResponsiveContainer width="100%" height={220}>
-            <ComposedChart data={cycleData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-              <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
-              <YAxis tick={axisTick} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={tooltipContentStyle}
-                labelStyle={tooltipLabelStyle}
-                itemStyle={tooltipItemStyle}
-                cursor={barCursor}
-              />
-              <Bar dataKey="lbs" name={py} radius={[4, 4, 0, 0]} isAnimationActive={animations} animationDuration={900}>
-                {cycleData.map((point) => (
-                  <Cell
-                    key={point.day}
-                    fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"}
-                  />
-                ))}
-              </Bar>
-              <Line
-                type="monotone"
-                dataKey="compare"
-                name={cy}
-                stroke="var(--color-slate)"
-                strokeWidth={2}
-                strokeDasharray="4 4"
-                dot={false}
-                isAnimationActive={animations}
-                animationDuration={900}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {cycleData.some((point) => point.lbs > 0) ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={cycleData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+                <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
+                <YAxis tick={axisTick} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={tooltipContentStyle}
+                  labelStyle={tooltipLabelStyle}
+                  itemStyle={tooltipItemStyle}
+                  cursor={barCursor}
+                />
+                <Bar
+                  dataKey="lbs"
+                  name={py}
+                  radius={[4, 4, 0, 0]}
+                  isAnimationActive={animations}
+                  animationDuration={900}
+                >
+                  {cycleData.map((point) => (
+                    <Cell
+                      key={point.day}
+                      fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"}
+                    />
+                  ))}
+                </Bar>
+                <Line
+                  type="monotone"
+                  dataKey="compare"
+                  name={cy}
+                  stroke="var(--color-slate)"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  dot={false}
+                  isAnimationActive={animations}
+                  animationDuration={900}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <ChartEmpty height={220} />
+          )}
         </Panel>
 
         <Panel title="Freeze-Thaw Summary">

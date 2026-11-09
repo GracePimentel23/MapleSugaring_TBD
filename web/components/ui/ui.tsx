@@ -325,14 +325,115 @@ export function DataTable({
 }
 
 /** Thin progress track with a colored fill. */
-export function ProgressBar({ percent, color, height = 8 }: { percent: number; color: string; height?: number }) {
+export function ProgressBar({
+  percent,
+  color,
+  height = 8,
+  filling = false,
+}: {
+  percent: number;
+  color: string;
+  height?: number;
+  /** Sap is coming in: a lighter band keeps reaching past the fill, like the level rising */
+  filling?: boolean;
+}) {
+  const width = Math.min(Math.max(percent, 0), 100);
+  const reach = Math.min(width + 10, 100);
   return (
-    <div className="overflow-hidden rounded-full bg-progress-track" style={{ height }}>
+    <div className="relative overflow-hidden rounded-full bg-progress-track" style={{ height }}>
+      {filling && width < 100 ? (
+        <div
+          aria-hidden="true"
+          className="anim-filling absolute inset-y-0 left-0 rounded-full"
+          style={{ width: `${reach}%`, background: color, ["--from" as string]: reach ? width / reach : 0 }}
+        />
+      ) : null}
       <div
-        className="anim-grow h-full rounded-full transition-all duration-500"
-        style={{ width: `${Math.min(Math.max(percent, 0), 100)}%`, background: color }}
+        className="anim-grow relative h-full rounded-full transition-all duration-500"
+        style={{ width: `${width}%`, background: color }}
       />
     </div>
+  );
+}
+
+/**
+ * A soft grey box with a label and a value, like Current and Target on a station. The unit sits
+ * after the number, smaller and lighter, so the number reads first. Pass children for an input.
+ */
+export function InfoBox({
+  label,
+  value,
+  unit,
+  children,
+  className,
+  large = false,
+}: {
+  label: string;
+  value?: ReactNode;
+  unit?: string;
+  children?: ReactNode;
+  className?: string;
+  /** The headline number of a card, e.g. a batch's sap in */
+  large?: boolean;
+}) {
+  return (
+    <div className={cx("rounded-2xl bg-bg px-4 py-3", className)}>
+      <div className="text-sm text-muted">{label}</div>
+      {children ?? (
+        <div className={cx("mt-0.5 font-sans font-bold", large ? "text-3xl md:text-4xl" : "text-xl md:text-2xl")}>
+          {value}
+          {unit ? <span className="ml-1 text-sm font-normal text-muted md:text-base">{unit}</span> : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Stands in for a chart with nothing to draw, so the space does not look broken. */
+export function ChartEmpty({ height, message = "No data yet" }: { height: number; message?: string }) {
+  return (
+    <div
+      className="flex items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted/70"
+      style={{ height }}
+    >
+      {message}
+    </div>
+  );
+}
+
+/** "Are you sure?" before something that is hard to undo. */
+export function ConfirmModal({
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  danger = false,
+}: {
+  title: string;
+  message: ReactNode;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <Modal
+      title={title}
+      onClose={onCancel}
+      footer={
+        <>
+          <Button variant="outline" className="border-border text-text" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant={danger ? "danger" : "primary"} onClick={onConfirm}>
+            {confirmLabel}
+          </Button>
+        </>
+      }
+    >
+      <p className="pb-2 text-body text-muted">{message}</p>
+    </Modal>
   );
 }
 

@@ -8,7 +8,7 @@ import type {
   StationView,
 } from "@/lib/types/schema";
 
-/** Edits made from Settings > Trees & Sensors. */
+/** Edits made from Settings > Trees & Stations. */
 export interface TreeEdit {
   treeLabel?: string;
   treeSpecies?: string;
