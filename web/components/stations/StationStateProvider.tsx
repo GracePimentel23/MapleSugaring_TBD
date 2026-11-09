@@ -1,17 +1,10 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { useLive } from "@/components/live/LiveProvider";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
+import { useBrowserList } from "@/lib/demo/browserStore";
 import { getStationCards, getWeatherAlerts, type TreeEdit } from "@/lib/selectors/stations";
 import { seasonPhase } from "@/lib/selectors/season";
 import { clockTime, noteStamp } from "@/lib/time";
@@ -43,6 +36,12 @@ export interface UserResolution extends AlertStamp {
    * app's matching alert stays hidden only until the worker raises a new one.
    */
   alertId?: number;
+}
+
+/** How a worker alert was resolved; the worker keeps who and when, this browser keeps how. */
+export interface AlertNote {
+  alertId: number;
+  note: string;
 }
 
 /** An alert put off with "Schedule for later": hidden until `until`, then back as a reminder. */
@@ -85,9 +84,11 @@ interface StationStateValue {
   retireTree: (bucketId: number) => void;
   /** Logs a collection; resolves with its id ("c12"), or null if it failed */
   logCollection: (collection: NewCollection) => Promise<string | null>;
-  /** Adds buckets to a collection already logged ("Log Another Bucket") */
-  addToCollection: (collectionId: string, entries: CollectionEntry[]) => Promise<boolean>;
+  /** Saves a collection's full bucket list after adding to it ("Log Another Bucket") */
+  addToCollection: (collectionId: string, allEntries: CollectionEntry[]) => Promise<boolean>;
   resolutions: UserResolution[];
+  /** How worker alerts were resolved, by alert id (demo storage) */
+  alertNotes: AlertNote[];
   /** Mark an alert handled, with a note of how (shown under Resolved) */
   resolve: (alert: ClubAlert, note?: string) => void;
   snoozes: Snooze[];
@@ -120,38 +121,6 @@ function stampOf(iso: string): string {
 }
 
 /**
- * Local memory for alerts the worker has no row for (due, sap age, battery, weather: judged in the
- * browser from thresholds). Resolving or snoozing those is kept in this browser.
- */
-function useLocalList<T>(key: string): [T[], (update: (current: T[]) => T[]) => void] {
-  const [items, setItems] = useState<T[]>([]);
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(`tbd.${key}`);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- read once after hydration
-      if (saved) setItems(JSON.parse(saved) as T[]);
-    } catch {
-      // storage blocked: start empty
-    }
-  }, [key]);
-  const update = useCallback(
-    (change: (current: T[]) => T[]) => {
-      setItems((current) => {
-        const next = change(current);
-        try {
-          window.localStorage.setItem(`tbd.${key}`, JSON.stringify(next));
-        } catch {
-          // not saved
-        }
-        return next;
-      });
-    },
-    [key],
-  );
-  return [items, update];
-}
-
-/**
  * Station state on top of the API: maintenance mode (the worker's station modes), notes, edits,
  * logging collections, and the Active / Acknowledged / Resolved alert flow.
  */
@@ -159,8 +128,10 @@ export default function StationStateProvider({ children }: { children: ReactNode
   const { day, notes: apiNotes, send, call } = useLive();
   const { user } = useSession();
   const { maintenanceDefaults } = useClubSettings();
-  const [resolutions, setResolutions] = useLocalList<UserResolution>("resolutions");
-  const [snoozes, setSnoozes] = useLocalList<Snooze>("snoozes");
+  // Front-end demo storage until the worker keeps these (see lib/demo/browserStore.ts).
+  const [resolutions, setResolutions] = useBrowserList<UserResolution>("resolutions");
+  const [snoozes, setSnoozes] = useBrowserList<Snooze>("snoozes");
+  const [alertNotes, setAlertNotes] = useBrowserList<AlertNote>("alertNotes");
   const [focusedBucketId, setFocusedBucketId] = useState<number | null>(null);
 
   const by = user.name;
@@ -207,7 +178,8 @@ export default function StationStateProvider({ children }: { children: ReactNode
   );
 
   const extendMaintenance = useCallback(
-    (bucketId: number) => void send("POST", `/stations/${bucketId}/mode`, { mode: "maintenance", extendMinutes: 60, by }),
+    (bucketId: number) =>
+      void send("POST", `/stations/${bucketId}/mode`, { mode: "maintenance", extendMinutes: 60, by }),
     [send, by],
   );
 
@@ -254,16 +226,26 @@ export default function StationStateProvider({ children }: { children: ReactNode
     [call, addNote, by],
   );
 
+  // The worker's collection edit takes the whole list, so this sends every bucket, old and new.
   const addToCollection = useCallback(
-    (collectionId: string, entries: CollectionEntry[]) =>
-      send("POST", `/collections/${collectionId}/entries`, { entries, by }),
+    (collectionId: string, allEntries: CollectionEntry[]) =>
+      send("PATCH", `/collections/${collectionId}`, { entries: allEntries, by }),
     [send, by],
   );
 
   const resolve = useCallback(
     (alert: ClubAlert, note?: string) => {
       setSnoozes((current) => current.filter((item) => item.key !== alert.key));
-      if (alert.alertId) void send("PATCH", `/alerts/${alert.alertId}`, { is_resolved: true, note, by });
+      if (alert.alertId) {
+        void send("PATCH", `/alerts/${alert.alertId}`, { is_resolved: true, by });
+        // The worker does not store how; keep it here for the Resolved table (demo storage).
+        if (note) {
+          setAlertNotes((current) => [
+            ...current.filter((item) => item.alertId !== alert.alertId).slice(-200),
+            { alertId: alert.alertId!, note },
+          ]);
+        }
+      }
       // Keep a week of them for Resolved This Week.
       const weekAgo = new Date(new Date(`${day.date}T12:00:00Z`).getTime() - 7 * 86_400_000).toISOString().slice(0, 10);
       setResolutions((current) => [
@@ -279,7 +261,7 @@ export default function StationStateProvider({ children }: { children: ReactNode
         ...current.filter((item) => item.date > weekAgo),
       ]);
     },
-    [send, by, setResolutions, setSnoozes, nowStamp, day.date],
+    [send, by, setResolutions, setSnoozes, setAlertNotes, nowStamp, day.date],
   );
 
   const snooze = useCallback(
@@ -309,6 +291,7 @@ export default function StationStateProvider({ children }: { children: ReactNode
       logCollection,
       addToCollection,
       resolutions,
+      alertNotes,
       resolve,
       snoozes,
       snooze,
@@ -330,6 +313,7 @@ export default function StationStateProvider({ children }: { children: ReactNode
       logCollection,
       addToCollection,
       resolutions,
+      alertNotes,
       resolve,
       snoozes,
       snooze,
@@ -393,7 +377,10 @@ export function useAlerts() {
       (resolvedToday.get(alert.key) === undefined || !alert.alertId || alert.alertId === resolvedToday.get(alert.key));
     // Freeze and heat warnings only matter while sap is running.
     const inSeason = seasonPhase(day.date, seasons)?.kind === "during";
-    const live = [...(inSeason ? getWeatherAlerts(day, thresholds) : []), ...stations.flatMap((station) => station.alerts)]
+    const live = [
+      ...(inSeason ? getWeatherAlerts(day, thresholds) : []),
+      ...stations.flatMap((station) => station.alerts),
+    ]
       .filter((alert) => !isResolved(alert))
       .sort((a, b) => Number(b.severity === "critical") - Number(a.severity === "critical"));
 

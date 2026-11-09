@@ -48,7 +48,7 @@ function AlertsContent() {
   const { maintenanceDefaults } = useClubSettings();
   const { can } = useSession();
   const { active, snoozed, maintenanceAlerts } = useAlerts();
-  const { resolutions, focusStation, extendMaintenance, toggleMaintenance } = useStationState();
+  const { resolutions, alertNotes, focusStation, extendMaintenance, toggleMaintenance } = useStationState();
   const [filter, setFilter] = useState<Section | null>(null);
   const [openKey, setOpenKey] = useState<string | null>(null);
 
@@ -61,7 +61,7 @@ function AlertsContent() {
     if (params.get("alert")) router.replace("/alerts");
   }
 
-  const history = getResolvedHistory(day);
+  const history = getResolvedHistory(day, alertNotes);
   const resolvedRows = [
     // Ones tied to a worker alert are listed from the worker's own history below.
     ...resolutions

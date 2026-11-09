@@ -32,7 +32,10 @@ export interface BatchEditStamp {
 
 /** A batch as shown on screen, with its notes. */
 export interface BatchView {
+  /** Sap in is the total of its collections, when it has any */
   batch: Batch;
+  /** The collections in it ("c3"): each collection names its batch */
+  collectionIds: string[];
   /** Newest first */
   notes: StationNote[];
   lastEdited: BatchEditStamp | null;
@@ -51,30 +54,58 @@ const BatchStateContext = createContext<BatchStateValue | null>(null);
  * POST /notes. The batch's own notes field (set when it was created) shows as its first note.
  */
 export default function BatchStateProvider({ children }: { children: ReactNode }) {
-  const { notes, send } = useLive();
+  const { day, notes, send, call } = useLive();
   const { user } = useSession();
 
+  /** The collections whose batch is this one, oldest first. */
+  const collectionsOf = useCallback(
+    (batch: Batch) =>
+      day.collections
+        .filter((collection) => collection.batchName === batch.batchNumber)
+        .sort((a, b) => a.collectionNumber - b.collectionNumber),
+    [day.collections],
+  );
+
+  /** Moves collections into (or, with null, out of) a batch: each collection names its batch. */
+  const assign = useCallback(
+    async (collectionIds: string[], batchId: string | null) => {
+      for (const id of collectionIds) {
+        if (!(await send("PATCH", `/collections/${id}`, { batchId, by: user.name }))) return false;
+      }
+      return true;
+    },
+    [send, user.name],
+  );
+
   const saveBatch = useCallback<BatchStateValue["saveBatch"]>(
-    async (batch, edit, note) => {
+    async (batch, { collectionIds, ...edit }, note) => {
+      if (collectionIds) {
+        const current = collectionsOf(batch).map((collection) => collection.id);
+        const added = collectionIds.filter((id) => !current.includes(id));
+        const removed = current.filter((id) => !collectionIds.includes(id));
+        if (!(await assign(added, batch.id)) || !(await assign(removed, null))) return false;
+      }
       const saved = await send("PATCH", `/batches/${batch.id}`, { ...edit, by: user.name });
       if (saved && note.trim()) {
         return send("POST", "/notes", { subject: "batch", subjectId: batch.id, text: note.trim(), by: user.name });
       }
       return saved;
     },
-    [send, user.name],
+    [send, user.name, collectionsOf, assign],
   );
 
+  // Start the batch, then point each chosen collection at it; its sap in is their total.
   const createBatch = useCallback<BatchStateValue["createBatch"]>(
-    (batch) =>
-      send("POST", "/batches", {
-        collectionIds: batch.collectionIds,
+    async (batch) => {
+      const created = await call<{ id: string }>("POST", "/batches", {
         status: "active",
         notes: batch.notes || undefined,
         createdBy: user.name,
         by: user.name,
-      }),
-    [send, user.name],
+      });
+      return created ? assign(batch.collectionIds, created.id) : false;
+    },
+    [call, user.name, assign],
   );
 
   const viewBatch = useCallback(
@@ -87,9 +118,18 @@ export default function BatchStateProvider({ children }: { children: ReactNode }
       const first: StationNote[] = batch.notes
         ? [{ text: batch.notes, author: batch.createdBy || "Someone", createdAt: longDate(batch.date) }]
         : [];
-      return { batch, notes: [...added, ...first], lastEdited: null };
+      const mine = collectionsOf(batch);
+      const sapInLbs = mine.length
+        ? Math.round(mine.reduce((sum, collection) => sum + collection.totalLbs, 0) * 10) / 10
+        : batch.sapInLbs;
+      return {
+        batch: { ...batch, sapInLbs },
+        collectionIds: mine.map((collection) => collection.id),
+        notes: [...added, ...first],
+        lastEdited: null,
+      };
     },
-    [notes],
+    [notes, collectionsOf],
   );
 
   const value = useMemo(() => ({ saveBatch, createBatch, viewBatch }), [saveBatch, createBatch, viewBatch]);

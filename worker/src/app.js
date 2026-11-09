@@ -46,64 +46,6 @@ const sweepBeforeRead = wrap(async (_req, _res, next) => {
   next();
 });
 
-/**
- * One bucket into a collection: its weight (or the load cell's current net weight when none is given),
- * who emptied it, and when. Emptying it resolves its Full alert.
- */
-async function insertEntry(client, collectionId, entry, { date, loggedBy }) {
-  const bucketId = idParam(entry.bucketId);
-  const bucket = (
-    await client.query(
-      `select b.id, b.label, b.node_id, b.tare_kg, b.calibration_factor,
-              (select weight_kg from readings r where r.bucket_id = b.id and r.kind <> 'nohx'
-                order by measured_at desc limit 1) as current_kg
-         from buckets b where b.id = $1`,
-      [bucketId],
-    )
-  ).rows[0];
-  if (!bucket) throw new HttpError(400, `no bucket ${bucketId}`);
-  const lbs = optionalNumber(entry.lbs, "lbs", { min: 0, max: 500 });
-  const kg = lbs !== null ? lbsToKg(lbs) : Math.max(netKg(bucket.current_kg ?? 0, bucket), 0);
-  await client.query(
-    `insert into collection_logs (collection_id, node_id, bucket_id, volume_collected_liters, weight_kg,
-                                  collected_by, collected_at, source)
-     values ($1, $2, $3, $4, $4, $5,
-             case when $6::date is null or $6::date = current_date then now()
-                  else ($6::date + time '12:00')::timestamptz end, 'manual')`,
-    [collectionId, bucket.node_id, bucketId, kg, optionalText(entry.collectedBy, "collectedBy", 100) ?? loggedBy, date],
-  );
-  await resolveAlerts(client, [`full:bucket:${bucketId}`]);
-  return { name: bucketLabel(bucket.label, bucketId), lbs: kgToLbs(kg) };
-}
-
-/** ["c3", "c5"] -> [3, 5]; undefined when the body does not mention collections. */
-function collectionIdList(value) {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value)) throw new HttpError(400, "collectionIds must be a list");
-  return [...new Set(value.map((id) => idParam(id, "c")))];
-}
-
-/** Makes `ids` exactly the collections in batch `batchId`: listed ones join, the rest leave it. */
-async function setBatchCollections(client, batchId, ids) {
-  await client.query("update collections set batch_id = null where batch_id = $1 and not (id = any($2))", [batchId, ids]);
-  if (ids.length) await client.query("update collections set batch_id = $1 where id = any($2)", [batchId, ids]);
-}
-
-/** "  Bucket   #06 " -> "Bucket #06". null stays null. */
-function cleanName(text) {
-  return text === null || text === undefined ? text : text.trim().replace(/\s+/g, " ");
-}
-
-/** Station names are unique, ignoring case and extra spaces (retired stations included). */
-async function assertNameFree(client, name, exceptBucketId = null) {
-  const { rowCount } = await client.query(
-    `select 1 from buckets
-      where lower(regexp_replace(btrim(label), '\\s+', ' ', 'g')) = lower($1) and ($2::int is null or id <> $2)`,
-    [name, exceptBucketId],
-  );
-  if (rowCount) throw new HttpError(409, `${name} already exists; pick a different name`);
-}
-
 export function createApp() {
   const app = express();
   app.disable("x-powered-by");
@@ -155,13 +97,12 @@ export function createApp() {
   }));
 
   app.post("/stations", can("stations:manage"), wrap(async (req, res) => {
-    const name = cleanName(optionalText(req.body?.name, "name", 100));
+    const name = optionalText(req.body?.name, "name", 100);
     if (!name) throw new HttpError(400, "name is required");
     const capacityLbs = optionalNumber(req.body?.capacityLbs, "capacityLbs", { min: 0.5, max: 200 });
     const nodeCode = optionalText(req.body?.nodeCode, "nodeCode", 32) ?? name;
     const { lat, lon } = optionalPosition(req.body);
     const bucketId = await withTransaction(async (client) => {
-      await assertNameFree(client, name);
       const node = await client.query(
         `insert into node (node_code, node_name, status) values ($1, $2, 'online')
          on conflict (node_code) do update set node_name = coalesce(node.node_name, excluded.node_name)
@@ -190,14 +131,13 @@ export function createApp() {
     const { lat, lon } = optionalPosition(req.body);
     const retired = typeof req.body?.retired === "boolean" ? req.body.retired : null;
     const changes = {
-      name: cleanName(optionalText(req.body?.name, "name", 100)),
-      location: cleanName(optionalText(req.body?.location, "location", 100)),
+      name: optionalText(req.body?.name, "name", 100),
+      location: optionalText(req.body?.location, "location", 100),
       treeSpecies: optionalText(req.body?.treeSpecies, "treeSpecies", 50),
     };
     await withTransaction(async (client) => {
       const before = (await client.query("select * from buckets where id = $1 for update", [bucketId])).rows[0];
       if (!before) throw new HttpError(404, "no such station");
-      if (changes.name) await assertNameFree(client, changes.name, bucketId);
       await client.query(
         `update buckets set label = coalesce($2, label), location = coalesce($3, location),
                 tree_species = coalesce($4, tree_species), capacity_liters = coalesce($5, capacity_liters),
@@ -326,10 +266,7 @@ export function createApp() {
     res.json(await getAlerts({ openOnly: req.query.all === undefined }));
   }));
 
-  /**
-   * { acknowledged: true | false } takes or gives back an alert; { is_resolved } marks it fixed (default),
-   * with an optional { note } saying how ("Emptied, 9.4 lbs logged", "Leak or damage").
-   */
+  /** { acknowledged: true | false } takes or gives back an alert; { is_resolved } marks it fixed (default). */
   app.patch("/alerts/:id", can("alerts:resolve"), wrap(async (req, res) => {
     const id = idParam(req.params.id);
     const by = actorName(req);
@@ -344,9 +281,9 @@ export function createApp() {
       const resolved = req.body?.is_resolved !== false;
       result = await pool.query(
         `update alerts set is_resolved = $2, resolved_at = case when $2 then now() end,
-                resolved_by = case when $2 then $3 end, resolution_note = case when $2 then $4 end
+                resolved_by = case when $2 then $3 end
           where id = $1`,
-        [id, resolved, by, optionalText(req.body?.note, "note", 300)],
+        [id, resolved, by],
       );
     }
     if (!result.rowCount) throw new HttpError(404, "no such alert");
@@ -396,7 +333,31 @@ export function createApp() {
         [date, batchId, loggedBy, optionalText(body.notes, "notes", 2000)],
       );
       const collectionId = collection.rows[0].id;
-      for (const entry of entries) logged.push(await insertEntry(client, collectionId, entry, { date, loggedBy }));
+      for (const entry of entries) {
+        const bucketId = idParam(entry.bucketId);
+        const bucket = (
+          await client.query(
+            `select b.id, b.node_id, b.tare_kg, b.calibration_factor,
+                    (select weight_kg from readings r where r.bucket_id = b.id and r.kind <> 'nohx'
+                      order by measured_at desc limit 1) as current_kg
+               from buckets b where b.id = $1`,
+            [bucketId],
+          )
+        ).rows[0];
+        if (!bucket) throw new HttpError(400, `no bucket ${bucketId}`);
+        const lbs = optionalNumber(entry.lbs, "lbs", { min: 0, max: 500 });
+        const kg = lbs !== null ? lbsToKg(lbs) : Math.max(netKg(bucket.current_kg ?? 0, bucket), 0);
+        await client.query(
+          `insert into collection_logs (collection_id, node_id, bucket_id, volume_collected_liters, weight_kg,
+                                        collected_by, collected_at, source)
+           values ($1, $2, $3, $4, $4, $5,
+                   case when $6::date is null or $6::date = current_date then now()
+                        else ($6::date + time '12:00')::timestamptz end, 'manual')`,
+          [collectionId, bucket.node_id, bucketId, kg, optionalText(entry.collectedBy, "collectedBy", 100) ?? loggedBy, date],
+        );
+        await resolveAlerts(client, [`full:bucket:${bucketId}`]);
+        logged.push({ name: bucketLabel(bucket.label, bucketId), lbs: kgToLbs(kg) });
+      }
       await audit(client, req, {
         entity: "collection", entityId: collectionId, action: "Logged collection",
         record: logged.map((entry) => entry.name).join(", "),
@@ -405,34 +366,6 @@ export function createApp() {
       return collectionId;
     });
     res.status(201).json({ id: `c${id}` });
-  }));
-
-  /**
-   * { entries: [{ bucketId, lbs?, collectedBy? }] } adds buckets to an existing collection: "Log Another
-   * Bucket" after logging one. Needs only collections:log, like logging the first bucket did.
-   */
-  app.post("/collections/:id/entries", can("collections:log"), wrap(async (req, res) => {
-    const id = idParam(req.params.id, "c");
-    const entries = Array.isArray(req.body?.entries) ? req.body.entries : [];
-    if (!entries.length) throw new HttpError(400, "pick at least one bucket");
-    await withTransaction(async (client) => {
-      const collection = (await client.query("select * from collections where id = $1 for update", [id])).rows[0];
-      if (!collection) throw new HttpError(404, "no such collection");
-      const logged = [];
-      for (const entry of entries) {
-        const bucketId = idParam(entry.bucketId);
-        const already = await client.query(
-          "select 1 from collection_logs where collection_id = $1 and bucket_id = $2", [id, bucketId],
-        );
-        if (already.rowCount) throw new HttpError(409, "that bucket is already in this collection");
-        logged.push(await insertEntry(client, id, entry, { date: collection.collected_on, loggedBy: collection.logged_by }));
-      }
-      await audit(client, req, {
-        entity: "collection", entityId: id, action: "Added to collection", record: `Collection ${id}`,
-        change: logged.map((entry) => `${entry.name}, ${entry.lbs} lbs`).join("; "),
-      });
-    });
-    res.status(201).json({ ok: true });
   }));
 
   /** { date?, batchId? (null unassigns), loggedBy?, notes?, entries?: [{ bucketId, lbs, collectedBy }] } */
@@ -504,13 +437,8 @@ export function createApp() {
   // ---- batches --------------------------------------------------------------------------------
   app.get("/batches", can("batches:view"), wrap(async (_req, res) => res.json(await getBatches())));
 
-  /**
-   * { collectionIds: ["c3", "c5"], notes? } starts a batch from logged collections: its sap in is their
-   * total. sapInLbs, syrupOutLbs and brix are still accepted for imports and the demo.
-   */
   app.post("/batches", can("batches:manage"), wrap(async (req, res) => {
     const body = req.body ?? {};
-    const collectionIds = collectionIdList(body.collectionIds);
     const sapInLbs = optionalNumber(body.sapInLbs, "sapInLbs", { min: 0, max: 100_000 });
     const syrupOutLbs = optionalNumber(body.syrupOutLbs, "syrupOutLbs", { min: 0, max: 10_000 }) ?? 0;
     const brix = optionalNumber(body.brix, "brix", { min: 0, max: 80 }) ?? 0;
@@ -528,20 +456,14 @@ export function createApp() {
           optionalText(body.createdBy, "createdBy", 100) ?? actorName(req), optionalText(body.notes, "notes", 2000),
           boilMinutes],
       );
-      if (collectionIds) await setBatchCollections(client, rows[0].id, collectionIds);
-      await audit(client, req, {
-        entity: "batch", entityId: rows[0].id, action: "Started batch", record: rows[0].batch_number,
-        change: collectionIds ? `${collectionIds.length} collection${collectionIds.length === 1 ? "" : "s"}` : "",
-      });
+      await audit(client, req, { entity: "batch", entityId: rows[0].id, action: "Started batch", record: rows[0].batch_number });
       return rows[0];
     });
     res.status(201).json({ id: `b${row.id}` });
   }));
 
-  /** { status?, syrupOutLbs?, brix?, boilMinutes?, notes?, collectionIds? (the batch's full list) } */
   app.patch("/batches/:id", can("batches:manage"), wrap(async (req, res) => {
     const body = req.body ?? {};
-    const collectionIds = collectionIdList(body.collectionIds);
     const status = body.status ?? null;
     if (status && !["completed", "processing", "active", "waiting"].includes(status)) throw new HttpError(400, "bad status");
     const sapInLbs = optionalNumber(body.sapInLbs, "sapInLbs", { min: 0, max: 100_000 });
@@ -565,11 +487,6 @@ export function createApp() {
         [id, status, sapInLbs === null ? null : lbsToKg(sapInLbs), syrupOutLbs === null ? null : lbsToKg(syrupOutLbs),
           brix, optionalText(body.notes, "notes", 2000), date, boilMinutes],
       );
-      if (collectionIds) {
-        await setBatchCollections(client, id, collectionIds);
-        // Sap in follows the collections from now on.
-        await client.query("update batches set sap_in_kg = null where id = $1", [id]);
-      }
       await audit(client, req, {
         entity: "batch", entityId: id, record: before.batch_number,
         action: closed ? "Overrode closed batch" : status === "completed" ? "Closed batch" : "Edited batch",
@@ -578,7 +495,7 @@ export function createApp() {
           ["Sap in", before.sap_in_kg === null ? null : kgToLbs(before.sap_in_kg), sapInLbs, " lbs"],
           ["Syrup out", kgToLbs(before.syrup_out_kg), syrupOutLbs, " lbs"],
           ["Brix", Number(before.brix), brix, "°"],
-        ]) || (collectionIds ? `${collectionIds.length} collection${collectionIds.length === 1 ? "" : "s"}` : "Details updated"),
+        ]) || "Details updated",
       });
     });
     res.json({ ok: true });

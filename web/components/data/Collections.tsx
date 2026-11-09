@@ -327,8 +327,8 @@ function EditCollectionSheet({
           submitLabel="Add"
           onClose={() => setAdding(null)}
           onSubmit={(lbs, collectedBy) =>
-            send("POST", `/collections/${collection.id}/entries`, {
-              entries: [{ bucketId: addingStation.bucketId, lbs, collectedBy }],
+            send("PATCH", `/collections/${collection.id}`, {
+              entries: [...entryList(collection), { bucketId: addingStation.bucketId, lbs, collectedBy }],
               by: user.name,
             })
           }

@@ -176,7 +176,7 @@ function OpenBatchCard({
 }) {
   const { weight, weightUnit } = useClubSettings();
   const { batch } = view;
-  const mine = collections.filter((collection) => batch.collectionIds?.includes(collection.id));
+  const mine = collections.filter((collection) => view.collectionIds.includes(collection.id));
   const next = nextStep[batch.status];
 
   return (
@@ -422,7 +422,7 @@ function EditBatchModal({ view, day, onClose }: { view: BatchView; day: LiveDay;
   const { weight, weightUnit } = useClubSettings();
   const { batch } = view;
   const [status, setStatus] = useState<BatchStatus>(batch.status);
-  const [collectionIds, setCollectionIds] = useState<string[]>(batch.collectionIds ?? []);
+  const [collectionIds, setCollectionIds] = useState<string[]>(view.collectionIds);
   const [syrupOut, setSyrupOut] = useState(batch.syrupOutLbs ? String(batch.syrupOutLbs) : "");
   const [brix, setBrix] = useState(batch.brix ? String(batch.brix) : "");
   const [hours, setHours] = useState(batch.boilMinutes ? String(Math.round((batch.boilMinutes / 60) * 10) / 10) : "");
@@ -430,7 +430,7 @@ function EditBatchModal({ view, day, onClose }: { view: BatchView; day: LiveDay;
   const [saving, setSaving] = useState(false);
   // Collections not in any batch, plus this batch's own.
   const choices = day.collections
-    .filter((collection) => collection.batchName === "Unassigned" || batch.collectionIds?.includes(collection.id))
+    .filter((collection) => collection.batchName === "Unassigned" || view.collectionIds.includes(collection.id))
     .sort((a, b) => a.collectionNumber - b.collectionNumber);
   const sapIn = choices
     .filter((collection) => collectionIds.includes(collection.id))

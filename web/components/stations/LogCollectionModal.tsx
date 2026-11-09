@@ -84,7 +84,7 @@ export default function LogCollectionModal({ bucketId, onClose }: { bucketId: nu
     if (!valid) return;
     setSaving(true);
     if (saved) {
-      const ok = await addToCollection(saved.id, entries);
+      const ok = await addToCollection(saved.id, [...saved.entries, ...entries]);
       setSaving(false);
       if (!ok) return;
       setSaved({ id: saved.id, entries: [...saved.entries, ...entries] });

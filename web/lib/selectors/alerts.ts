@@ -48,7 +48,12 @@ export function alertBucketLabel(day: LiveDay, alert: ApiAlert): string {
  * Alerts the worker marked resolved in the last `days` days: by whoever resolved them in the app,
  * by a collection that emptied the bucket, or automatically when the sensor came back ("Auto").
  */
-export function getResolvedHistory(day: LiveDay, days = 7): ResolvedAlert[] {
+export function getResolvedHistory(
+  day: LiveDay,
+  /** How each was resolved, by alert id: front-end demo storage until the worker keeps it */
+  notes: { alertId: number; note: string }[] = [],
+  days = 7,
+): ResolvedAlert[] {
   const cutoff = Date.now() - days * 86_400_000;
   return day.alerts
     .filter((alert) => alert.is_resolved && alert.resolved_at && new Date(alert.resolved_at).getTime() >= cutoff)
@@ -63,7 +68,7 @@ export function getResolvedHistory(day: LiveDay, days = 7): ResolvedAlert[] {
         kind: meta.kind,
         bucketLabel: alertBucketLabel(day, alert),
         resolvedBy: alert.resolved_by ?? "Auto",
-        note: alert.resolution_note ?? (alert.resolved_by ? "" : "Cleared by itself"),
+        note: notes.find((item) => item.alertId === alert.id)?.note ?? (alert.resolved_by ? "" : "Cleared by itself"),
       };
     });
 }
