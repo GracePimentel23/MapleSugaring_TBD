@@ -44,6 +44,25 @@ export interface AlertNote {
   note: string;
 }
 
+/**
+ * A bucket someone is emptying (Start Collection): its weight before emptying, the alert it
+ * answers, and when the pause on its weight alerts ends.
+ */
+export interface EmptyingSession {
+  bucketId: number;
+  /** Weight before emptying: what gets logged */
+  lbs: number;
+  alert: ClubAlert | null;
+  /** ms */
+  startedAt: number;
+  until: number;
+  by: string;
+  /** The worker accepted the pause (a Member cannot put a bucket in maintenance) */
+  pauseOk?: boolean;
+  /** Where the sap is going once chosen: "new" or a collection id ("c12") */
+  into?: string;
+}
+
 /** An alert put off with "Schedule for later": hidden until `until`, then back as a reminder. */
 export interface Snooze {
   key: string;
@@ -94,6 +113,19 @@ interface StationStateValue {
   snoozes: Snooze[];
   /** Put an alert off for `hours`; it comes back as a reminder after that */
   snooze: (alert: ClubAlert, hours: number) => void;
+  /** Buckets being emptied right now (demo storage) */
+  emptying: EmptyingSession[];
+  /**
+   * Start Collection: pauses the bucket's weight alerts for a few minutes (the worker's maintenance
+   * mode) so emptying it is not taken for a spill. Resolves false if the pause could not be set.
+   */
+  startEmptying: (station: StationView, alert: ClubAlert | null) => Promise<boolean>;
+  /** Finished Collection: alerts back on, and the alert it answered resolved with `note` */
+  finishEmptying: (bucketId: number, note: string) => void;
+  /** Resume alerts early (or give up): the alert it answered stays active */
+  cancelEmptying: (bucketId: number) => void;
+  /** Remember where the sap is going, so the banner's Continue goes back to the same place */
+  setEmptyingInto: (bucketId: number, into: string) => void;
   /** Set when an alert is opened, so the Stations page can jump to it */
   focusedBucketId: number | null;
   focusStation: (bucketId: number) => void;
@@ -132,6 +164,7 @@ export default function StationStateProvider({ children }: { children: ReactNode
   const [resolutions, setResolutions] = useBrowserList<UserResolution>("resolutions");
   const [snoozes, setSnoozes] = useBrowserList<Snooze>("snoozes");
   const [alertNotes, setAlertNotes] = useBrowserList<AlertNote>("alertNotes");
+  const [emptying, setEmptying] = useBrowserList<EmptyingSession>("emptying");
   const [focusedBucketId, setFocusedBucketId] = useState<number | null>(null);
 
   const by = user.name;
@@ -273,6 +306,52 @@ export default function StationStateProvider({ children }: { children: ReactNode
     [setSnoozes, by],
   );
 
+  const startEmptying = useCallback(
+    async (station: StationView, alert: ClubAlert | null) => {
+      const minutes = maintenanceDefaults.emptyMinutes ?? 2;
+      const paused = await send("POST", `/stations/${station.bucketId}/mode`, { mode: "maintenance", minutes, by });
+      const now = Date.now();
+      setEmptying((current) => [
+        // Forget sessions nobody finished within a day.
+        ...current.filter((item) => item.bucketId !== station.bucketId && item.startedAt > now - 86_400_000),
+        {
+          bucketId: station.bucketId,
+          lbs: station.currentLbs,
+          alert,
+          startedAt: now,
+          until: now + minutes * 60_000,
+          by,
+          pauseOk: paused,
+        },
+      ]);
+      return paused;
+    },
+    [send, by, maintenanceDefaults.emptyMinutes, setEmptying],
+  );
+
+  const endEmptying = useCallback(
+    (bucketId: number) => {
+      void send("POST", `/stations/${bucketId}/mode`, { mode: "normal", by });
+      setEmptying((current) => current.filter((item) => item.bucketId !== bucketId));
+    },
+    [send, by, setEmptying],
+  );
+
+  const finishEmptying = useCallback(
+    (bucketId: number, note: string) => {
+      const session = emptying.find((item) => item.bucketId === bucketId);
+      endEmptying(bucketId);
+      if (session?.alert) resolve(session.alert, note);
+    },
+    [emptying, endEmptying, resolve],
+  );
+
+  const setEmptyingInto = useCallback(
+    (bucketId: number, into: string) =>
+      setEmptying((current) => current.map((item) => (item.bucketId === bucketId ? { ...item, into } : item))),
+    [setEmptying],
+  );
+
   const focusStation = useCallback((bucketId: number) => setFocusedBucketId(bucketId), []);
   const clearFocus = useCallback(() => setFocusedBucketId(null), []);
 
@@ -295,6 +374,11 @@ export default function StationStateProvider({ children }: { children: ReactNode
       resolve,
       snoozes,
       snooze,
+      emptying,
+      startEmptying,
+      finishEmptying,
+      cancelEmptying: endEmptying,
+      setEmptyingInto,
       focusedBucketId,
       focusStation,
       clearFocus,
@@ -317,6 +401,11 @@ export default function StationStateProvider({ children }: { children: ReactNode
       resolve,
       snoozes,
       snooze,
+      emptying,
+      startEmptying,
+      finishEmptying,
+      endEmptying,
+      setEmptyingInto,
       focusedBucketId,
       focusStation,
       clearFocus,
@@ -338,13 +427,17 @@ export function useStationState(): StationStateValue {
 export function useStationCards(options: { includeRetired?: boolean } = {}): StationView[] {
   const { day, weather } = useLive();
   const { thresholds } = useClubSettings();
-  const { notes, retired } = useStationState();
+  const { notes, retired, emptying } = useStationState();
   const includeRetired = options.includeRetired ?? false;
 
   return useMemo(() => {
-    const cards = getStationCards(day, weather, { notes }, thresholds);
+    // A bucket in the worker's maintenance mode because someone is emptying it reads "Being emptied".
+    const beingEmptied = new Set(emptying.map((item) => item.bucketId));
+    const cards = getStationCards(day, weather, { notes }, thresholds).map((card) =>
+      card.inMaintenance && beingEmptied.has(card.bucketId) ? { ...card, status: "emptying" as const } : card,
+    );
     return includeRetired ? cards : cards.filter((card) => !retired.has(card.bucketId));
-  }, [day, weather, thresholds, notes, retired, includeRetired]);
+  }, [day, weather, thresholds, notes, retired, includeRetired, emptying]);
 }
 
 export interface MaintenanceAlert {
@@ -395,7 +488,8 @@ export function useAlerts() {
 
     const maintenanceAlerts: MaintenanceAlert[] = Object.entries(maintenance).flatMap(([bucketId, entry]) => {
       const station = stations.find((item) => item.bucketId === Number(bucketId));
-      if (!station) return [];
+      // Being emptied is part of a collection, not maintenance.
+      if (!station || station.status === "emptying") return [];
       return [
         {
           bucketId: Number(bucketId),

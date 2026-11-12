@@ -25,6 +25,7 @@ import {
   tooltipLabelStyle,
 } from "@/components/ui/chartTheme";
 
+import Select from "@/components/ui/Select";
 import { Button, Card, ChartEmpty, DataTable, StatCard } from "@/components/ui/ui";
 import { bucketYields, cycleDays, overduePickups, seasonStats, treeCount } from "@/lib/selectors/analysis";
 import { sapSeasonOf, type LiveDay } from "@/lib/live/day";
@@ -37,11 +38,30 @@ function year(season: SeasonSummary): string {
   return season.season.replace("Season ", "");
 }
 
-/** "15% below 2021" / "0.3° above 2021" */
-function versus(value: number, other: number, compareYear: string, format: (diff: number) => string): string {
+/**
+ * "↓ 15% vs 2021" / "↑ 0.3° vs 2021": an arrow instead of "below" / "above", green going up and red
+ * going down. `dark` is for the filled green card, where lighter shades stay readable.
+ */
+function versus(
+  value: number,
+  other: number,
+  compareYear: string,
+  format: (diff: number) => string,
+  dark = false,
+): ReactNode {
   const diff = value - other;
-  if (Math.abs(diff) < 0.05) return `same as ${compareYear}`;
-  return `${format(Math.abs(diff))} ${diff < 0 ? "below" : "above"} ${compareYear}`;
+  if (Math.abs(diff) < 0.05) return `Same as ${compareYear}`;
+  const up = diff > 0;
+  const color = up ? (dark ? "#A9E28B" : "#3E8A2C") : dark ? "#FFA595" : "var(--color-status-problem)";
+  return (
+    <>
+      <span className="relative font-semibold" style={{ color }}>
+        <span aria-hidden="true">{up ? "↑" : "↓"}</span>
+        <span className="sr-only">{up ? "up" : "down"}</span> {format(Math.abs(diff))}
+      </span>{" "}
+      vs {compareYear}
+    </>
+  );
 }
 
 function Panel({
@@ -76,20 +96,15 @@ function SeasonSelect({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="block">
+    <div className="w-36">
       <span className="mb-1 block text-sm text-muted">{label}</span>
-      <select
+      <Select
+        label={label}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="rounded-xl border-2 border-accent bg-white px-3 py-2 font-sans text-sm font-semibold text-text outline-none"
-      >
-        {seasons.map((season) => (
-          <option key={season.season} value={season.season}>
-            {year(season)}
-          </option>
-        ))}
-      </select>
-    </label>
+        onChange={onChange}
+        options={seasons.map((season) => ({ value: season.season, label: year(season) }))}
+      />
+    </div>
   );
 }
 
@@ -260,6 +275,7 @@ export default function Analysis({ day }: { day: LiveDay }) {
             compare.totalSapLbs,
             cy,
             (diff) => `${Math.round((diff / Math.max(compare.totalSapLbs, 1)) * 100)}%`,
+            true,
           )}
         />
         <StatCard
@@ -281,11 +297,7 @@ export default function Analysis({ day }: { day: LiveDay }) {
           value={ratioFor(primary) ? `${ratioFor(primary).toFixed(1)} : 1` : "—"}
           note="closed batches only"
         />
-        <StatCard
-          label="Season length"
-          value={`${pStats.days} days`}
-          note={`${isCurrent ? "so far; " : ""}${cy} ran ${seasonDays(compare)}`}
-        />
+        <StatCard label="Season length" value={`${pStats.days} days`} note={`${cy} ran ${seasonDays(compare)}`} />
         <StatCard
           label="Boil sessions"
           value={String(boilSessions(primary))}
@@ -303,227 +315,229 @@ export default function Analysis({ day }: { day: LiveDay }) {
         />
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
-        <Panel title="Daily Sap Collected (lbs)" subtitle={`Season ${py} against ${cy}, by day of the season.`}>
-          {dailyData.some((point) => Object.values(point).some((value) => typeof value === "number" && value > 0)) ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={dailyData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-                <CartesianGrid vertical={false} stroke="#ECECE6" />
-                <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
-                <YAxis tick={axisTick} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={tooltipContentStyle}
-                  labelStyle={tooltipLabelStyle}
-                  itemStyle={tooltipItemStyle}
-                  cursor={lineCursor}
-                />
-                <Line
-                  type="linear"
-                  dataKey={py}
-                  stroke="#1A2318"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={animations}
-                  animationDuration={900}
-                />
-                <Line
-                  type="linear"
-                  dataKey={cy}
-                  stroke="var(--color-slate)"
-                  strokeWidth={2}
-                  strokeDasharray="5 4"
-                  dot={false}
-                  isAnimationActive={animations}
-                  animationDuration={900}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <ChartEmpty height={240} />
-          )}
-          <div className="mt-2 flex gap-5 text-xs text-muted">
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-0.5 w-4 bg-text" /> {py}
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block w-4 border-t-2 border-dashed border-slate" /> {cy}
-            </span>
-          </div>
-        </Panel>
-
-        <Panel title="Season Totals">
-          <DataTable
-            columns={[
-              { key: "label", label: "" },
-              { key: "p", label: py, align: "right" },
-              { key: "c", label: cy, align: "right" },
-            ]}
-            rows={[
-              ["Total sap", weight(primary.totalSapLbs), weight(compare.totalSapLbs)],
-              ["Peak day", weight(pStats.peakLbs), weight(cStats.peakLbs)],
-              ["Best day", pStats.bestDay, cStats.bestDay],
-              ["Avg temp", temp(primary.avgTempF), temp(compare.avgTempF)],
-              ["Collections", String(primary.totalCollections), String(compare.totalCollections)],
-              ["Freeze-thaw days", String(pStats.cycleDays), String(cStats.cycleDays)],
-            ].map(([label, p, c]) => ({ key: label!, cells: { label, p, c } }))}
-          />
-        </Panel>
-
-        <Panel
-          title="Freeze-Thaw Days vs Sap per Day"
-          subtitle={`Dark bars had a hard freeze overnight and a thaw by midday. The dashed line is ${cy}.`}
-        >
-          {cycleData.some((point) => point.lbs > 0) ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart data={cycleData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
-                <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
-                <YAxis tick={axisTick} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={tooltipContentStyle}
-                  labelStyle={tooltipLabelStyle}
-                  itemStyle={tooltipItemStyle}
-                  cursor={barCursor}
-                />
-                <Bar
-                  dataKey="lbs"
-                  name={py}
-                  radius={[4, 4, 0, 0]}
-                  isAnimationActive={animations}
-                  animationDuration={900}
-                >
-                  {cycleData.map((point) => (
-                    <Cell
-                      key={point.day}
-                      fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"}
-                    />
-                  ))}
-                </Bar>
-                <Line
-                  type="monotone"
-                  dataKey="compare"
-                  name={cy}
-                  stroke="var(--color-slate)"
-                  strokeWidth={2}
-                  strokeDasharray="4 4"
-                  dot={false}
-                  isAnimationActive={animations}
-                  animationDuration={900}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          ) : (
-            <ChartEmpty height={220} />
-          )}
-        </Panel>
-
-        <Panel title="Freeze-Thaw Summary">
-          <DataTable
-            columns={[
-              { key: "label", label: "" },
-              { key: "p", label: py, align: "right" },
-              { key: "c", label: cy, align: "right" },
-            ]}
-            rows={[
-              ["Cycle days", String(pStats.cycleDays), String(cStats.cycleDays)],
-              ["Avg lbs, cycle day", pStats.avgCycleLbs.toFixed(1), cStats.avgCycleLbs.toFixed(1)],
-              ["Avg lbs, other day", pStats.avgOtherLbs.toFixed(1), cStats.avgOtherLbs.toFixed(1)],
-              [
-                "Sap from cycle days",
-                `${Math.round(pStats.cycleShare * 100)}%`,
-                `${Math.round(cStats.cycleShare * 100)}%`,
-              ],
-            ].map(([label, p, c]) => ({ key: label!, cells: { label, p, c } }))}
-          />
-        </Panel>
-
-        {isCurrent ? (
-          <>
-            <Panel title="Yield by Bucket" subtitle="Season total in lbs, to spot weak trees.">
-              <div className="space-y-5 py-2">
-                {yields.map((item, index) => (
-                  <div key={item.bucketId} className="grid grid-cols-[44px_1fr_44px] items-center gap-4">
-                    <span className="text-sm">{item.label}</span>
-                    <div className="h-3 overflow-hidden rounded-full bg-progress-track">
-                      <div
-                        className="anim-grow h-full rounded-full bg-accent-mid"
-                        style={{ width: `${(item.total / maxYield) * 100}%`, animationDelay: `${index * 120}ms` }}
+      {/* Charts and wide tables on the left, summaries on the right; each column stacks on its own. */}
+      <div className="mb-6 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)] xl:items-start">
+        <div className="flex min-w-0 flex-col gap-5">
+          <Panel title="Daily Sap Collected (lbs)" subtitle={`Season ${py} against ${cy}, by day of the season.`}>
+            {dailyData.some((point) => Object.values(point).some((value) => typeof value === "number" && value > 0)) ? (
+              <ResponsiveContainer width="100%" height={240}>
+                <LineChart data={dailyData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+                  <CartesianGrid vertical={false} stroke="#ECECE6" />
+                  <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
+                  <YAxis tick={axisTick} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={tooltipContentStyle}
+                    labelStyle={tooltipLabelStyle}
+                    itemStyle={tooltipItemStyle}
+                    cursor={lineCursor}
+                  />
+                  <Line
+                    type="linear"
+                    dataKey={py}
+                    stroke="#1A2318"
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={animations}
+                    animationDuration={900}
+                  />
+                  <Line
+                    type="linear"
+                    dataKey={cy}
+                    stroke="var(--color-slate)"
+                    strokeWidth={2}
+                    strokeDasharray="5 4"
+                    dot={false}
+                    isAnimationActive={animations}
+                    animationDuration={900}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <ChartEmpty height={240} />
+            )}
+            <div className="mt-2 flex gap-5 text-xs text-muted">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-0.5 w-4 bg-text" /> {py}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block w-4 border-t-2 border-dashed border-slate" /> {cy}
+              </span>
+            </div>
+          </Panel>
+          <Panel
+            title="Freeze-Thaw Days vs Sap per Day"
+            subtitle={`Dark bars had a hard freeze overnight and a thaw by midday. The dashed line is ${cy}.`}
+          >
+            {cycleData.some((point) => point.lbs > 0) ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <ComposedChart data={cycleData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+                  <XAxis dataKey="day" tick={axisTick} axisLine={false} tickLine={false} interval={1} />
+                  <YAxis tick={axisTick} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    contentStyle={tooltipContentStyle}
+                    labelStyle={tooltipLabelStyle}
+                    itemStyle={tooltipItemStyle}
+                    cursor={barCursor}
+                  />
+                  <Bar
+                    dataKey="lbs"
+                    name={py}
+                    radius={[4, 4, 0, 0]}
+                    isAnimationActive={animations}
+                    animationDuration={900}
+                  >
+                    {cycleData.map((point) => (
+                      <Cell
+                        key={point.day}
+                        fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"}
                       />
+                    ))}
+                  </Bar>
+                  <Line
+                    type="monotone"
+                    dataKey="compare"
+                    name={cy}
+                    stroke="var(--color-slate)"
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    dot={false}
+                    isAnimationActive={animations}
+                    animationDuration={900}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <ChartEmpty height={220} />
+            )}
+          </Panel>
+          {isCurrent ? (
+            <>
+              <Panel title="Yield by Bucket" subtitle="Season total in lbs, to spot weak trees.">
+                <div className="space-y-5 py-2">
+                  {yields.map((item, index) => (
+                    <div key={item.bucketId} className="grid grid-cols-[44px_1fr_44px] items-center gap-4">
+                      <span className="text-sm">{item.label}</span>
+                      <div className="h-3 overflow-hidden rounded-full bg-progress-track">
+                        <div
+                          className="anim-grow h-full rounded-full bg-accent-mid"
+                          style={{ width: `${(item.total / maxYield) * 100}%`, animationDelay: `${index * 120}ms` }}
+                        />
+                      </div>
+                      <span className="text-right font-sans text-sm font-semibold">{item.total}</span>
                     </div>
-                    <span className="text-right font-sans text-sm font-semibold">{item.total}</span>
-                  </div>
-                ))}
-              </div>
-            </Panel>
-
-            <Panel title="Bucket Detail" subtitle="Scrolls when there are more trees.">
-              <div className="max-h-72 overflow-y-auto">
+                  ))}
+                </div>
+              </Panel>
+              <Panel title="Batches: Sap in and Syrup Out" subtitle="Only boiled batches count toward the ratio.">
                 <DataTable
+                  empty="No batches yet this season."
                   columns={[
-                    { key: "bucket", label: "Bucket" },
-                    { key: "total", label: "Total", align: "right" },
-                    { key: "perDay", label: "Per day", align: "right" },
+                    { key: "batch", label: "Batch" },
+                    { key: "date", label: "Date" },
+                    { key: "sapIn", label: "Sap in" },
+                    { key: "syrup", label: "Syrup out" },
+                    { key: "brix", label: "Brix" },
+                    { key: "ratio", label: "Ratio" },
+                    { key: "water", label: "Water removed" },
                   ]}
-                  rows={yields.map((item) => ({
-                    key: String(item.bucketId),
-                    cells: { bucket: item.label, total: item.total, perDay: item.perDay },
+                  rows={batches.map((batch) => {
+                    const done = batch.status === "completed" && batch.syrupOutLbs > 0;
+                    return {
+                      key: batch.id,
+                      cells: {
+                        batch: batch.batchNumber.replace("Batch ", ""),
+                        date: monthDay(batch.date),
+                        sapIn: weight(batch.sapInLbs),
+                        syrup: done ? weight(batch.syrupOutLbs) : "—",
+                        brix: done ? `${batch.brix}°` : "—",
+                        ratio: done ? `${(batch.sapInLbs / batch.syrupOutLbs).toFixed(1)} : 1` : "—",
+                        water: done
+                          ? `${Math.round(((batch.sapInLbs - batch.syrupOutLbs) / batch.sapInLbs) * 100)}%`
+                          : "—",
+                      },
+                    };
+                  })}
+                />
+              </Panel>
+            </>
+          ) : (
+            <Card className="text-sm text-muted">
+              Per-bucket yield, batch and pickup detail is kept for the current season only. Pick Season {year(current)}{" "}
+              to see it.
+            </Card>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-col gap-5">
+          <Panel title="Season Totals">
+            <DataTable
+              columns={[
+                { key: "label", label: "" },
+                { key: "p", label: py, align: "right" },
+                { key: "c", label: cy, align: "right" },
+              ]}
+              rows={[
+                ["Total sap", weight(primary.totalSapLbs), weight(compare.totalSapLbs)],
+                ["Peak day", weight(pStats.peakLbs), weight(cStats.peakLbs)],
+                ["Best day", pStats.bestDay, cStats.bestDay],
+                ["Avg temp", temp(primary.avgTempF), temp(compare.avgTempF)],
+                ["Collections", String(primary.totalCollections), String(compare.totalCollections)],
+                ["Freeze-thaw days", String(pStats.cycleDays), String(cStats.cycleDays)],
+              ].map(([label, p, c]) => ({ key: label!, cells: { label, p, c } }))}
+            />
+          </Panel>
+          <Panel title="Freeze-Thaw Summary">
+            <DataTable
+              columns={[
+                { key: "label", label: "" },
+                { key: "p", label: py, align: "right" },
+                { key: "c", label: cy, align: "right" },
+              ]}
+              rows={[
+                ["Cycle days", String(pStats.cycleDays), String(cStats.cycleDays)],
+                ["Avg lbs, cycle day", pStats.avgCycleLbs.toFixed(1), cStats.avgCycleLbs.toFixed(1)],
+                ["Avg lbs, other day", pStats.avgOtherLbs.toFixed(1), cStats.avgOtherLbs.toFixed(1)],
+                [
+                  "Sap from cycle days",
+                  `${Math.round(pStats.cycleShare * 100)}%`,
+                  `${Math.round(cStats.cycleShare * 100)}%`,
+                ],
+              ].map(([label, p, c]) => ({ key: label!, cells: { label, p, c } }))}
+            />
+          </Panel>
+          {isCurrent ? (
+            <>
+              <Panel title="Bucket Detail" subtitle="Scrolls when there are more trees.">
+                <div className="max-h-72 overflow-y-auto">
+                  <DataTable
+                    columns={[
+                      { key: "bucket", label: "Bucket" },
+                      { key: "total", label: "Total", align: "right" },
+                      { key: "perDay", label: "Per day", align: "right" },
+                    ]}
+                    rows={yields.map((item) => ({
+                      key: String(item.bucketId),
+                      cells: { bucket: item.label, total: item.total, perDay: item.perDay },
+                    }))}
+                  />
+                </div>
+              </Panel>
+              <Panel title="Overdue Pickups" subtitle="Collections made after the sap-age limit.">
+                <DataTable
+                  empty="Every collection was on time."
+                  columns={[
+                    { key: "date", label: "Date" },
+                    { key: "bucket", label: "Bucket" },
+                    { key: "hours", label: "Hours overdue", align: "right" },
+                  ]}
+                  rows={overdue.map((row) => ({
+                    key: `${row.date}-${row.bucket}`,
+                    cells: { date: monthDay(row.date), bucket: row.bucket, hours: row.hoursOver.toFixed(1) },
                   }))}
                 />
-              </div>
-            </Panel>
-
-            <Panel title="Batches: Sap in and Syrup Out" subtitle="Only boiled batches count toward the ratio.">
-              <DataTable
-                empty="No batches yet this season."
-                columns={[
-                  { key: "batch", label: "Batch" },
-                  { key: "date", label: "Date" },
-                  { key: "sapIn", label: "Sap in" },
-                  { key: "syrup", label: "Syrup out" },
-                  { key: "brix", label: "Brix" },
-                  { key: "ratio", label: "Ratio" },
-                  { key: "water", label: "Water removed" },
-                ]}
-                rows={batches.map((batch) => {
-                  const done = batch.status === "completed" && batch.syrupOutLbs > 0;
-                  return {
-                    key: batch.id,
-                    cells: {
-                      batch: batch.batchNumber.replace("Batch ", ""),
-                      date: monthDay(batch.date),
-                      sapIn: weight(batch.sapInLbs),
-                      syrup: done ? weight(batch.syrupOutLbs) : "—",
-                      brix: done ? `${batch.brix}°` : "—",
-                      ratio: done ? `${(batch.sapInLbs / batch.syrupOutLbs).toFixed(1)} : 1` : "—",
-                      water: done
-                        ? `${Math.round(((batch.sapInLbs - batch.syrupOutLbs) / batch.sapInLbs) * 100)}%`
-                        : "—",
-                    },
-                  };
-                })}
-              />
-            </Panel>
-
-            <Panel title="Overdue Pickups" subtitle="Collections made after the sap-age limit.">
-              <DataTable
-                empty="Every collection was on time."
-                columns={[
-                  { key: "date", label: "Date" },
-                  { key: "bucket", label: "Bucket" },
-                  { key: "hours", label: "Hours overdue", align: "right" },
-                ]}
-                rows={overdue.map((row) => ({
-                  key: `${row.date}-${row.bucket}`,
-                  cells: { date: monthDay(row.date), bucket: row.bucket, hours: row.hoursOver.toFixed(1) },
-                }))}
-              />
-            </Panel>
-          </>
-        ) : (
-          <Card className="text-sm text-muted xl:col-span-2">
-            Per-bucket yield, batch and pickup detail is kept for the current season only. Pick Season {year(current)}{" "}
-            to see it.
-          </Card>
-        )}
+              </Panel>
+            </>
+          ) : null}
+        </div>
       </div>
 
       <Panel title="Season Notes" subtitle="Generated from the data. Check anything unusual before relying on it.">

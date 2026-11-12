@@ -339,7 +339,7 @@ export function matchesFilter(station: StationView, filter: StationFilter): bool
   if (filter === "filling") return station.status === "filling";
   if (filter === "due") return station.status === "due" || station.status === "full";
   if (filter === "problems") return station.status === "lowBattery" || station.status === "offline";
-  return station.status === "maintenance";
+  return station.status === "maintenance" || station.status === "emptying";
 }
 
 /** Most urgent first, then bucket order. */
@@ -349,7 +349,8 @@ const statusRank: Record<StationStatus, number> = {
   lowBattery: 2,
   due: 3,
   filling: 4,
-  maintenance: 5,
+  emptying: 5,
+  maintenance: 6,
 };
 
 export function byUrgency(a: StationView, b: StationView): number {
@@ -367,4 +368,5 @@ export const stationStatusMeta: Record<
   lowBattery: { label: "Low battery", color: "#A3221A", bg: "#FBE3E0", bar: "var(--color-status-offline)" },
   offline: { label: "No signal", color: "#A3221A", bg: "#ECECE6", bar: "#B8B8B0" },
   maintenance: { label: "Maintenance", color: "#5E5A50", bg: "#ECECE6", bar: "#B8B8B0" },
+  emptying: { label: "Being emptied", color: "#2E4A62", bg: "#E4ECF2", bar: "#7E98B0" },
 };

@@ -29,18 +29,18 @@ export default function StationTile({
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="font-sans text-lg font-semibold">{station.name}</span>
+        <span className="font-sans text-base font-semibold">{station.name}</span>
         <StatusBadge status={station.status} />
       </div>
-      <span className="mt-1 text-body text-muted">{station.location}</span>
+      <span className="mt-1 text-sm text-muted">{station.location}</span>
       <div className={cx("mt-4 mb-3", inactive && "opacity-60")}>
-        <span className="font-sans text-3xl font-bold">{weight(station.currentLbs, false, true)}</span>
-        <span className="ml-1.5 text-body text-muted">/ {weight(station.capacityLbs)}</span>
+        <span className="font-sans text-2xl font-semibold">{weight(station.currentLbs, false, true)}</span>
+        <span className="ml-1.5 text-sm text-muted">/ {weight(station.capacityLbs)}</span>
       </div>
       <div className={cx(inactive && "opacity-60")}>
-        <ProgressBar percent={percent} color={meta.bar} height={10} filling={station.status === "filling"} />
+        <ProgressBar percent={percent} color={meta.bar} height={10} filling />
       </div>
-      <p className="mt-3 text-body text-muted">
+      <p className="mt-3 text-sm text-muted">
         {percent}% full · Last reading {station.lastUpdated}
       </p>
     </button>

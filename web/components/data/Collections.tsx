@@ -1,14 +1,17 @@
 "use client";
 
 import { FullIcon, PlusIcon } from "@/components/icons";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useLive } from "@/components/live/LiveProvider";
 import { useSession } from "@/components/session/SessionProvider";
-import LogCollectionModal from "@/components/stations/LogCollectionModal";
+import LogCollectionModal, { type GuidedCollection } from "@/components/stations/LogCollectionModal";
 import { useStationCards } from "@/components/stations/StationStateProvider";
 import PersonPicker from "@/components/ui/PersonPicker";
-import { Button, ConfirmModal, EmptyState, Field, inputClass, Modal, PageHeader } from "@/components/ui/ui";
-import { batchStatusLabel } from "@/lib/batchStatus";
+import Select from "@/components/ui/Select";
+import { Button, ConfirmModal, EmptyState, Field, inputClass, Modal, NumberBox, PageHeader } from "@/components/ui/ui";
+import { useBatchState } from "@/components/data/BatchStateProvider";
+import { batchStatusLabel, NEW_BATCH, newBatchOption } from "@/lib/batchStatus";
 import type { LiveDay } from "@/lib/live/day";
 import type { Collection, CollectionEntry } from "@/lib/types/schema";
 
@@ -112,15 +115,7 @@ function BucketEntryPopup({
       }
     >
       <div className="space-y-4 pb-2">
-        <Field label="Weight (lbs)">
-          <input
-            type="number"
-            inputMode="decimal"
-            value={lbs}
-            onChange={(event) => setLbs(event.target.value)}
-            className={inputClass}
-          />
-        </Field>
+        <NumberBox label="Weight collected" value={lbs} onChange={setLbs} unit="lbs" />
         <Field label="Collected by">
           <PersonPicker
             label="Collected by"
@@ -150,10 +145,10 @@ function EditCollectionSheet({
   onClose: () => void;
 }) {
   const { send } = useLive();
-  const { user } = useSession();
+  const { user, can } = useSession();
+  const { startBatch } = useBatchState();
   const stations = useStationCards();
   const collectors = useCollectors();
-  const [date, setDate] = useState(collection.date);
   const [batchId, setBatchId] = useState(
     day.batches.find((batch) => batch.batchNumber === collection.batchName)?.id ?? "",
   );
@@ -176,9 +171,17 @@ function EditCollectionSheet({
 
   async function save() {
     setSaving(true);
+    // "+ Start a new batch": created on save, so closing the sheet leaves no empty batch behind.
+    let batch: string | null = batchId || null;
+    if (batchId === NEW_BATCH) {
+      batch = await startBatch();
+      if (!batch) {
+        setSaving(false);
+        return;
+      }
+    }
     const ok = await send("PATCH", `/collections/${collection.id}`, {
-      date,
-      batchId: batchId || null,
+      batchId: batch,
       loggedBy,
       notes,
       by: user.name,
@@ -218,9 +221,10 @@ function EditCollectionSheet({
       }
     >
       <div className="space-y-4 pb-2">
-        <Field label="Date">
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={inputClass} />
-        </Field>
+        {/* The day it was logged; it does not change. */}
+        <p className="text-body text-muted">
+          Collected <span className="font-semibold text-text">{formatDate(collection.date)}</span>
+        </p>
 
         <div>
           <span className="mb-1.5 block text-sm text-muted">Buckets in this collection</span>
@@ -252,33 +256,46 @@ function EditCollectionSheet({
             ))}
           </ul>
           {/* Add one more bucket: pick it, then its weight and who collected it. */}
-          <select
-            value=""
-            disabled={addable.length === 0}
-            onChange={(event) => event.target.value && setAdding(Number(event.target.value))}
-            className={`${inputClass} mt-2`}
-            aria-label="Add a bucket to this collection"
-          >
-            <option value="" disabled>
-              {addable.length === 0 ? "Every working bucket is in this collection" : "+ Add Bucket"}
-            </option>
-            {addable.map((station) => (
-              <option key={station.bucketId} value={station.bucketId}>
-                {station.name} · {station.location}
-              </option>
-            ))}
-          </select>
+          <div className="mt-2">
+            <Select
+              label="Add a bucket to this collection"
+              value=""
+              onChange={(value) => value && setAdding(Number(value))}
+              disabled={addable.length === 0}
+              icon={<PlusIcon size={16} />}
+              placeholder={addable.length === 0 ? "Every working bucket is in this collection" : "Add Bucket"}
+              options={addable.map((station) => ({
+                value: String(station.bucketId),
+                label: station.name,
+                detail: `${station.location} · last reading ${station.currentLbs} lbs`,
+              }))}
+            />
+          </div>
         </div>
 
         <Field label="Batch">
-          <select value={batchId} onChange={(event) => setBatchId(event.target.value)} className={inputClass}>
-            <option value="">Not in a batch</option>
-            {day.batches.map((batch) => (
-              <option key={batch.id} value={batch.id}>
-                {batch.batchNumber} ({batchStatusLabel[batch.status]})
-              </option>
-            ))}
-          </select>
+          <Select
+            label="Batch"
+            value={batchId}
+            onChange={setBatchId}
+            options={[
+              { value: "", label: "Not in a batch" },
+              // Open batches only (plus the one it is in now): sap cannot go into a finished batch.
+              ...day.batches
+                .filter(
+                  (batch) =>
+                    batch.status === "active" ||
+                    batch.status === "waiting" ||
+                    batch.batchNumber === collection.batchName,
+                )
+                .map((batch) => ({
+                  value: batch.id,
+                  label: batch.batchNumber,
+                  detail: batchStatusLabel[batch.status],
+                })),
+              ...(can("batches:manage") ? [newBatchOption] : []),
+            ]}
+          />
         </Field>
 
         <Field label="Logged by">
@@ -380,6 +397,38 @@ export default function Collections({ day }: { day: LiveDay }) {
 
   const { can, user } = useSession();
   const { send } = useLive();
+  const router = useRouter();
+  const params = useSearchParams();
+  const stations = useStationCards();
+
+  // Next Step > Start Collection lands here with the bucket being emptied, its weight before
+  // emptying, and the collection the sap goes into ("new" or an id).
+  const emptyId = Number(params.get("empty"));
+  const into = params.get("into");
+  const emptyStation = stations.find((station) => station.bucketId === emptyId);
+  const guided: GuidedCollection | null =
+    emptyStation && into
+      ? {
+          bucketId: emptyStation.bucketId,
+          lbs: Number(params.get("lbs")) || emptyStation.currentLbs,
+          into: into === "new" ? null : (day.collections.find((collection) => collection.id === into) ?? null),
+        }
+      : null;
+
+  // Collecting first (still filling a batch, or not in one yet), then waiting, boiling and completed.
+  const stageOf = (collection: Collection) =>
+    day.batches.find((batch) => batch.batchNumber === collection.batchName)?.status ?? "active";
+  const collectionGroups = [
+    { id: "collecting", title: "Collecting", statuses: ["active"] },
+    { id: "waiting", title: "Waiting to Boil", statuses: ["waiting"] },
+    { id: "boiling", title: "Boiling", statuses: ["processing"] },
+    { id: "completed", title: "Completed", statuses: ["completed"] },
+  ]
+    .map((group) => ({
+      ...group,
+      items: day.collections.filter((collection) => group.statuses.includes(stageOf(collection))),
+    }))
+    .filter((group) => group.items.length > 0);
   // What you may do comes from lib/rbac.config.ts.
   const canAdd = can("collections:log");
   const isAdmin = can("collections:edit");
@@ -411,121 +460,139 @@ export default function Collections({ day }: { day: LiveDay }) {
           description="Nothing has been emptied into storage yet. Logged collections show here."
         />
       ) : (
-        <div className="flex flex-col gap-2">
-          {day.collections.map((collection) => {
-            const isOpen = expanded === collection.id;
-            const number = String(collection.collectionNumber).padStart(2, "0");
+        <div className="space-y-8">
+          {collectionGroups.map((group) => (
+            <section key={group.id}>
+              <h2 className="mb-3 flex items-baseline gap-2 font-sans text-base font-semibold max-md:pt-2">
+                {group.title}
+                <span className="text-sm font-normal text-muted">{group.items.length}</span>
+              </h2>
+              <div className="flex flex-col gap-2">
+                {group.items.map((collection) => {
+                  const isOpen = expanded === collection.id;
+                  const number = String(collection.collectionNumber).padStart(2, "0");
 
-            return (
-              <div
-                key={collection.id}
-                className="overflow-hidden rounded-2xl bg-white shadow-sm"
-                style={{ border: "1px solid var(--color-border)" }}
-              >
-                <div className="flex w-full items-center justify-between px-4 py-3.5">
-                  <button
-                    type="button"
-                    onClick={() => setExpanded(isOpen ? null : collection.id)}
-                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                  >
+                  return (
                     <div
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-sans text-xs font-bold text-white"
-                      style={{ background: "var(--color-accent)" }}
+                      key={collection.id}
+                      className="overflow-hidden rounded-2xl bg-white shadow-sm"
+                      style={{ border: "1px solid var(--color-border)" }}
                     >
-                      #{number}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="font-sans text-sm font-semibold">{formatDate(collection.date)}</div>
-                      <div className="text-sm text-muted">
-                        {collection.entries.length} bucket
-                        {collection.entries.length === 1 ? "" : "s"} · {collection.batchName}
-                      </div>
-                    </div>
-                  </button>
+                      <div className="flex w-full items-center justify-between px-4 py-3.5">
+                        <button
+                          type="button"
+                          onClick={() => setExpanded(isOpen ? null : collection.id)}
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        >
+                          <div
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-sans text-xs font-bold text-white"
+                            style={{ background: "var(--color-accent)" }}
+                          >
+                            #{number}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-sans text-sm font-semibold">{formatDate(collection.date)}</div>
+                            <div className="text-sm text-muted">
+                              {collection.entries.length} bucket
+                              {collection.entries.length === 1 ? "" : "s"} · {collection.batchName}
+                            </div>
+                          </div>
+                        </button>
 
-                  <div className="ml-3 flex shrink-0 items-center gap-3">
-                    <span className="font-sans text-sm font-bold">{collection.totalLbs} lbs</span>
-                    {isAdmin ? (
-                      <button
-                        type="button"
-                        onClick={() => setEditCollectionId(collection.id)}
-                        className="rounded-lg p-1.5 text-muted transition-colors hover:bg-gray-100"
-                        aria-label={`Edit collection ${number}`}
-                      >
-                        <EditIcon />
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => setExpanded(isOpen ? null : collection.id)}
-                      className="text-muted"
-                      aria-label={isOpen ? "Collapse" : "Expand"}
-                    >
-                      <ChevronIcon open={isOpen} />
-                    </button>
-                  </div>
-                </div>
-
-                {isOpen ? (
-                  <div className="border-t" style={{ borderColor: "var(--color-border)" }}>
-                    <div
-                      className="grid px-4 py-2 text-xs font-medium text-muted"
-                      style={{ gridTemplateColumns: "1fr 1fr 80px 32px" }}
-                    >
-                      <span>Bucket</span>
-                      <span>Collected By</span>
-                      <span>Weight</span>
-                      <span />
-                    </div>
-                    {collection.entries.map((entry, index) => (
-                      <div
-                        key={entry.bucketId}
-                        className="grid items-center px-4 py-2.5 text-sm"
-                        style={{
-                          gridTemplateColumns: "1fr 1fr 80px 32px",
-                          background: index % 2 === 0 ? "white" : "#F5F5F5",
-                          borderTop: "1px solid var(--color-border)",
-                        }}
-                      >
-                        <span className="font-medium">{entry.bucketName}</span>
-                        <span className="text-muted">{entry.collectedBy}</span>
-                        <span className="text-muted">{entry.lbs} lbs</span>
-                        {isAdmin ? (
+                        <div className="ml-3 flex shrink-0 items-center gap-3">
+                          <span className="font-sans text-sm font-bold">{collection.totalLbs} lbs</span>
+                          {isAdmin ? (
+                            <button
+                              type="button"
+                              onClick={() => setEditCollectionId(collection.id)}
+                              className="rounded-lg p-1.5 text-muted transition-colors hover:bg-gray-100"
+                              aria-label={`Edit collection ${number}`}
+                            >
+                              <EditIcon />
+                            </button>
+                          ) : null}
                           <button
                             type="button"
-                            onClick={() =>
-                              setEditRowKey({
-                                collectionId: collection.id,
-                                bucketId: entry.bucketId,
-                              })
-                            }
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-gray-200"
-                            aria-label={`Edit ${entry.bucketName} entry`}
+                            onClick={() => setExpanded(isOpen ? null : collection.id)}
+                            className="text-muted"
+                            aria-label={isOpen ? "Collapse" : "Expand"}
                           >
-                            <EditIcon />
+                            <ChevronIcon open={isOpen} />
                           </button>
-                        ) : (
-                          <span />
-                        )}
+                        </div>
                       </div>
-                    ))}
-                    {collection.notes ? (
-                      <div
-                        className="border-t px-4 py-3 text-sm text-muted"
-                        style={{ borderColor: "var(--color-border)", background: "#F5F5F5" }}
-                      >
-                        <span className="font-semibold text-text">Note:</span> {collection.notes}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
+
+                      {isOpen ? (
+                        <div className="border-t" style={{ borderColor: "var(--color-border)" }}>
+                          <div
+                            className="grid px-4 py-2 text-xs font-medium text-muted"
+                            style={{ gridTemplateColumns: "1fr 1fr 80px 32px" }}
+                          >
+                            <span>Bucket</span>
+                            <span>Collected By</span>
+                            <span>Weight</span>
+                            <span />
+                          </div>
+                          {collection.entries.map((entry, index) => (
+                            <div
+                              key={entry.bucketId}
+                              className="grid items-center px-4 py-2.5 text-sm"
+                              style={{
+                                gridTemplateColumns: "1fr 1fr 80px 32px",
+                                background: index % 2 === 0 ? "white" : "#F5F5F5",
+                                borderTop: "1px solid var(--color-border)",
+                              }}
+                            >
+                              <span className="font-medium">{entry.bucketName}</span>
+                              <span className="text-muted">{entry.collectedBy}</span>
+                              <span className="text-muted">{entry.lbs} lbs</span>
+                              {isAdmin ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditRowKey({
+                                      collectionId: collection.id,
+                                      bucketId: entry.bucketId,
+                                    })
+                                  }
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors hover:bg-gray-200"
+                                  aria-label={`Edit ${entry.bucketName} entry`}
+                                >
+                                  <EditIcon />
+                                </button>
+                              ) : (
+                                <span />
+                              )}
+                            </div>
+                          ))}
+                          {collection.notes ? (
+                            <div
+                              className="border-t px-4 py-3 text-sm text-muted"
+                              style={{ borderColor: "var(--color-border)", background: "#F5F5F5" }}
+                            >
+                              <span className="font-semibold text-text">Note:</span> {collection.notes}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </section>
+          ))}
         </div>
       )}
 
       {showAdd ? <LogCollectionModal bucketId={null} onClose={() => setShowAdd(false)} /> : null}
+      {guided ? (
+        <LogCollectionModal
+          key={`${guided.bucketId}-${into}`}
+          bucketId={guided.bucketId}
+          guided={guided}
+          onClose={() => router.replace("/data/collections")}
+        />
+      ) : null}
       {editCollection ? (
         <EditCollectionSheet collection={editCollection} day={day} onClose={() => setEditCollectionId(null)} />
       ) : null}

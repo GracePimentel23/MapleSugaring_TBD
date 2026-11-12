@@ -25,11 +25,12 @@ function StationDetail({
   onEdit: () => void;
 }) {
   const { can, shows } = useSession();
-  const { weight, weightUnit, animations } = useClubSettings();
+  const { weight, animations } = useClubSettings();
   const { toggleMaintenance, maintenance } = useStationState();
   const meta = stationStatusMeta[station.status];
   const percent = Math.round(Math.min(station.fillPercent, 100));
   const entry = maintenance[station.bucketId];
+  const showAlerts = station.alerts.length > 0 && shows("stations.alerts");
 
   const chartData = station.trend.map((lbs, index) => ({ day: `Day ${index + 1}`, lbs }));
 
@@ -55,17 +56,27 @@ function StationDetail({
         </div>
       }
     >
-      <div className="mb-5 grid grid-cols-2 gap-3">
-        <InfoBox label="Current" value={weight(station.currentLbs, false, true)} unit={weightUnit} />
-        <InfoBox label="Target" value={weight(station.capacityLbs, false)} unit={weightUnit} />
-      </div>
+      {/* What each alert means, at the top in plain words; the red boxes below just name them. */}
+      {showAlerts ? (
+        <div className="mb-4 space-y-1">
+          {station.alerts.map((alert) => (
+            <p key={alert.key} className="text-body text-muted">
+              {alert.advice.replace(`${station.location}. `, "")}
+            </p>
+          ))}
+        </div>
+      ) : null}
 
+      {/* The same read as the station card: current out of target, then the level. */}
       <div className="mb-5">
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-body">Fill</span>
+        <div className="mb-2 flex items-baseline justify-between gap-3">
+          <span>
+            <span className="font-sans text-3xl font-bold">{weight(station.currentLbs, false, true)}</span>
+            <span className="ml-1.5 text-sm text-muted">/ {weight(station.capacityLbs)}</span>
+          </span>
           <span className="font-sans text-body font-semibold">{percent}%</span>
         </div>
-        <ProgressBar percent={percent} color={meta.bar} height={10} filling={station.status === "filling"} />
+        <ProgressBar percent={percent} color={meta.bar} height={10} filling />
       </div>
 
       <div className="mb-5 grid grid-cols-3 gap-3">
@@ -78,14 +89,14 @@ function StationDetail({
         />
       </div>
 
-      {station.alerts.length > 0 && shows("stations.alerts") ? (
+      {showAlerts ? (
         <div className="mb-5 space-y-2">
           {station.alerts.map((alert) => (
             <div
               key={alert.key}
-              className="rounded-xl border border-attention-border bg-attention-bg px-4 py-2.5 text-sm"
+              className="rounded-xl border border-attention-border bg-attention-bg px-4 py-2.5 text-sm font-semibold"
             >
-              <span className="font-semibold">{alert.title}.</span> <span className="text-muted">{alert.advice}</span>
+              {alert.title}
             </div>
           ))}
         </div>

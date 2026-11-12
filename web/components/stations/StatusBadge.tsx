@@ -1,6 +1,7 @@
 import {
   BatteryIcon,
   ClockIcon,
+  DropIcon,
   FullIcon,
   SignalOffIcon,
   WrenchIcon,
@@ -15,23 +16,41 @@ const statusIcon: Partial<Record<StationStatus, typeof ClockIcon>> = {
   lowBattery: BatteryIcon,
   offline: SignalOffIcon,
   maintenance: WrenchIcon,
+  emptying: DropIcon,
 };
 
 /**
  * A station's status as a tinted pill. Each status has its own icon as well as
- * its own color, so it reads without relying on color alone.
+ * its own color, so it reads without relying on color alone. `plain` drops the
+ * icon where the word is enough (the station cards).
  */
 export default function StatusBadge({
   status,
   size = "md",
+  plain = false,
   className,
 }: {
   status: StationStatus;
   size?: "sm" | "md";
+  plain?: boolean;
   className?: string;
 }) {
   const meta = stationStatusMeta[status];
   const Icon = statusIcon[status];
+  if (plain) {
+    return (
+      <span
+        className={cx(
+          "inline-flex shrink-0 items-center rounded-full font-sans font-semibold whitespace-nowrap",
+          size === "sm" ? "px-2 py-0.5 text-[12px] md:text-sm" : "px-2.5 py-1 text-xs md:text-sm",
+          className,
+        )}
+        style={{ color: meta.color, background: meta.bg }}
+      >
+        {meta.label}
+      </span>
+    );
+  }
   return (
     <span
       className={cx(

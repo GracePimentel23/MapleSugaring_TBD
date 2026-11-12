@@ -219,6 +219,17 @@ export function InfoIcon(props: IconProps) {
   );
 }
 
+/** A circled exclamation mark: "take note", e.g. beside "Weight alerts are paused". */
+export function ExclamationIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="10" cy="10" r="7.5" />
+      <path d="M10 6v4.8" />
+      <circle cx="10" cy="13.6" r="0.5" fill="currentColor" />
+    </Svg>
+  );
+}
+
 export function MoreIcon(props: IconProps) {
   return (
     <Svg {...props}>

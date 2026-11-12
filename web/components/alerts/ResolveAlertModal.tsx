@@ -1,14 +1,19 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import AlertIcon from "@/components/alerts/AlertIcon";
+import { alertHeadlines, urgencyMeta, urgencyOf } from "@/components/alerts/AlertIcon";
+import { ExclamationIcon } from "@/components/icons";
 import { useLive } from "@/components/live/LiveProvider";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
+import Select from "@/components/ui/Select";
 import { lineCursor, tooltipContentStyle, tooltipItemStyle, tooltipLabelStyle } from "@/components/ui/chartTheme";
-import { Button, ChartEmpty, Checkbox, cx, InfoBox, inputClass, Modal } from "@/components/ui/ui";
+import { Button, ChartEmpty, Checkbox, cx, InfoBox, Modal, NumberBox, Steps } from "@/components/ui/ui";
+import { collectionIsOpen } from "@/lib/batchStatus";
+import { monthDay } from "@/lib/time";
 import { LITERS_TO_LBS } from "@/lib/units";
 import type { ClubAlert, StationView } from "@/lib/types/schema";
 
@@ -29,17 +34,6 @@ const flowFor: Record<ClubAlert["kind"], Flow> = {
   weather: "weather",
   sensor: "sensor",
   battery: "battery",
-};
-
-const titles: Record<Flow, string> = {
-  capacity: "Reaching Capacity",
-  sapAge: "Sap Waiting Too Long",
-  full: "At Capacity",
-  signal: "No Signal",
-  weight: "Weight Change",
-  weather: "Weather Alert",
-  sensor: "Sensor Error",
-  battery: "Low Battery",
 };
 
 /** "about 3 h", "under an hour", "more than a day" */
@@ -72,37 +66,30 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Steps({ items }: { items: string[] }) {
-  return (
-    <ol className="list-decimal space-y-1.5 pl-5 text-body text-text marker:text-muted">
-      {items.map((item) => (
-        <li key={item}>{item}</li>
-      ))}
-    </ol>
-  );
-}
-
 /** One radio-style choice card. */
 function Choice({
   selected,
   onSelect,
   title,
   detail,
+  disabled = false,
 }: {
   selected: boolean;
   onSelect: () => void;
   title: string;
   detail?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       role="radio"
       aria-checked={selected}
+      disabled={disabled}
       onClick={onSelect}
       className={cx(
-        "flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-colors",
-        selected ? "border-accent bg-accent-light" : "border-border bg-white hover:border-accent/40",
+        "flex w-full items-start gap-3 rounded-2xl border px-4 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        selected ? "border-accent bg-accent-light" : "border-border bg-white enabled:hover:border-accent/40",
       )}
     >
       <span
@@ -180,16 +167,31 @@ function WeightGraph({ bucketId }: { bucketId: number }) {
 export default function ResolveAlertModal({ alert, onClose }: { alert: ClubAlert; onClose: () => void }) {
   const { day } = useLive();
   const { user, can } = useSession();
-  const { weight, weightUnit } = useClubSettings();
+  const router = useRouter();
+  const { weight, weightUnit, maintenanceDefaults } = useClubSettings();
   const stations = useStationCards();
-  const { resolve, snooze, logCollection, addNote } = useStationState();
+  const { resolve, snooze, logCollection, addNote, startEmptying, cancelEmptying, setEmptyingInto } =
+    useStationState();
+  const emptyMinutes = maintenanceDefaults.emptyMinutes ?? 2;
   const station = stations.find((item) => item.bucketId === alert.bucketId) ?? null;
   const flow = flowFor[alert.kind];
   const canAct = can("alerts:resolve");
 
   const [choice, setChoice] = useState<string | null>(null);
   const [lbs, setLbs] = useState(station ? String(station.currentLbs) : "");
-  const [emptied, setEmptied] = useState(false);
+  const [collectStage, setCollectStage] = useState<"intro" | "where">("intro");
+  const [pauseFailed, setPauseFailed] = useState(false);
+  // The weight when Start Collection was pressed: what gets logged, even once the bucket reads 0.
+  const [startLbs, setStartLbs] = useState(0);
+  // "new", or "existing" with the collection picked from the dropdown
+  const [into, setInto] = useState<"new" | "existing">("new");
+  const [existingId, setExistingId] = useState("");
+  // Only collections still taking sap; most recent first.
+  const openCollections = day.collections.filter((collection) =>
+    collectionIsOpen(day.batches, collection.batchName),
+  );
+  // Adding a bucket to a logged collection is an edit, which the worker allows Managers and up.
+  const canAddToExisting = can("collections:edit");
   const [snoozeHours, setSnoozeHours] = useState(1);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
@@ -221,6 +223,17 @@ export default function ResolveAlertModal({ alert, onClose }: { alert: ClubAlert
     } else done(prefix);
   }
 
+  /** Start Collection: pause the bucket's weight alerts, then ask where the sap goes. */
+  async function beginCollection() {
+    if (!station) return;
+    setSaving(true);
+    setStartLbs(station.currentLbs);
+    const paused = await startEmptying(station, alert);
+    setSaving(false);
+    setPauseFailed(!paused);
+    setCollectStage("where");
+  }
+
   async function flagStation(note: string, resolution: string) {
     if (station) {
       setSaving(true);
@@ -231,19 +244,7 @@ export default function ResolveAlertModal({ alert, onClose }: { alert: ClubAlert
   }
 
   const weightField = (label: string) => (
-    <label className="mt-3 block">
-      <span className="mb-1.5 block text-sm text-muted">{label}</span>
-      <div className="flex items-center gap-2">
-        <input
-          type="number"
-          inputMode="decimal"
-          value={lbs}
-          onChange={(event) => setLbs(event.target.value)}
-          className={cx(inputClass, "max-w-40")}
-        />
-        <span className="text-sm text-muted">lbs</span>
-      </div>
-    </label>
+    <NumberBox label={label} value={lbs} onChange={setLbs} unit="lbs" className="mt-3 max-w-xs" />
   );
 
   let body: ReactNode = null;
@@ -254,34 +255,158 @@ export default function ResolveAlertModal({ alert, onClose }: { alert: ClubAlert
     </Button>
   );
 
-  if (flow === "capacity" || flow === "sapAge") {
+  // Bucket Full, sap waiting too long, and "Empty it now": the collection steps, then where the sap goes.
+  const collectSteps = [
+    <>
+      Press <span className="font-semibold">Start Collection</span>. Weight alerts on this bucket pause for{" "}
+      {emptyMinutes} minute{emptyMinutes === 1 ? "" : "s"}, so emptying it is not taken for a spill.
+    </>,
+    "Empty the bucket into the collection barrel.",
+    <>
+      Put the bucket back and press <span className="font-semibold">Finished Collection</span>.
+    </>,
+  ];
+  const startButton = (
+    <Button disabled={saving || !canAct || !station} onClick={() => void beginCollection()}>
+      {saving ? "Starting…" : "Start Collection"}
+    </Button>
+  );
+
+  if (collectStage === "where" && station) {
+    body = (
+      <>
+        {pauseFailed ? (
+          <p className="mb-4 flex items-start gap-2 font-sans text-body font-semibold text-status-problem">
+            <ExclamationIcon size={20} strokeWidth={2} className="mt-px shrink-0" />
+            Weight alerts could not be paused (a Manager has to start that), so empty it gently.
+          </p>
+        ) : (
+          <p className="mb-4 flex items-start gap-2 font-sans text-body font-semibold text-accent">
+            <ExclamationIcon size={20} strokeWidth={2} className="mt-px shrink-0" />
+            Weight alerts on {station.name} are paused for {emptyMinutes} minute{emptyMinutes === 1 ? "" : "s"}.
+          </p>
+        )}
+        <Section title="Where is this sap going?">
+          <div role="radiogroup" aria-label="Where is this sap going?" className="space-y-2">
+            <Choice selected={into === "new"} onSelect={() => setInto("new")} title="Start a new collection" />
+            <Choice
+              selected={into === "existing"}
+              onSelect={() => setInto("existing")}
+              title="Add to an existing collection"
+              detail={
+                !canAddToExisting
+                  ? "Managers only for now: adding to a logged collection is an edit."
+                  : openCollections.length === 0
+                    ? "No collection is open right now."
+                    : undefined
+              }
+              disabled={!canAddToExisting || openCollections.length === 0}
+            />
+            {into === "existing" ? (
+              <div className="pt-1 pl-1">
+                <Select
+                  label="Open collection"
+                  value={existingId}
+                  onChange={setExistingId}
+                  placeholder="Choose a collection"
+                  options={openCollections.map((collection) => ({
+                    value: collection.id,
+                    label: `Collection #${String(collection.collectionNumber).padStart(2, "0")}`,
+                    detail: `${monthDay(collection.date)} · ${collection.entries.map((entry) => entry.bucketName).join(", ")} · ${weight(collection.totalLbs)}`,
+                  }))}
+                />
+              </div>
+            ) : null}
+          </div>
+        </Section>
+        <Steps items={collectSteps} current={1} />
+      </>
+    );
+    footer = (
+      <>
+        <Button
+          variant="outline"
+          className="border-border text-text"
+          onClick={() => {
+            cancelEmptying(station.bucketId);
+            onClose();
+          }}
+        >
+          Cancel Collection
+        </Button>
+        <Button
+          disabled={into === "existing" && !existingId}
+          onClick={() => {
+            const target = into === "existing" ? existingId : "new";
+            setEmptyingInto(station.bucketId, target);
+            router.push(`/data/collections?empty=${station.bucketId}&into=${target}&lbs=${startLbs}`);
+            onClose();
+          }}
+        >
+          Continue
+        </Button>
+      </>
+    );
+  } else if (flow === "full" || flow === "sapAge") {
+    body = (
+      <>
+        {flow === "sapAge" ? (
+          <p className="mb-4 rounded-xl bg-[#FBF1D6] px-4 py-3 text-body text-text">
+            Sap starts to spoil once it has sat thawed for about a day, sooner in warm weather. Empty this bucket and
+            boil or chill the sap soon.
+          </p>
+        ) : null}
+        {station ? (
+          <div className="mb-5 grid grid-cols-3 gap-2.5">
+            <InfoBox label="Weight" value={weight(station.currentLbs, false, true)} unit={weightUnit} />
+            <InfoBox
+              label="Level"
+              value={Math.round(station.fillPercent)}
+              unit="%"
+              // Full is critical: the level is the reason, so it is tinted red.
+              className={flow === "full" ? "bg-attention-bg! text-status-problem" : undefined}
+            />
+            {flow === "sapAge" ? (
+              <InfoBox label="Sap age" value={station.sapAgeHours} unit="h" />
+            ) : (
+              <InfoBox label="Target" value={weight(station.capacityLbs, false)} unit={weightUnit} />
+            )}
+          </div>
+        ) : null}
+        <Section title="How to collect it">
+          <Steps items={collectSteps} current={0} />
+        </Section>
+      </>
+    );
+    footer = (
+      <>
+        {cancel}
+        {startButton}
+      </>
+    );
+  } else if (flow === "capacity") {
     body = (
       <>
         {station ? (
-          <div className="mb-5 grid grid-cols-3 gap-3">
+          <div className="mb-5 grid grid-cols-3 gap-2.5">
             <InfoBox label="Level" value={Math.round(station.fillPercent)} unit="%" />
-            {flow === "capacity" ? (
-              <InfoBox label="Fill rate" value={(station.sapFlowLph * LITERS_TO_LBS).toFixed(1)} unit="lbs/h" />
-            ) : (
-              <InfoBox label="Sap age" value={station.sapAgeHours} unit="h" />
-            )}
+            <InfoBox label="Fill rate" value={(station.sapFlowLph * LITERS_TO_LBS).toFixed(1)} unit="lbs/h" />
             <InfoBox label="Until full" value={untilFull(station)} />
           </div>
         ) : null}
-        <Section title="What to do">
-          <p className="mb-3 text-body text-muted">
-            {flow === "capacity"
-              ? "Plan to empty it before it overflows. Get a haul ready, or a backup bucket, and make room in storage or at the evaporator."
-              : "Sap starts to spoil once it has sat thawed for a day, sooner in warm weather. Empty it and boil or chill it soon."}
-          </p>
+        <Section title="What are you doing about it?">
           <div role="radiogroup" aria-label="What are you doing about it?" className="space-y-2">
             <Choice
               selected={choice === "now"}
               onSelect={() => setChoice("now")}
-              title="Emptying now"
-              detail="Logs the collection with the weight below."
+              title="Empty it now"
+              detail="Start a collection for this bucket."
             />
-            {choice === "now" ? weightField("Weight collected") : null}
+            {choice === "now" ? (
+              <div className="py-2 pl-1">
+                <Steps items={collectSteps} current={0} />
+              </div>
+            ) : null}
             <Choice
               selected={choice === "later"}
               onSelect={() => setChoice("later")}
@@ -312,8 +437,8 @@ export default function ResolveAlertModal({ alert, onClose }: { alert: ClubAlert
             <Choice
               selected={choice === "switch"}
               onSelect={() => setChoice("switch")}
-              title="Switched to another tank"
-              detail="A backup bucket is taking the sap for now."
+              title="Switched to a backup bucket"
+              detail="Another bucket is taking the sap for now."
             />
           </div>
         </Section>
@@ -322,50 +447,21 @@ export default function ResolveAlertModal({ alert, onClose }: { alert: ClubAlert
     footer = (
       <>
         {cancel}
-        <Button
-          disabled={!choice || saving || !canAct}
-          onClick={() => {
-            if (choice === "now") void emptyAndResolve("Emptied");
-            else if (choice === "later") {
-              snooze(alert, snoozeHours);
-              onClose();
-            } else done("Switched to another tank");
-          }}
-        >
-          {choice === "later" ? "Snooze" : saving ? "Saving…" : "Resolve"}
-        </Button>
-      </>
-    );
-  }
-
-  if (flow === "full") {
-    body = (
-      <>
-        <div className="mb-5 rounded-2xl border border-attention-border bg-attention-bg px-4 py-3">
-          <p className="font-sans text-body font-bold text-status-problem">Empty this bucket now.</p>
-          <p className="mt-1 text-sm text-text">
-            It is at the full mark, so sap may be overflowing and lost. Sap spoils quickly in warm weather: boil it or
-            keep it cold once it is out.
-          </p>
-        </div>
-        {station ? (
-          <div className="mb-5 grid grid-cols-2 gap-3">
-            <InfoBox label="Current" value={weight(station.currentLbs, false, true)} unit={weightUnit} />
-            <InfoBox label="Target" value={weight(station.capacityLbs, false)} unit={weightUnit} />
-          </div>
-        ) : null}
-        <Section title="Once it is emptied">
-          <Checkbox checked={emptied} onChange={setEmptied} label="Tank emptied" />
-          {weightField("Volume collected (optional)")}
-        </Section>
-      </>
-    );
-    footer = (
-      <>
-        {cancel}
-        <Button disabled={!emptied || saving || !canAct} onClick={() => void emptyAndResolve("Tank emptied")}>
-          {saving ? "Saving…" : "Confirm Emptied"}
-        </Button>
+        {choice === "now" ? (
+          startButton
+        ) : (
+          <Button
+            disabled={!choice || !canAct}
+            onClick={() => {
+              if (choice === "later") {
+                snooze(alert, snoozeHours);
+                onClose();
+              } else done("Switched to a backup bucket");
+            }}
+          >
+            {choice === "later" ? "Snooze" : "Resolve"}
+          </Button>
+        )}
       </>
     );
   }
@@ -580,30 +676,25 @@ export default function ResolveAlertModal({ alert, onClose }: { alert: ClubAlert
 
   return (
     <Modal
-      title={titles[flow]}
+      title={alertHeadlines[alert.kind]}
       eyebrow={where}
       width="lg"
-      badge={
+      tag={
         <span
-          className={cx(
-            "rounded-full px-2.5 py-1 font-sans text-xs font-semibold",
-            alert.severity === "critical" ? "bg-attention-bg text-status-problem" : "bg-[#FBF1D6] text-status-due",
-            flow === "weather" && "bg-weather-bg text-weather-text",
-          )}
+          className="rounded-full px-2.5 py-1 font-sans text-xs font-semibold whitespace-nowrap"
+          style={{ background: urgencyMeta[urgencyOf(alert)].bg, color: urgencyMeta[urgencyOf(alert)].color }}
         >
-          {flow === "weather" ? "Info" : alert.severity === "critical" ? "Critical" : "Warning"}
+          {urgencyMeta[urgencyOf(alert)].label}
         </span>
       }
       onClose={onClose}
       footer={canAct ? footer : cancel}
     >
-      <div className="mb-5 flex items-start gap-3">
-        <AlertIcon kind={alert.kind} size={24} />
-        <div>
-          <p className="font-sans text-body font-semibold">{alert.title}</p>
-          <p className="text-sm text-muted">{alert.advice}</p>
-        </div>
-      </div>
+      {/* The full title ("sap has waited 164 hours"); the list only shows the short one. Bucket Full
+          and the collecting step leave it out: the heading and eyebrow already say it. */}
+      {flow === "full" || collectStage === "where" ? null : (
+        <p className="mb-5 font-sans text-body font-semibold">{alert.title}</p>
+      )}
       {body}
     </Modal>
   );

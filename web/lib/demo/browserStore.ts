@@ -15,8 +15,13 @@ import { useCallback, useEffect, useState } from "react";
  *   alertNotes   How a worker alert (full, no signal, knocked over, sensor fault) was resolved, e.g.
  *                "Emptied, 9.4 lbs logged". The worker records who resolved it and when, not how.
  *                To remove: add a note column to the worker's alerts and send it with PATCH /alerts/:id.
+ *   emptying     Buckets someone pressed Start Collection on: the weight they had, the alert it answers,
+ *                and when the window ends, plus where the sap is going. The worker's maintenance mode
+ *                pauses the alerts; this only remembers it was for emptying, so the app says "Being
+ *                emptied" and shows the countdown banner (Resume Alerts) instead of "Maintenance".
+ *                To remove: a worker station mode for emptying that does not log the drop by itself.
  */
-export type BrowserStore = "resolutions" | "snoozes" | "alertNotes";
+export type BrowserStore = "resolutions" | "snoozes" | "alertNotes" | "emptying";
 
 /** A list kept in this browser under `tbd.<store>`; empty on the server and until it has loaded. */
 export function useBrowserList<T>(store: BrowserStore): [T[], (update: (current: T[]) => T[]) => void] {

@@ -71,7 +71,7 @@ function StationCard({
           {station.name}
         </button>
         {/* The status stays at full strength even when the card is greyed out */}
-        <StatusBadge status={station.status} />
+        <StatusBadge status={station.status} plain />
       </div>
       <p className="text-sm text-muted">{treeLine(station)}</p>
 
@@ -82,11 +82,8 @@ function StationCard({
             / {weight(station.capacityLbs)} · {percent}%
           </span>
         </div>
-        <ProgressBar percent={percent} color={meta.bar} height={8} filling={station.status === "filling"} />
-        <div className="mt-4 flex gap-6 text-sm text-muted">
-          <span>Sap age {station.sapAgeHours} h</span>
-          <span>Battery {station.batteryLevel === null ? "—" : `${Math.round(station.batteryLevel)}%`}</span>
-        </div>
+        {/* Sap age and battery are in the station pop-up; the card stays to the level. */}
+        <ProgressBar percent={percent} color={meta.bar} height={8} filling />
         <p className="mt-3 text-sm text-muted">Last reading {station.lastUpdated}</p>
       </div>
     </article>

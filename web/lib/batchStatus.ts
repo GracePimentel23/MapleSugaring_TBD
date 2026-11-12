@@ -17,3 +17,21 @@ export const batchStatusLabel: Record<BatchStatus, string> = {
   active: batchStatusStyles.active.label,
   waiting: batchStatusStyles.waiting.label,
 };
+
+/** The Batch dropdown's "+ Start a new batch": the batch is only created when the form is saved. */
+export const NEW_BATCH = "__new__";
+
+export const newBatchOption = {
+  value: NEW_BATCH,
+  label: "+ Start a new batch",
+  detail: "Created when you save, starting today",
+};
+
+/**
+ * A collection still taking sap: its batch is still collecting, or it is not in a batch yet.
+ * Waiting, boiling and completed ones are closed: that sap is already in storage or the evaporator.
+ */
+export function collectionIsOpen(batches: { batchNumber: string; status: BatchStatus }[], batchName: string): boolean {
+  const batch = batches.find((item) => item.batchNumber === batchName);
+  return !batch || batch.status === "active";
+}

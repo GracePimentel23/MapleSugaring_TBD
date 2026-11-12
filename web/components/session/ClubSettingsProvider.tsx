@@ -112,6 +112,8 @@ export interface MaintenanceDefaults {
   /** Minutes of warning before it ends */
   warnMinutes: number;
   allowExtend: boolean;
+  /** Minutes weight alerts are paused once someone starts emptying a bucket (Start Collection) */
+  emptyMinutes?: number;
 }
 
 interface ClubSettingsValue {
@@ -156,6 +158,7 @@ export default function ClubSettingsProvider({ children }: { children: ReactNode
     autoOffHours: 4,
     warnMinutes: 30,
     allowExtend: true,
+    emptyMinutes: 2,
   });
   const [notificationPrefs, setNotificationPrefs] = usePersistent("notifications", defaultNotificationPrefs);
   const [recipients, setRecipients] = usePersistent<Record<Role, boolean>>("recipients", {

@@ -49,11 +49,11 @@ export default function Home() {
 
   return (
     <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
-      <h1 className="mt-2 font-sans max-md:pt-4 text-3xl font-bold tracking-tight md:text-[48px] md:leading-tight">
+      <h1 className="mt-2 font-sans max-md:pt-4 text-3xl font-bold tracking-tight md:text-[40px] md:leading-tight">
         {greeting()}
         {signedIn ? `, ${firstName(user.name)}` : ""}
       </h1>
-      <p className="mt-1 mb-7 text-body text-muted md:text-base">
+      <p className="mt-1 mb-7 text-body text-muted">
         {seasonLine} ·{" "}
         {attentionCount === 0
           ? "every bucket looks fine"
@@ -75,7 +75,7 @@ export default function Home() {
         <ShowFor id="dashboard.stations">
           <section>
             <div className="mb-4 flex items-center justify-between gap-3 max-md:pt-4">
-              <h2 className="font-sans text-xl font-semibold md:text-2xl">Buckets · {onlineCount} Online</h2>
+              <h2 className="font-sans text-lg font-semibold">Buckets · {onlineCount} Online</h2>
               <Link
                 href="/stations"
                 className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-white py-1.5 pr-2 pl-3.5 font-sans text-sm font-semibold text-accent transition-colors hover:border-accent hover:bg-accent-light"

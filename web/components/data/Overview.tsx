@@ -8,6 +8,7 @@ import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { barCursor, tooltipContentStyle, tooltipItemStyle, tooltipLabelStyle } from "@/components/ui/chartTheme";
 import { CalendarIcon, SnowflakeIcon, TrophyIcon } from "@/components/icons";
+import Select from "@/components/ui/Select";
 import { Card, ChartEmpty, PageHeader } from "@/components/ui/ui";
 import { sapSeasonOf, type LiveDay } from "@/lib/live/day";
 import { activityWhen, getRecentActivity } from "@/lib/selectors/activity";
@@ -255,18 +256,14 @@ export default function Overview({ day }: { day: LiveDay }) {
         title="Overview"
         subtitle="Full season summary and sap flow."
         actions={
-          <select
-            value={selected}
-            onChange={(event) => setSelected(event.target.value)}
-            aria-label="Season"
-            className="rounded-xl border-2 border-accent bg-white px-4 py-2.5 font-sans text-body font-semibold text-text outline-none"
-          >
-            {seasons.map((item) => (
-              <option key={item.season} value={item.season}>
-                {item.season}
-              </option>
-            ))}
-          </select>
+          <div className="w-48">
+            <Select
+              label="Season"
+              value={selected}
+              onChange={setSelected}
+              options={seasons.map((item) => ({ value: item.season, label: item.season }))}
+            />
+          </div>
         }
       />
 
@@ -321,7 +318,7 @@ export default function Overview({ day }: { day: LiveDay }) {
               <Stat
                 icon={<SnowflakeIcon size={20} />}
                 label="Freeze-Thaw Days"
-                value={`${cycles.filter(Boolean).length} so far`}
+                value={String(cycles.filter(Boolean).length)}
               />
               <Stat
                 icon={<TrophyIcon size={20} />}
@@ -340,9 +337,9 @@ export default function Overview({ day }: { day: LiveDay }) {
             </div>
           </Panel>
 
-          <section className="rounded-2xl border border-[#F0D9BC] bg-[#FAEBD7] p-5">
+          <section className="flex flex-col rounded-2xl border border-[#F0D9BC] bg-[#FAEBD7] p-5">
             <h2 className="mb-4 font-sans text-lg font-semibold text-[#4A2E0E]">Syrup Goal</h2>
-            <div className="flex items-center gap-5">
+            <div className="flex flex-1 items-center gap-5">
               <GoalBottle percent={goalPercent} />
               <div>
                 <p className="font-sans text-2xl font-bold text-[#4A2E0E]">
@@ -395,104 +392,69 @@ export default function Overview({ day }: { day: LiveDay }) {
         </Card>
       </div>
 
-      <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)]">
-        <Panel
-          title="Daily Sap Flow"
-          subtitle="Dark bars had a freeze overnight and a thaw by midday. The dashed line is average temperature."
-        >
-          <div className="mb-2 text-sm">
-            <div>
-              <span className="text-muted">Avg Temp</span>{" "}
-              <span className="font-semibold">{temp(season.avgTempF)}</span>
-            </div>
-            <div>
-              <span className="text-muted">Peak</span>{" "}
-              <span className="font-semibold">{peak ? `${weight(peak.lbs)} · ${peakDate}` : "—"}</span>
-            </div>
-          </div>
-          {chartData.some((point) => point.lbs > 0) ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart data={chartData} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
-                <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#8A8F86" }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="lbs" hide />
-                <YAxis yAxisId="temp" hide domain={["dataMin - 15", "dataMax + 5"]} />
-                <Tooltip
-                  contentStyle={tooltipContentStyle}
-                  labelStyle={tooltipLabelStyle}
-                  itemStyle={tooltipItemStyle}
-                  cursor={barCursor}
-                  formatter={(value, name) => (name === "temp" ? [`${value}°F`, "Temp"] : [`${value} lbs`, "Sap"])}
-                />
-                <Bar
-                  yAxisId="lbs"
-                  dataKey="lbs"
-                  radius={[4, 4, 4, 4]}
-                  maxBarSize={38}
-                  isAnimationActive={animations}
-                  animationDuration={900}
-                >
-                  {chartData.map((point) => (
-                    <Cell
-                      key={point.day}
-                      fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"}
-                    />
-                  ))}
-                </Bar>
-                <Line
-                  yAxisId="temp"
-                  type="monotone"
-                  dataKey="temp"
-                  stroke="var(--color-slate)"
-                  strokeWidth={2}
-                  strokeDasharray="4 4"
-                  dot={false}
-                  isAnimationActive={animations}
-                  animationDuration={900}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          ) : (
-            <ChartEmpty height={220} />
-          )}
-        </Panel>
-
-        {isCurrent ? (
+      {/* Two columns that stack on their own, so no box is stretched to match the one beside it. */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.85fr)_minmax(0,1fr)] lg:items-start">
+        <div className="flex min-w-0 flex-col gap-5">
           <Panel
-            title="Outlook"
-            subtitle="Sap runs best when nights drop below freezing and days climb past about 40°F. More drops, faster sap."
+            title="Daily Sap Flow"
+            subtitle="Dark bars had a freeze overnight and a thaw by midday. The dashed line is average temperature."
           >
-            {outlook.length === 0 ? (
-              <p className="text-sm text-muted">No forecast right now.</p>
+            <div className="mb-2 text-sm">
+              <div>
+                <span className="text-muted">Avg Temp</span>{" "}
+                <span className="font-semibold">{temp(season.avgTempF)}</span>
+              </div>
+              <div>
+                <span className="text-muted">Peak</span>{" "}
+                <span className="font-semibold">{peak ? `${weight(peak.lbs)} · ${peakDate}` : "—"}</span>
+              </div>
+            </div>
+            {chartData.some((point) => point.lbs > 0) ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <ComposedChart data={chartData} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
+                  <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#8A8F86" }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="lbs" hide />
+                  <YAxis yAxisId="temp" hide domain={["dataMin - 15", "dataMax + 5"]} />
+                  <Tooltip
+                    contentStyle={tooltipContentStyle}
+                    labelStyle={tooltipLabelStyle}
+                    itemStyle={tooltipItemStyle}
+                    cursor={barCursor}
+                    formatter={(value, name) => (name === "temp" ? [`${value}°F`, "Temp"] : [`${value} lbs`, "Sap"])}
+                  />
+                  <Bar
+                    yAxisId="lbs"
+                    dataKey="lbs"
+                    radius={[4, 4, 4, 4]}
+                    maxBarSize={38}
+                    isAnimationActive={animations}
+                    animationDuration={900}
+                  >
+                    {chartData.map((point) => (
+                      <Cell
+                        key={point.day}
+                        fill={point.cycle ? "var(--color-chart-bar)" : "var(--color-chart-bar-light)"}
+                      />
+                    ))}
+                  </Bar>
+                  <Line
+                    yAxisId="temp"
+                    type="monotone"
+                    dataKey="temp"
+                    stroke="var(--color-slate)"
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    dot={false}
+                    isAnimationActive={animations}
+                    animationDuration={900}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
             ) : (
-              <ul className="divide-y divide-border border-t border-border">
-                {outlook.map((item) => {
-                  const level = flowRating(item.lowF, item.highF);
-                  const rating = flowRatingMeta[level];
-                  return (
-                    <li key={item.date} className="grid grid-cols-[1fr_auto_1fr] items-center py-3">
-                      <span className="font-sans text-base font-semibold">{weekdayName(item.date, "short")}</span>
-                      <span className="text-sm text-muted">
-                        {temp(item.highF, false)} / {temp(item.lowF, false)}
-                      </span>
-                      <span
-                        className="flex items-center justify-end gap-2 font-sans text-base font-semibold"
-                        style={{ color: rating.color }}
-                      >
-                        <FlowDrops rating={level} />
-                        {rating.label}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
+              <ChartEmpty height={220} />
             )}
           </Panel>
-        ) : null}
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {isCurrent ? (
-          <>
+          {isCurrent ? (
             <Panel title="Batches" subtitle="Where each one is right now.">
               {batches.length === 0 ? (
                 <p className="text-sm text-muted">No batches yet.</p>
@@ -515,7 +477,43 @@ export default function Overview({ day }: { day: LiveDay }) {
                 </ul>
               )}
             </Panel>
-
+          ) : null}
+        </div>
+        <div className="flex min-w-0 flex-col gap-5">
+          {isCurrent ? (
+            <Panel
+              title="Outlook"
+              subtitle="Sap runs best when nights drop below freezing and days climb past about 40°F. More drops, faster sap."
+            >
+              {outlook.length === 0 ? (
+                <p className="text-sm text-muted">No forecast right now.</p>
+              ) : (
+                <ul className="divide-y divide-border border-t border-border">
+                  {outlook.map((item) => {
+                    const level = flowRating(item.lowF, item.highF);
+                    const rating = flowRatingMeta[level];
+                    return (
+                      // Fixed columns, so the drops line up row to row whatever the label says.
+                      <li
+                        key={item.date}
+                        className="grid grid-cols-[3rem_minmax(0,1fr)_auto_5.5rem] items-center gap-3 py-3"
+                      >
+                        <span className="font-sans text-body font-semibold">{weekdayName(item.date, "short")}</span>
+                        <span className="text-sm text-muted">
+                          {temp(item.highF, false)} / {temp(item.lowF, false)}
+                        </span>
+                        <FlowDrops rating={level} />
+                        <span className="font-sans text-sm font-semibold" style={{ color: rating.color }}>
+                          {rating.label}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Panel>
+          ) : null}
+          {isCurrent ? (
             <Panel title="Recent Activity" subtitle="Latest from the sugarbush.">
               {activity.length === 0 ? (
                 <p className="text-sm text-muted">Nothing yet this season.</p>
@@ -530,8 +528,8 @@ export default function Overview({ day }: { day: LiveDay }) {
                 </ul>
               )}
             </Panel>
-          </>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </div>
   );

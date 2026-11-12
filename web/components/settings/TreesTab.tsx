@@ -5,6 +5,7 @@ import { ChevronRightIcon, PlusIcon } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { AddStationModal, cleanName, LocationSelect } from "@/components/stations/StationForms";
+import Select from "@/components/ui/Select";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
 import {
   Button,
@@ -19,8 +20,6 @@ import {
   Toggle,
 } from "@/components/ui/ui";
 import type { StationView } from "@/lib/types/schema";
-
-const species = ["Sugar Maple", "Red Maple", "Black Maple", "Silver Maple", "Norway Maple"];
 
 function treeStatus(station: StationView): { label: string; color: string } {
   if (station.inMaintenance) return { label: "Maintenance", color: "var(--color-status-maintenance)" };
@@ -37,14 +36,12 @@ function EditTreeModal({ station, onClose }: { station: StationView; onClose: ()
   const { editTree, retireTree, toggleMaintenance } = useStationState();
   const [treeLabel, setTreeLabel] = useState(station.location === "No location set" ? "" : station.location);
   const [confirmRetire, setConfirmRetire] = useState(false);
-  const [treeSpecies, setTreeSpecies] = useState(station.treeSpecies);
   const [maintenance, setMaintenance] = useState(station.inMaintenance);
 
   async function save() {
     if (!treeLabel.trim()) return;
     const edit = {
       ...(cleanName(treeLabel) !== station.location ? { treeLabel: cleanName(treeLabel) } : {}),
-      ...(treeSpecies !== station.treeSpecies ? { treeSpecies } : {}),
     };
     if (Object.keys(edit).length && !(await editTree(station.bucketId, edit))) return;
     if (maintenance !== station.inMaintenance) toggleMaintenance(station.bucketId);
@@ -57,17 +54,11 @@ function EditTreeModal({ station, onClose }: { station: StationView; onClose: ()
         <Field label="Bucket">
           <input value={station.shortName} disabled className={inputClass} />
         </Field>
-        <Field label="Tree location">
+        <Field
+          label="Tree location"
+          hint={treeLabel.trim() ? undefined : <span className="text-status-problem">Choose where the tree is.</span>}
+        >
           <LocationSelect value={treeLabel} onChange={setTreeLabel} />
-        </Field>
-        <Field label="Species">
-          <select value={treeSpecies} onChange={(event) => setTreeSpecies(event.target.value)} className={inputClass}>
-            {species.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
         </Field>
         <Field
           label="Sensor ID"
@@ -156,7 +147,6 @@ export default function TreesTab() {
           columns={[
             { key: "bucket", label: "Bucket" },
             { key: "tree", label: "Tree" },
-            { key: "species", label: "Species" },
             { key: "sensor", label: "Sensor ID" },
             { key: "battery", label: "Battery" },
             { key: "seen", label: "Last seen" },
@@ -171,7 +161,6 @@ export default function TreesTab() {
               cells: {
                 bucket: station.shortName,
                 tree: station.treeLabel,
-                species: station.treeSpecies,
                 sensor: station.sensorId,
                 battery: station.batteryLevel === null ? "—" : `${Math.round(station.batteryLevel)}%`,
                 seen: station.lastUpdated,
@@ -194,36 +183,43 @@ export default function TreesTab() {
         />
         <div className="flex flex-wrap gap-4">
           <Field label="Switch off automatically after">
-            <select
-              value={maintenanceDefaults.autoOffHours}
-              disabled={!canEditDefaults}
-              onChange={(event) =>
-                setMaintenanceDefaults({ ...maintenanceDefaults, autoOffHours: Number(event.target.value) })
-              }
-              className={`${inputClass} min-w-[200px]`}
-            >
-              {[1, 2, 4, 8].map((hours) => (
-                <option key={hours} value={hours}>
-                  {hours} hour{hours === 1 ? "" : "s"}
-                </option>
-              ))}
-            </select>
+            <div className="min-w-[200px]">
+              <Select
+                label="Switch off automatically after"
+                value={String(maintenanceDefaults.autoOffHours)}
+                disabled={!canEditDefaults}
+                onChange={(value) => setMaintenanceDefaults({ ...maintenanceDefaults, autoOffHours: Number(value) })}
+                options={[1, 2, 4, 8].map((hours) => ({
+                  value: String(hours),
+                  label: `${hours} hour${hours === 1 ? "" : "s"}`,
+                }))}
+              />
+            </div>
           </Field>
           <Field label="Warn managers before it ends">
-            <select
-              value={maintenanceDefaults.warnMinutes}
-              disabled={!canEditDefaults}
-              onChange={(event) =>
-                setMaintenanceDefaults({ ...maintenanceDefaults, warnMinutes: Number(event.target.value) })
-              }
-              className={`${inputClass} min-w-[200px]`}
-            >
-              {[15, 30, 60].map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {minutes} minutes
-                </option>
-              ))}
-            </select>
+            <div className="min-w-[200px]">
+              <Select
+                label="Warn managers before it ends"
+                value={String(maintenanceDefaults.warnMinutes)}
+                disabled={!canEditDefaults}
+                onChange={(value) => setMaintenanceDefaults({ ...maintenanceDefaults, warnMinutes: Number(value) })}
+                options={[15, 30, 60].map((minutes) => ({ value: String(minutes), label: `${minutes} minutes` }))}
+              />
+            </div>
+          </Field>
+          <Field label="Time to empty a bucket" hint="Weight alerts pause this long after Start Collection.">
+            <div className="min-w-[200px]">
+              <Select
+                label="Time to empty a bucket"
+                value={String(maintenanceDefaults.emptyMinutes ?? 2)}
+                disabled={!canEditDefaults}
+                onChange={(value) => setMaintenanceDefaults({ ...maintenanceDefaults, emptyMinutes: Number(value) })}
+                options={[1, 2, 5, 10].map((minutes) => ({
+                  value: String(minutes),
+                  label: `${minutes} minute${minutes === 1 ? "" : "s"}`,
+                }))}
+              />
+            </div>
           </Field>
         </div>
         <div className="mt-5">

@@ -20,6 +20,7 @@ import {
 } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
+import EmptyingBanner from "@/components/stations/EmptyingBanner";
 import { Button, Card, cx } from "@/components/ui/ui";
 
 type PageId = "dashboard" | "stations" | "alerts" | "data" | "settings" | "account" | "demo";
@@ -195,10 +196,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="hidden items-center justify-between px-6 pt-5 pb-2 md:flex lg:px-10">
           <div className="flex items-center gap-3">
-            <span className="rounded-full bg-season-badge px-4 py-1.5 font-sans text-base font-semibold text-white">
+            <span className="rounded-full bg-season-badge px-3 py-1 font-sans text-sm font-semibold text-white">
               {day.meta.seasonLabel}
             </span>
-            <span className="font-sans text-base text-muted">{day.meta.currentDateLabel}</span>
+            <span className="text-sm text-muted">{day.meta.currentDateLabel}</span>
           </div>
           <div className="flex items-center gap-4">
             {synced ? <span className="text-sm text-muted">Synced {synced}</span> : null}
@@ -228,6 +229,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
               The API is not connected, so there is no station data to show. Check that the worker is running.
             </div>
           ) : null}
+          {/* A bucket being emptied shows on every page, with its countdown and Resume Alerts. */}
+          {allowed ? <EmptyingBanner /> : null}
           {allowed ? children : <NoAccess />}
         </main>
 

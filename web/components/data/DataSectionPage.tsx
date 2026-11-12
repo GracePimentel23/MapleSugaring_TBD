@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import Analysis from "@/components/data/Analysis";
 import Batches from "@/components/data/Batches";
@@ -39,7 +40,11 @@ export default function DataSectionPage({ section }: { section: DataSectionId })
 
       <div className="flex-1 md:pt-0">
         {section === "overview" ? <Overview day={day} /> : null}
-        {section === "collections" ? <Collections day={day} /> : null}
+        {section === "collections" ? (
+          <Suspense>
+            <Collections day={day} />
+          </Suspense>
+        ) : null}
         {section === "batches" ? <Batches day={day} /> : null}
         {section === "analysis" ? <Analysis day={day} /> : null}
       </div>

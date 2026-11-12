@@ -32,7 +32,7 @@ function AlertRow({
       <div className="flex min-w-0 flex-1 items-center gap-5">
         <AlertIcon kind={kind} size={28} />
         <div className="min-w-0">
-          <p className="font-sans text-base font-semibold md:text-lg">{title}</p>
+          <p className="font-sans text-body font-semibold">{title}</p>
           <p className="text-sm text-muted md:text-body">{context}</p>
         </div>
       </div>
@@ -50,14 +50,14 @@ function AlertsContent() {
   const { active, snoozed, maintenanceAlerts } = useAlerts();
   const { resolutions, alertNotes, focusStation, extendMaintenance, toggleMaintenance } = useStationState();
   const [filter, setFilter] = useState<Section | null>(null);
-  const [openKey, setOpenKey] = useState<string | null>(null);
-
-  // A notification links here with ?alert=<key>: open that alert's resolve pop-up.
-  const wanted = openKey ?? params.get("alert");
-  const opened = [...active, ...snoozed.map((item) => item.alert)].find((alert) => alert.key === wanted) ?? null;
+  // A notification links here with ?alert=<key>: open that alert's resolve pop-up. The alert itself is
+  // kept, since Start Collection pauses its bucket and takes it out of the live list.
+  const [opened, setOpened] = useState<ClubAlert | null>(
+    () => [...active, ...snoozed.map((item) => item.alert)].find((alert) => alert.key === params.get("alert")) ?? null,
+  );
 
   function closeResolve() {
-    setOpenKey(null);
+    setOpened(null);
     if (params.get("alert")) router.replace("/alerts");
   }
 
@@ -96,7 +96,7 @@ function AlertsContent() {
           </Button>
         ) : null}
         <Can permission="alerts:resolve">
-          <Button onClick={() => setOpenKey(alert.key)}>{alert.kind === "weather" ? "Acknowledge" : "Resolve"}</Button>
+          <Button onClick={() => setOpened(alert)}>{alert.kind === "weather" ? "Acknowledge" : "Resolve"}</Button>
         </Can>
       </>
     );
@@ -224,10 +224,16 @@ function AlertsContent() {
   );
 }
 
+/** Starts fresh for each ?alert=, so a notification opens its pop-up even when already on this page. */
+function AlertsForLink() {
+  const params = useSearchParams();
+  return <AlertsContent key={params.get("alert") ?? "none"} />;
+}
+
 export default function AlertsPage() {
   return (
     <Suspense>
-      <AlertsContent />
+      <AlertsForLink />
     </Suspense>
   );
 }

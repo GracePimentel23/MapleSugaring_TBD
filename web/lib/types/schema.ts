@@ -75,7 +75,9 @@ export type StationStatus =
   | "full"
   | "lowBattery"
   | "offline"
-  | "maintenance";
+  | "maintenance"
+  /** Someone started a collection: alerts paused for a few minutes while the bucket is emptied */
+  | "emptying";
 
 export type UserRole = "admin" | "student" | "guest";
 

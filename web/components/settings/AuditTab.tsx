@@ -1,5 +1,6 @@
 "use client";
 
+import Select from "@/components/ui/Select";
 import { useState } from "react";
 import { useLive } from "@/components/live/LiveProvider";
 import { useSession } from "@/components/session/SessionProvider";
@@ -19,18 +20,14 @@ function FilterSelect({
   allLabel: string;
 }) {
   return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="rounded-full border border-border bg-white px-4 py-2 font-sans text-sm font-semibold text-text outline-none"
-    >
-      <option value={ALL}>{allLabel}</option>
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
+    <div className="w-48">
+      <Select
+        label={allLabel}
+        value={value}
+        onChange={onChange}
+        options={[{ value: ALL, label: allLabel }, ...options.map((option) => ({ value: option, label: option }))]}
+      />
+    </div>
   );
 }
 
@@ -46,8 +43,7 @@ export default function AuditTab() {
   const actions = [...new Set(audit.map((entry) => entry.action))];
   const rows = audit.filter(
     (entry) =>
-      (userFilter === ALL || entry.user === userFilter) &&
-      (actionFilter === ALL || entry.action === actionFilter),
+      (userFilter === ALL || entry.user === userFilter) && (actionFilter === ALL || entry.action === actionFilter),
   );
   const weekAgo = new Date(`${day.date}T00:00:00Z`).getTime() - 6 * 86_400_000;
   const shown = period === "week" ? rows.filter((entry) => new Date(entry.at).getTime() >= weekAgo) : rows;
@@ -69,14 +65,17 @@ export default function AuditTab() {
       <CardTitle title="Audit Log" subtitle="Every edit, who made it, and what changed. Read-only." />
 
       <div className="mb-8 flex flex-wrap items-center gap-3">
-        <select
-          value={period}
-          onChange={(event) => setPeriod(event.target.value as "week" | "all")}
-          className="rounded-full border border-border bg-white px-4 py-2 font-sans text-sm font-semibold text-text outline-none"
-        >
-          <option value="week">Last 7 Days</option>
-          <option value="all">All Time</option>
-        </select>
+        <div className="w-44">
+          <Select
+            label="Period"
+            value={period}
+            onChange={(value) => setPeriod(value as "week" | "all")}
+            options={[
+              { value: "week", label: "Last 7 Days" },
+              { value: "all", label: "All Time" },
+            ]}
+          />
+        </div>
         <FilterSelect value={userFilter} onChange={setUserFilter} options={users} allLabel="All Users" />
         <FilterSelect value={actionFilter} onChange={setActionFilter} options={actions} allLabel="All Actions" />
       </div>

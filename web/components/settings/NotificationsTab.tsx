@@ -6,7 +6,21 @@ import {
   type Channel,
 } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
-import { Card, CardTitle, Checkbox, DataTable, inputClass } from "@/components/ui/ui";
+import Select from "@/components/ui/Select";
+import { Card, CardTitle, Checkbox, DataTable } from "@/components/ui/ui";
+
+/** "12:00 AM" … "11:30 PM", every half hour */
+const halfHours = Array.from({ length: 48 }, (_, index) => {
+  const hour = Math.floor(index / 2);
+  const minutes = index % 2 ? "30" : "00";
+  return `${hour % 12 || 12}:${minutes} ${hour < 12 ? "AM" : "PM"}`;
+});
+
+/** The saved time if it is not on the half hour, so it still shows. */
+function timeOptions(current: string) {
+  const times = halfHours.includes(current) || !current ? halfHours : [current, ...halfHours];
+  return times.map((time) => ({ value: time, label: time }));
+}
 
 const channels: { key: Channel; label: string }[] = [
   { key: "app", label: "In app" },
@@ -25,11 +39,11 @@ export default function NotificationsTab() {
     <>
       <Card className="md:px-8 md:py-7">
         <CardTitle
-          title="Who Gets Told, and How"
+          title="Alert Preferences"
           subtitle={
             isOwner
               ? "Alerts always show in the app first. Email and text are optional. Members can set their own under My account."
-              : "Your own alert preferences. Alerts always show in the app first; email and text are optional."
+              : "Alerts always show in the app first; email and text are optional."
           }
         />
         <DataTable
@@ -77,20 +91,24 @@ export default function NotificationsTab() {
 
       <Card className="md:px-8 md:py-7">
         <CardTitle title="Quiet Hours" subtitle="Only critical alerts break through." />
-        <div className="flex flex-wrap items-center gap-3">
-          <input
-            aria-label="Quiet hours start"
-            value={quietHours.from}
-            onChange={(event) => setQuietHours({ ...quietHours, from: event.target.value })}
-            className={`${inputClass} w-40`}
-          />
-          <span className="text-muted">to</span>
-          <input
-            aria-label="Quiet hours end"
-            value={quietHours.to}
-            onChange={(event) => setQuietHours({ ...quietHours, to: event.target.value })}
-            className={`${inputClass} w-40`}
-          />
+        <div className="flex items-center gap-2">
+          <div className="w-36">
+            <Select
+              label="Quiet hours start"
+              value={quietHours.from}
+              onChange={(from) => setQuietHours({ ...quietHours, from })}
+              options={timeOptions(quietHours.from)}
+            />
+          </div>
+          <span className="text-sm text-muted">to</span>
+          <div className="w-36">
+            <Select
+              label="Quiet hours end"
+              value={quietHours.to}
+              onChange={(to) => setQuietHours({ ...quietHours, to })}
+              options={timeOptions(quietHours.to)}
+            />
+          </div>
         </div>
       </Card>
     </>

@@ -34,27 +34,27 @@ export default function SummaryCards() {
         <section className="relative overflow-hidden rounded-3xl border border-[#D3DFC9] bg-[#E7EFE0] p-6 md:p-8">
           <LeafArt lbs={today?.lbs ?? 0} />
           <div className="relative">
-            <h2 className="font-sans text-lg font-semibold" style={{ color: sapTone }}>
+            <h2 className="font-sans text-base font-semibold" style={{ color: sapTone }}>
               Sap Collected Today
             </h2>
-            <div className="mt-1 font-sans text-5xl font-bold tracking-tight text-accent md:text-6xl">
+            <div className="mt-1 font-sans text-4xl font-bold tracking-tight text-accent">
               {weight(today?.lbs ?? 0)}
             </div>
-            <p className="mt-3 max-w-md text-body text-text md:text-base">{sapStory(day)}</p>
+            <p className="mt-3 max-w-md text-body text-text">{sapStory(day)}</p>
           </div>
         </section>
 
         <section className="relative overflow-hidden rounded-3xl border border-[#F0D9BC] bg-[#FAEBD7] p-6 md:p-8">
           <DropArt fill={syrupGoalLbs ? syrup / syrupGoalLbs : 0} />
           <div className="relative flex h-full flex-col">
-            <h2 className="font-sans text-lg font-semibold" style={{ color: syrupTone }}>
+            <h2 className="font-sans text-base font-semibold" style={{ color: syrupTone }}>
               Syrup This Season
             </h2>
-            <div className="mt-1 font-sans text-5xl font-bold tracking-tight text-[#4A2E0E] md:text-6xl">
+            <div className="mt-1 font-sans text-4xl font-bold tracking-tight text-[#4A2E0E]">
               {weight(syrup)}
             </div>
             {/* One line, like the sap card; the season's numbers live on Data > Overview. */}
-            <p className="mt-3 max-w-xs text-body md:text-base" style={{ color: syrupTone }}>
+            <p className="mt-3 max-w-xs text-body" style={{ color: syrupTone }}>
               {syrupGoalLbs
                 ? `${Math.round((syrup / syrupGoalLbs) * 100)}% of the ${weight(syrupGoalLbs)} goal · ${closed.length} of ${batches.length} batches boiled`
                 : `${closed.length} of ${batches.length} batches boiled`}
@@ -66,11 +66,11 @@ export default function SummaryCards() {
       <section className="relative overflow-hidden rounded-3xl border border-[#D3DDE6] bg-weather-bg p-6 text-weather-text md:p-8">
         <WeatherArt kind={weatherKind(day.weather)} />
         <div className="relative">
-          <h2 className="font-sans text-lg font-semibold">Weather · Rochester</h2>
-          <div className="mt-1 font-sans text-5xl font-bold tracking-tight text-[#1E3347]">
+          <h2 className="font-sans text-base font-semibold">Weather · Rochester</h2>
+          <div className="mt-1 font-sans text-4xl font-bold tracking-tight text-[#1E3347]">
             {day.weather.available ? temp(day.weather.temperatureF) : "—"}
           </div>
-          <p className="mt-2 text-body md:text-base">
+          <p className="mt-2 text-body">
             {day.weather.available
               ? `${day.weather.summary} · High ${temp(day.weather.highF, false)}, Low ${temp(day.weather.lowF, false)}`
               : "The forecast could not be reached right now."}
@@ -80,7 +80,7 @@ export default function SummaryCards() {
               {forecast.map((item) => (
                 <div key={item.date}>
                   <div className="text-sm">{weekdayName(item.date, "short")}</div>
-                  <div className="font-sans text-lg font-bold text-[#1E3347]">
+                  <div className="font-sans text-base font-semibold text-[#1E3347]">
                     {temp(item.highF, false)}/{temp(item.lowF, false)}
                   </div>
                 </div>

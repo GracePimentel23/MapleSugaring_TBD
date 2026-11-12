@@ -44,6 +44,8 @@ export interface BatchView {
 interface BatchStateValue {
   saveBatch: (batch: Batch, edit: BatchEdit, note: string) => Promise<boolean>;
   createBatch: (batch: NewBatch) => Promise<boolean>;
+  /** Start an empty batch (Collecting, today) for a collection to go into; resolves with its id */
+  startBatch: () => Promise<string | null>;
   viewBatch: (batch: Batch) => BatchView;
 }
 
@@ -108,6 +110,13 @@ export default function BatchStateProvider({ children }: { children: ReactNode }
     [call, user.name, assign],
   );
 
+  const startBatch = useCallback<BatchStateValue["startBatch"]>(
+    async () =>
+      (await call<{ id: string }>("POST", "/batches", { status: "active", createdBy: user.name, by: user.name }))
+        ?.id ?? null,
+    [call, user.name],
+  );
+
   const viewBatch = useCallback(
     (batch: Batch): BatchView => {
       const added = (notes.batch[batch.id.replace(/^b/, "")] ?? []).map((note) => {
@@ -132,7 +141,10 @@ export default function BatchStateProvider({ children }: { children: ReactNode }
     [notes, collectionsOf],
   );
 
-  const value = useMemo(() => ({ saveBatch, createBatch, viewBatch }), [saveBatch, createBatch, viewBatch]);
+  const value = useMemo(
+    () => ({ saveBatch, createBatch, startBatch, viewBatch }),
+    [saveBatch, createBatch, startBatch, viewBatch],
+  );
 
   return <BatchStateContext.Provider value={value}>{children}</BatchStateContext.Provider>;
 }

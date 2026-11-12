@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useBatchState, type BatchView } from "@/components/data/BatchStateProvider";
 import { DropIcon, MoreIcon, PencilIcon, PlusIcon } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { NotesList } from "@/components/stations/StationForms";
+import Popover from "@/components/ui/Popover";
 import {
   Button,
   Card,
@@ -357,50 +358,57 @@ function FinishBatchModal({ view, onClose }: { view: BatchView; onClose: () => v
 function ClosedRowMenu({ view, canEdit, onEdit }: { view: BatchView; canEdit: boolean; onEdit: () => void }) {
   const [open, setOpen] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="relative">
+    <div>
       <button
+        ref={anchor}
         type="button"
         onClick={() => setOpen(!open)}
         aria-label={`More for ${view.batch.batchNumber}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className="rounded-lg p-1.5 hover:bg-bg"
       >
         <MoreIcon size={20} />
       </button>
-      {open ? (
-        <>
+      {/* Drawn above the page, so the table's sideways scroll cannot cut it off. */}
+      <Popover
+        anchor={anchor}
+        panelRef={panel}
+        open={open}
+        onClose={() => setOpen(false)}
+        estimatedHeight={100}
+        className="w-56 p-1.5"
+      >
+        <div role="menu">
           <button
             type="button"
-            aria-label="Close menu"
-            className="fixed inset-0 z-20 cursor-default"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute top-full right-0 z-30 mt-1 w-56 rounded-xl border border-border bg-white p-1.5 text-left shadow-xl">
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                setShowNotes(true);
-              }}
-              className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-bg"
-            >
-              View notes ({view.notes.length})
-            </button>
-            <button
-              type="button"
-              disabled={!canEdit}
-              onClick={() => {
-                setOpen(false);
-                onEdit();
-              }}
-              className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-bg disabled:cursor-not-allowed disabled:text-muted"
-            >
-              {canEdit ? "Edit (override lock)" : "Edit · Owner / IT only"}
-            </button>
-          </div>
-        </>
-      ) : null}
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              setShowNotes(true);
+            }}
+            className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-bg"
+          >
+            View notes ({view.notes.length})
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!canEdit}
+            onClick={() => {
+              setOpen(false);
+              onEdit();
+            }}
+            className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-bg disabled:cursor-not-allowed disabled:text-muted"
+          >
+            {canEdit ? "Edit (override lock)" : "Edit · Owner / IT only"}
+          </button>
+        </div>
+      </Popover>
       {showNotes ? (
         <Modal title={`${view.batch.batchNumber} Notes`} onClose={() => setShowNotes(false)}>
           <div className="pb-6">

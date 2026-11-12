@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
-import { Button, cx, Field, InfoBox, inputClass, Modal } from "@/components/ui/ui";
+import Select from "@/components/ui/Select";
+import { Button, Field, InfoBox, inputClass, Modal } from "@/components/ui/ui";
 import type { StationNote, StationView } from "@/lib/types/schema";
 
 /** A number from a form field, or undefined when it is empty or not a number. */
@@ -76,26 +77,21 @@ export function LocationSelect({ value, onChange }: { value: string; onChange: (
     );
   }
   return (
-    <select
+    <Select
+      label="Tree location"
       value={value}
-      onChange={(event) => {
-        if (event.target.value === NEW_LOCATION) {
+      placeholder="Choose a location"
+      onChange={(next) => {
+        if (next === NEW_LOCATION) {
           setAdding(true);
           onChange("");
-        } else onChange(event.target.value);
+        } else onChange(next);
       }}
-      className={cx(inputClass, !value && "text-muted")}
-    >
-      <option value="" disabled>
-        Choose a location
-      </option>
-      {locations.map((location) => (
-        <option key={location} value={location}>
-          {location}
-        </option>
-      ))}
-      <option value={NEW_LOCATION}>+ Add a new location…</option>
-    </select>
+      options={[
+        ...locations.map((location) => ({ value: location, label: location })),
+        { value: NEW_LOCATION, label: "+ Add a new location" },
+      ]}
+    />
   );
 }
 
@@ -217,8 +213,12 @@ export function AddStationModal({ onClose }: { onClose: () => void }) {
       }
     >
       <div className="space-y-4">
+        <p className="text-sm text-muted">
+          <span className="text-status-problem">*</span> Required
+        </p>
         <Field
           label="Bucket name"
+          required
           hint={tried && nameError ? <span className="text-status-problem">{nameError}</span> : undefined}
         >
           <input
@@ -230,15 +230,17 @@ export function AddStationModal({ onClose }: { onClose: () => void }) {
         </Field>
         <Field
           label="Tree location"
+          required
           hint={tried && locationError ? <span className="text-status-problem">{locationError}</span> : undefined}
         >
           <LocationSelect value={location} onChange={setLocation} />
         </Field>
-        <InfoBox label="Target weight" className="focus-within:ring-2 focus-within:ring-accent-mid">
+        {/* Optional: left empty, the worker uses its standard bucket size. */}
+        <InfoBox label="Target weight (optional)" className="focus-within:ring-2 focus-within:ring-accent-mid">
           <BoxInput label="Target weight" value={target} onChange={setTarget} unit="lbs" placeholder="25" />
         </InfoBox>
         <Field
-          label="Sensor ID"
+          label="Sensor ID (optional)"
           hint="The LoRa node's ID, e.g. LC02. A node that reports on its own gets a station automatically."
         >
           <input
@@ -302,12 +304,14 @@ export function EditBucketModal({ station, onClose }: { station: StationView; on
       <div className="space-y-4">
         <Field
           label="Bucket name"
+          required
           hint={tried && nameError ? <span className="text-status-problem">{nameError}</span> : undefined}
         >
           <input value={name} onChange={(event) => setName(event.target.value)} className={inputClass} />
         </Field>
         <Field
           label="Tree location"
+          required
           hint={tried && locationError ? <span className="text-status-problem">{locationError}</span> : undefined}
         >
           <LocationSelect value={location} onChange={setLocation} />

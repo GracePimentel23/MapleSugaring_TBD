@@ -26,31 +26,29 @@ function Radio<T extends string>({
   options: { value: T; label: string }[];
   onChange: (value: T) => void;
 }) {
+  // A two-way toggle in the app's style, instead of browser radio circles.
   return (
-    <div className="flex gap-6">
+    <div role="radiogroup" aria-label={name} className="inline-flex rounded-xl border border-border bg-white p-1">
       {options.map((option) => (
-        <label key={option.value} className="flex cursor-pointer items-center gap-2 text-lg">
-          <input
-            type="radio"
-            name={name}
-            checked={value === option.value}
-            onChange={() => onChange(option.value)}
-            className="h-4 w-4 accent-[var(--color-accent-mid)]"
-          />
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          onClick={() => onChange(option.value)}
+          className={cx(
+            "min-w-16 rounded-lg px-4 py-1.5 font-sans text-body font-semibold transition-colors",
+            value === option.value ? "bg-accent text-white" : "text-muted hover:text-text",
+          )}
+        >
           {option.label}
-        </label>
+        </button>
       ))}
     </div>
   );
 }
 
-function EditSeasonModal({
-  season,
-  onClose,
-}: {
-  season: SeasonRecord | null;
-  onClose: () => void;
-}) {
+function EditSeasonModal({ season, onClose }: { season: SeasonRecord | null; onClose: () => void }) {
   const { day } = useLive();
   const { seasons, setSeasons } = useClubSettings();
   const isNew = season === null;
@@ -86,15 +84,19 @@ function EditSeasonModal({
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Start date">
-            <input type="date" value={start} onChange={(event) => setStart(event.target.value)} className={inputClass} />
+            <input
+              type="date"
+              value={start}
+              onChange={(event) => setStart(event.target.value)}
+              className={inputClass}
+            />
           </Field>
           <Field label="End date">
             <input type="date" value={end} onChange={(event) => setEnd(event.target.value)} className={inputClass} />
           </Field>
         </div>
         <p className="text-sm text-muted">
-          Dates change which days count toward this season. Collections outside the dates are listed
-          so none are lost.
+          Dates change which days count toward this season. Collections outside the dates are listed so none are lost.
         </p>
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={onClose}>
@@ -123,8 +125,17 @@ function EditSeasonModal({
 export default function UnitsTab() {
   const { day } = useLive();
   const { can, view, shows } = useSession();
-  const { weightUnit, setWeightUnit, tempUnit, setTempUnit, seasons, setSeasons, weight, syrupGoalLbs, setSyrupGoalLbs } =
-    useClubSettings();
+  const {
+    weightUnit,
+    setWeightUnit,
+    tempUnit,
+    setTempUnit,
+    seasons,
+    setSeasons,
+    weight,
+    syrupGoalLbs,
+    setSyrupGoalLbs,
+  } = useClubSettings();
   const [editing, setEditing] = useState<SeasonRecord | "new" | null>(null);
   const canEditSeason = can("seasons:manage");
 
@@ -229,7 +240,9 @@ export default function UnitsTab() {
                     <button
                       type="button"
                       onClick={() =>
-                        setSeasons(seasons.map((item) => (item.name === season.name ? { ...item, status: "active" } : item)))
+                        setSeasons(
+                          seasons.map((item) => (item.name === season.name ? { ...item, status: "active" } : item)),
+                        )
                       }
                       className="font-semibold text-accent-mid hover:underline"
                     >

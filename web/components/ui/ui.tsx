@@ -59,7 +59,7 @@ export function StatCard({
 }: {
   label: string;
   value: string;
-  note?: string;
+  note?: ReactNode;
   dark?: boolean;
   className?: string;
 }) {
@@ -195,6 +195,7 @@ export function Modal({
   eyebrow,
   subtitle,
   badge,
+  tag,
 }: {
   title: string;
   onClose: () => void;
@@ -206,6 +207,8 @@ export function Modal({
   subtitle?: ReactNode;
   /** Shown beside the title, e.g. a status badge */
   badge?: ReactNode;
+  /** Shown at the top right, beside the close button, e.g. "Critical" */
+  tag?: ReactNode;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:p-4">
@@ -236,14 +239,17 @@ export function Modal({
             </div>
             {subtitle ? <p className="mt-1 text-body text-muted">{subtitle}</p> : null}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="rounded-full p-1.5 text-muted hover:bg-bg"
-          >
-            <CloseIcon size={18} />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {tag}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded-full p-1.5 text-muted hover:bg-bg"
+            >
+              <CloseIcon size={18} />
+            </button>
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-2 md:px-8">{children}</div>
         {footer ? (
@@ -254,10 +260,29 @@ export function Modal({
   );
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
+export function Field({
+  label,
+  hint,
+  required = false,
+  children,
+}: {
+  label: string;
+  hint?: ReactNode;
+  /** Marks the label with a red * (pair it with a "* Required" note on the form) */
+  required?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-sm text-muted">{label}</span>
+    <label className="relative block">
+      <span className="mb-1.5 block text-sm text-muted">
+        {label}
+        {required ? (
+          <span aria-hidden="true" className="ml-0.5 text-status-problem">
+            *
+          </span>
+        ) : null}
+        {required ? <span className="sr-only"> (required)</span> : null}
+      </span>
       {children}
       {hint ? <span className="mt-1 block text-sm text-muted">{hint}</span> : null}
     </label>
@@ -377,15 +402,91 @@ export function InfoBox({
   large?: boolean;
 }) {
   return (
-    <div className={cx("rounded-2xl bg-bg px-4 py-3", className)}>
+    <div className={cx("rounded-xl bg-bg px-3.5 py-2.5", className)}>
       <div className="text-sm text-muted">{label}</div>
       {children ?? (
-        <div className={cx("mt-0.5 font-sans font-bold", large ? "text-3xl md:text-4xl" : "text-xl md:text-2xl")}>
+        <div className={cx("font-sans font-semibold", large ? "text-2xl md:text-3xl" : "text-lg")}>
           {value}
-          {unit ? <span className="ml-1 text-sm font-normal text-muted md:text-base">{unit}</span> : null}
+          {unit ? <span className="ml-1 text-sm font-normal text-muted">{unit}</span> : null}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * A number typed into an info-box style field, with its unit beside it (weights, Brix). The shared
+ * look for every "how much" input.
+ */
+export function NumberBox({
+  label,
+  value,
+  onChange,
+  unit,
+  placeholder,
+  className,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  unit: string;
+  placeholder?: string;
+  className?: string;
+}) {
+  return (
+    <label
+      className={cx(
+        "block cursor-text rounded-xl border border-transparent bg-bg px-3.5 py-2.5 transition-colors focus-within:border-accent-mid focus-within:bg-white",
+        className,
+      )}
+    >
+      <span className="block text-sm text-muted">{label}</span>
+      <span className="flex items-baseline gap-1">
+        <input
+          type="number"
+          inputMode="decimal"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          className="w-full min-w-0 bg-transparent font-sans text-lg font-semibold outline-none placeholder:text-muted/50"
+        />
+        <span className="text-sm text-muted">{unit}</span>
+      </span>
+    </label>
+  );
+}
+
+/**
+ * A short numbered how-to. With `current`, the step you are on is green with slightly bolder text
+ * and every other step (before or after) is greyed out; without it, every number is green.
+ */
+export function Steps({ items, current }: { items: ReactNode[]; current?: number }) {
+  return (
+    <ol className="space-y-2.5">
+      {items.map((item, index) => {
+        const on = current === undefined || index === current;
+        return (
+          <li key={index} className="flex items-start gap-3" aria-current={index === current ? "step" : undefined}>
+            <span
+              className={cx(
+                "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-sans text-xs font-semibold",
+                on ? "bg-accent text-white" : "border border-border bg-white text-muted",
+              )}
+            >
+              {index + 1}
+            </span>
+            <span
+              className={cx(
+                "text-body",
+                current !== undefined && (index === current ? "font-medium text-text" : "text-muted"),
+              )}
+            >
+              {item}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -450,7 +551,11 @@ export function Checkbox({
   disabled?: boolean;
 }) {
   return (
-    <label className={cx("flex items-center gap-3", disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer")}>
+    // relative: the hidden input is absolutely placed, and without a positioned parent it hangs off
+    // the page's own scroll area and adds empty space under the page.
+    <label
+      className={cx("relative flex items-center gap-3", disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer")}
+    >
       <input
         type="checkbox"
         checked={checked}

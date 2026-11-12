@@ -1,5 +1,6 @@
 "use client";
 
+import Select from "@/components/ui/Select";
 import { useState } from "react";
 import { ChevronRightIcon } from "@/components/icons";
 import { useSession } from "@/components/session/SessionProvider";
@@ -33,18 +34,13 @@ function EditMemberModal({ member, onClose }: { member: Member; onClose: () => v
           label="Role"
           hint={isSelf ? "You can't change your own role; ask another owner." : "Takes effect on their next page load."}
         >
-          <select
+          <Select
+            label="Role"
             value={role}
             disabled={isSelf}
-            onChange={(event) => setRole(event.target.value)}
-            className={inputClass}
-          >
-            {roles.map((choice) => (
-              <option key={choice} value={choice}>
-                {viewLabels[choice] ?? choice}
-              </option>
-            ))}
-          </select>
+            onChange={setRole}
+            options={roles.map((choice) => ({ value: choice, label: viewLabels[choice] ?? choice }))}
+          />
         </Field>
 
         <div>

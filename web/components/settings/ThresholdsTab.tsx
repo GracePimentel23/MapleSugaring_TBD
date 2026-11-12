@@ -70,9 +70,9 @@ export default function ThresholdsTab() {
         title="Alert Thresholds"
         subtitle={
           <>
-            The dashboard judges fill, sap age, battery and weather alerts with these. They are saved in
-            this browser for now; the worker still decides offline after 15 minutes and knocked over on
-            its own. Owner / IT only{canEdit ? "." : "; you can view them."}
+            The dashboard judges fill, sap age, battery and weather alerts with these. They are saved in this browser
+            for now; the worker still decides offline after 15 minutes and knocked over on its own. Owner / IT only
+            {canEdit ? "." : "; you can view them."}
           </>
         }
         action={
@@ -92,16 +92,17 @@ export default function ThresholdsTab() {
                 <p className="font-sans text-base font-medium">{def.label}</p>
                 <p className="text-sm text-muted">{def.description}</p>
               </div>
-              <div className="flex gap-6 text-right">
-                <div>
-                  <div className="text-sm text-muted">Warn</div>
+              {/* Number first, its label centered underneath. */}
+              <div className="flex gap-6 text-center">
+                <div className="min-w-16">
                   <div className="font-sans text-base font-semibold">{def.warnFormat(value.warn)}</div>
+                  <div className="text-sm text-muted">Warn</div>
                 </div>
-                <div>
-                  <div className="text-sm text-muted">Critical</div>
+                <div className="min-w-16">
                   <div className="font-sans text-base font-semibold text-status-problem">
                     {def.criticalFormat(value.critical)}
                   </div>
+                  <div className="text-sm text-muted">Critical</div>
                 </div>
               </div>
               {canEdit ? (
