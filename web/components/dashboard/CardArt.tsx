@@ -90,7 +90,7 @@ export function LeafArt({ lbs }: { lbs: number }) {
 
       <div
         className="absolute right-0 -bottom-6 h-60 w-60 origin-bottom-right transition-transform duration-700 ease-out md:right-6"
-        style={{ transform: `scale(${scale})`, opacity: 0.8 + share * 0.2 }}
+        style={{ transform: `scale(${scale})`, opacity: 0.45 + share * 0.15 }}
       >
         <Leaf size={240} color="#B7CDA8" className="anim-sway h-full w-full" />
       </div>

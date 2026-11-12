@@ -37,6 +37,10 @@
   --color-chart-bar-light: #b9c8b3;
   --color-chart-bar-today: #6b9e45;
   --color-alert: #b3261e;
+
+  /* Containers sit on a soft 2px 2px shadow instead of a grey outline. */
+  --shadow-card: 2px 2px 8px rgb(0 0 0 / 0.05);
+  --shadow-card-hover: 3px 4px 14px rgb(0 0 0 / 0.08);
 }
 
 /* Type scale, one step up from Tailwind's defaults so everything reads more easily. */
@@ -79,6 +83,31 @@ h3,
 h4,
 h5 {
   font-family: var(--font-dm-sans), sans-serif;
+  /* Even lines, so a heading never leaves one word alone on its last line. */
+  text-wrap: balance;
+}
+
+/* No widows: the browser rebalances the last lines of a paragraph so no word sits alone. */
+p,
+li,
+dd,
+figcaption,
+label {
+  text-wrap: pretty;
+}
+
+/* Anything you can click shows the hand, so it reads as clickable. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="switch"]:not(:disabled),
+  a[href],
+  summary,
+  select:not(:disabled),
+  label:has(> input[type="checkbox"]:not(:disabled)),
+  label:has(> input[type="radio"]:not(:disabled)) {
+    cursor: pointer;
+  }
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -382,6 +411,21 @@ h5 {
   }
   :is(.anim-leaf-fall, .anim-drip, .anim-bubble, .anim-precip, .anim-snow, .anim-filling) {
     display: none;
+  }
+}
+/* Phones: no animation at all, for battery and smooth scrolling. Everything shows in its final
+   state (bars full width, syrup at its level); the moving-only pieces are hidden. */
+@media (max-width: 47.99rem) {
+  [class*="anim-"],
+  .animate-ping,
+  .animate-pulse {
+    animation: none !important;
+  }
+  :is(.anim-leaf-fall, .anim-drip, .anim-bubble, .anim-precip, .anim-snow, .anim-filling, .animate-ping) {
+    display: none;
+  }
+  * {
+    transition-duration: 0s !important;
   }
 }
 

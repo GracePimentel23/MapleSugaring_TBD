@@ -49,11 +49,11 @@ export default function Home() {
 
   return (
     <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
-      <h1 className="mt-2 font-sans max-md:pt-4 text-3xl font-bold tracking-tight md:text-[40px] md:leading-tight">
+      <h1 className="font-sans text-3xl leading-tight font-bold tracking-tight max-md:pt-4 md:text-[40px]">
         {greeting()}
         {signedIn ? `, ${firstName(user.name)}` : ""}
       </h1>
-      <p className="mt-1 mb-7 text-body text-muted">
+      <p className="mt-0.5 mb-5 text-body text-muted">
         {seasonLine} ·{" "}
         {attentionCount === 0
           ? "every bucket looks fine"
@@ -61,7 +61,7 @@ export default function Home() {
       </p>
 
       <ShowFor id="dashboard.signIn">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-white px-6 py-4">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-6 py-4 shadow-card">
           <p className="text-body">You are viewing as a guest. Sign in to log collections, and handle alerts.</p>
           <Button onClick={() => router.push("/login")}>Sign In</Button>
         </div>
@@ -71,31 +71,30 @@ export default function Home() {
         <SummaryCards />
       </ShowFor>
 
+      <ShowFor id="dashboard.stations">
+        {/* The heading runs the full width, so "All 5" sits at the right edge of the whole row. */}
+        <div className="mb-4 flex items-center justify-between gap-3 max-md:pt-4">
+          <h2 className="font-sans text-lg font-semibold">Buckets · {onlineCount} Online</h2>
+          <Link
+            href="/stations"
+            className="flex shrink-0 items-center gap-1 rounded-full bg-white py-1.5 pr-2 pl-3.5 font-sans text-sm font-semibold text-accent shadow-card transition-colors hover:bg-accent-light"
+          >
+            {hidden > 0 ? `All ${stations.length}` : "Stations"}
+            <ChevronRightIcon size={18} />
+          </Link>
+        </div>
+      </ShowFor>
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(280px,1.15fr)]">
         <ShowFor id="dashboard.stations">
-          <section>
-            <div className="mb-4 flex items-center justify-between gap-3 max-md:pt-4">
-              <h2 className="font-sans text-lg font-semibold">Buckets · {onlineCount} Online</h2>
-              <Link
-                href="/stations"
-                className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-white py-1.5 pr-2 pl-3.5 font-sans text-sm font-semibold text-accent transition-colors hover:border-accent hover:bg-accent-light"
-              >
-                {hidden > 0 ? `All ${stations.length}` : "Stations"}
-                <ChevronRightIcon size={18} />
-              </Link>
-            </div>
-            {/* Two by two beside Next Steps, a row of four when there is room, one column on phones */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-2">
-              {shown.map((station) => (
-                <StationTile key={station.bucketId} station={station} onOpen={() => setOpenBucket(station.bucketId)} />
-              ))}
-            </div>
-          </section>
+          {/* Two by two beside Next Steps, a row of four when there is room, one column on phones */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-2">
+            {shown.map((station) => (
+              <StationTile key={station.bucketId} station={station} onOpen={() => setOpenBucket(station.bucketId)} />
+            ))}
+          </div>
         </ShowFor>
         <ShowFor id="dashboard.nextSteps">
-          <div className="xl:pt-[52px]">
-            <NextSteps />
-          </div>
+          <NextSteps />
         </ShowFor>
       </div>
 

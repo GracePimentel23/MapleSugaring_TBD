@@ -86,7 +86,7 @@ export default function AccountMenu({ onDark = false }: { onDark?: boolean }) {
       {open ? (
         <div
           role="menu"
-          className="absolute top-full right-0 z-50 mt-2 w-72 rounded-2xl border border-border bg-white p-4 text-left text-sm text-text shadow-xl"
+          className="absolute top-full right-0 z-50 mt-2 w-72 rounded-2xl bg-white p-4 text-left text-sm text-text shadow-xl"
         >
           {signedIn ? (
             <>

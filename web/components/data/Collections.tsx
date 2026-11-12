@@ -3,7 +3,7 @@
 import { FullIcon, PlusIcon } from "@/components/icons";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { useLive } from "@/components/live/LiveProvider";
+import { timeOfDay, useLive } from "@/components/live/LiveProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import LogCollectionModal, { type GuidedCollection } from "@/components/stations/LogCollectionModal";
 import { useStationCards } from "@/components/stations/StationStateProvider";
@@ -198,7 +198,8 @@ function EditCollectionSheet({
   }
 
   async function deleteCollection() {
-    if (await send("DELETE", `/collections/${collection.id}`)) onClose();
+    // `by` is only for the timestamp kept in this browser; the worker reads who from the session.
+    if (await send("DELETE", `/collections/${collection.id}`, { by: user.name })) onClose();
   }
 
   return (
@@ -396,7 +397,7 @@ export default function Collections({ day }: { day: LiveDay }) {
   } | null>(null);
 
   const { can, user } = useSession();
-  const { send } = useLive();
+  const { send, addedAt } = useLive();
   const router = useRouter();
   const params = useSearchParams();
   const stations = useStationCards();
@@ -471,13 +472,10 @@ export default function Collections({ day }: { day: LiveDay }) {
                 {group.items.map((collection) => {
                   const isOpen = expanded === collection.id;
                   const number = String(collection.collectionNumber).padStart(2, "0");
+                  const added = addedAt(`collections/${collection.id}`);
 
                   return (
-                    <div
-                      key={collection.id}
-                      className="overflow-hidden rounded-2xl bg-white shadow-sm"
-                      style={{ border: "1px solid var(--color-border)" }}
-                    >
+                    <div key={collection.id} className="overflow-hidden rounded-2xl bg-white shadow-card">
                       <div className="flex w-full items-center justify-between px-4 py-3.5">
                         <button
                           type="button"
@@ -491,7 +489,12 @@ export default function Collections({ day }: { day: LiveDay }) {
                             #{number}
                           </div>
                           <div className="min-w-0">
-                            <div className="font-sans text-sm font-semibold">{formatDate(collection.date)}</div>
+                            <div className="font-sans text-sm font-semibold">
+                              {formatDate(collection.date)}
+                              {added ? (
+                                <span className="font-normal text-muted"> · logged {timeOfDay(added)}</span>
+                              ) : null}
+                            </div>
                             <div className="text-sm text-muted">
                               {collection.entries.length} bucket
                               {collection.entries.length === 1 ? "" : "s"} · {collection.batchName}

@@ -25,36 +25,37 @@ export default function SummaryCards() {
   const syrup = closed.reduce((sum, batch) => sum + batch.syrupOutLbs, 0);
 
   const forecast = weather.slice(dayIndex + 1, dayIndex + 4).filter((item) => item.available);
-  const sapTone = "#3E6B35";
-  const syrupTone = "#8A5A1C";
+  // Darker than the card art, so labels and notes stay readable wherever the art sits behind them.
+  const sapTone = "#2B5224";
+  const syrupTone = "#6E4512";
 
   return (
-    <div className="mb-8 space-y-5">
+    <div className="mb-7 space-y-5">
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
-        <section className="relative overflow-hidden rounded-3xl border border-[#D3DFC9] bg-[#E7EFE0] p-6 md:p-8">
+        <section className="relative overflow-hidden rounded-3xl bg-[#E7EFE0] shadow-card p-6 md:p-8">
           <LeafArt lbs={today?.lbs ?? 0} />
           <div className="relative">
             <h2 className="font-sans text-base font-semibold" style={{ color: sapTone }}>
               Sap Collected Today
             </h2>
-            <div className="mt-1 font-sans text-4xl font-bold tracking-tight text-accent">
+            <div className="mt-1 font-sans text-4xl leading-none font-bold tracking-tight text-accent">
               {weight(today?.lbs ?? 0)}
             </div>
-            <p className="mt-3 max-w-md text-body text-text">{sapStory(day)}</p>
+            <p className="mt-2.5 max-w-md text-body font-medium text-text">{sapStory(day)}</p>
           </div>
         </section>
 
-        <section className="relative overflow-hidden rounded-3xl border border-[#F0D9BC] bg-[#FAEBD7] p-6 md:p-8">
+        <section className="relative overflow-hidden rounded-3xl bg-[#FAEBD7] shadow-card p-6 md:p-8">
           <DropArt fill={syrupGoalLbs ? syrup / syrupGoalLbs : 0} />
           <div className="relative flex h-full flex-col">
             <h2 className="font-sans text-base font-semibold" style={{ color: syrupTone }}>
               Syrup This Season
             </h2>
-            <div className="mt-1 font-sans text-4xl font-bold tracking-tight text-[#4A2E0E]">
+            <div className="mt-1 font-sans text-4xl leading-none font-bold tracking-tight text-[#3D250A]">
               {weight(syrup)}
             </div>
             {/* One line, like the sap card; the season's numbers live on Data > Overview. */}
-            <p className="mt-3 max-w-xs text-body" style={{ color: syrupTone }}>
+            <p className="mt-2.5 max-w-xs pr-24 text-body font-medium sm:pr-0" style={{ color: syrupTone }}>
               {syrupGoalLbs
                 ? `${Math.round((syrup / syrupGoalLbs) * 100)}% of the ${weight(syrupGoalLbs)} goal · ${closed.length} of ${batches.length} batches boiled`
                 : `${closed.length} of ${batches.length} batches boiled`}
@@ -63,20 +64,20 @@ export default function SummaryCards() {
         </section>
       </div>
 
-      <section className="relative overflow-hidden rounded-3xl border border-[#D3DDE6] bg-weather-bg p-6 text-weather-text md:p-8">
+      <section className="relative overflow-hidden rounded-3xl bg-weather-bg shadow-card p-6 text-weather-text md:p-8">
         <WeatherArt kind={weatherKind(day.weather)} />
         <div className="relative">
           <h2 className="font-sans text-base font-semibold">Weather · Rochester</h2>
-          <div className="mt-1 font-sans text-4xl font-bold tracking-tight text-[#1E3347]">
+          <div className="mt-1 font-sans text-4xl leading-none font-bold tracking-tight text-[#1E3347]">
             {day.weather.available ? temp(day.weather.temperatureF) : "—"}
           </div>
-          <p className="mt-2 text-body">
+          <p className="mt-2.5 text-body font-medium text-[#22394F]">
             {day.weather.available
               ? `${day.weather.summary} · High ${temp(day.weather.highF, false)}, Low ${temp(day.weather.lowF, false)}`
               : "The forecast could not be reached right now."}
           </p>
           {forecast.length > 0 ? (
-            <div className="mt-5 flex flex-wrap gap-x-10 gap-y-3">
+            <div className="mt-4 flex flex-wrap gap-x-10 gap-y-3 text-[#22394F]">
               {forecast.map((item) => (
                 <div key={item.date}>
                   <div className="text-sm">{weekdayName(item.date, "short")}</div>

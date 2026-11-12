@@ -7,6 +7,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { useLive } from "@/components/live/LiveProvider";
@@ -140,9 +141,26 @@ interface ClubSettingsValue {
   /** Pounds of syrup the club is aiming for this season */
   syrupGoalLbs: number;
   setSyrupGoalLbs: (lbs: number) => void;
-  /** Moving background art on the dashboard cards */
+  /** Moving background art on the dashboard cards (the setting) */
   animations: boolean;
   setAnimations: (on: boolean) => void;
+  /** Whether charts animate: the setting, and never on phones */
+  motion: boolean;
+}
+
+/** Phones never animate (battery and smooth scrolling); globals.css does the same for the CSS art. */
+const PHONE_QUERY = "(max-width: 47.99rem)";
+function subscribePhone(onChange: () => void) {
+  const query = window.matchMedia(PHONE_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+function useIsPhone(): boolean {
+  return useSyncExternalStore(
+    subscribePhone,
+    () => window.matchMedia(PHONE_QUERY).matches,
+    () => false,
+  );
 }
 
 const ClubSettingsContext = createContext<ClubSettingsValue | null>(null);
@@ -176,6 +194,8 @@ export default function ClubSettingsProvider({ children }: { children: ReactNode
   const seasons = savedSeasons ?? fallbackSeasons;
   const [syrupGoalLbs, setSyrupGoalLbs] = usePersistent("syrupGoalLbs", 5);
   const [animations, setAnimations] = usePersistent("animations", true);
+  const isPhone = useIsPhone();
+  const motion = animations && !isPhone;
 
   const weight = useCallback(
     (lbs: number, withUnit = true, fixed = false) => {
@@ -225,6 +245,7 @@ export default function ClubSettingsProvider({ children }: { children: ReactNode
       setSyrupGoalLbs,
       animations,
       setAnimations,
+      motion,
     }),
     [
       thresholds,
@@ -249,6 +270,7 @@ export default function ClubSettingsProvider({ children }: { children: ReactNode
       setSyrupGoalLbs,
       animations,
       setAnimations,
+      motion,
     ],
   );
 

@@ -81,7 +81,7 @@ export default function LoginPage() {
       </section>
 
       <section className="flex flex-1 items-start justify-center px-4 py-8 md:items-center md:px-10">
-        <div className="w-full max-w-md rounded-3xl border border-border bg-white p-6 shadow-sm md:p-8">
+        <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-card md:p-8">
           {step === "start" ? (
             <>
               <h2 className="font-sans text-2xl font-bold">Sign in</h2>

@@ -25,7 +25,7 @@ function StationDetail({
   onEdit: () => void;
 }) {
   const { can, shows } = useSession();
-  const { weight, animations } = useClubSettings();
+  const { weight, motion } = useClubSettings();
   const { toggleMaintenance, maintenance } = useStationState();
   const meta = stationStatusMeta[station.status];
   const percent = Math.round(Math.min(station.fillPercent, 100));
@@ -126,7 +126,7 @@ function StationDetail({
                 stroke="var(--color-accent-mid)"
                 strokeWidth={3}
                 dot={false}
-                isAnimationActive={animations}
+                isAnimationActive={motion}
                 animationDuration={900}
               />
             </LineChart>

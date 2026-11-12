@@ -89,7 +89,7 @@ export default function Popover({
     <div
       ref={panelRef}
       style={style}
-      className={cx("z-[60] rounded-2xl border border-border bg-white text-text shadow-xl", className)}
+      className={cx("z-[60] rounded-2xl bg-white text-text shadow-xl", className)}
     >
       {children}
     </div>,

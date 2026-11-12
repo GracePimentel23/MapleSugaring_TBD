@@ -62,7 +62,7 @@ export default function NotificationsMenu({ onDark = false }: { onDark?: boolean
         <div
           role="dialog"
           aria-label="Notifications"
-          className="fixed top-16 right-3 left-3 z-50 overflow-hidden rounded-2xl border border-border bg-white text-left text-text shadow-xl md:absolute md:top-full md:right-0 md:left-auto md:mt-2 md:w-[400px]"
+          className="fixed top-16 right-3 left-3 z-50 overflow-hidden rounded-2xl bg-white text-left text-text shadow-xl md:absolute md:top-full md:right-0 md:left-auto md:mt-2 md:w-[400px]"
         >
           <div className="border-b border-border px-5 py-4">
             <p className="font-sans text-base font-semibold">Notifications</p>

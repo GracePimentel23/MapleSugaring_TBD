@@ -95,9 +95,17 @@ export default function NextSteps() {
   const canResolve = can("alerts:resolve");
   const stationOf = (alert: ClubAlert) => stations.find((station) => station.bucketId === alert.bucketId);
 
+  // While a pause runs, the bucket shows as being emptied. Once the time is up it goes back to the
+  // alert it answered, straight away, even before the worker's next update brings that alert back.
+  const pausing = emptying.filter((item) => item.paused);
+  const reverted = emptying
+    .filter((item) => !item.paused && item.session.alert)
+    .map((item) => item.session.alert!)
+    .filter((alert) => !active.some((live) => live.key === alert.key));
+  const alerts = [...reverted, ...active];
+
   const rows: { key: string; node: ReactNode }[] = [
-    ...emptying.map((item) => {
-      const minutes = Math.round((item.session.until - item.session.startedAt) / 60_000);
+    ...pausing.map((item) => {
       return {
         key: `emptying-${item.session.bucketId}`,
         node: (
@@ -107,34 +115,26 @@ export default function NextSteps() {
               <Lines
                 title={`${item.station.name} being emptied`}
                 detail={
-                  item.paused ? (
-                    <>
-                      Paused for {minutes} min · <span className="tabular-nums">{item.leftLabel}</span> left
-                    </>
-                  ) : (
-                    "Pause is over. Finish logging it."
-                  )
+                  <>
+                    Paused for {item.minutes} min · <span className="tabular-nums">{item.leftLabel}</span> left
+                  </>
                 }
               />
             </Link>
-            {item.paused ? (
-              <button
-                type="button"
-                onClick={() => cancelEmptying(item.session.bucketId)}
-                aria-label={`Stop the pause on ${item.station.name} and turn its alerts back on`}
-                title="Stop the pause: alerts back on"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-status-problem text-status-problem transition-colors hover:bg-attention-bg"
-              >
-                <span className="h-3 w-3 rounded-[3px] bg-current" />
-              </button>
-            ) : (
-              <ChevronRightIcon size={18} className="shrink-0 text-muted" />
-            )}
+            <button
+              type="button"
+              onClick={() => cancelEmptying(item.session.bucketId)}
+              aria-label={`Stop the pause on ${item.station.name} and turn its alerts back on`}
+              title="Stop the pause: alerts back on"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-status-problem text-status-problem transition-colors hover:bg-attention-bg"
+            >
+              <span className="h-3 w-3 rounded-[3px] bg-current" />
+            </button>
           </div>
         ),
       };
     }),
-    ...active.map((alert) => ({
+    ...alerts.map((alert) => ({
       key: alert.key,
       node: (
         <button
@@ -169,7 +169,7 @@ export default function NextSteps() {
   const more = rows.length - shown.length;
 
   return (
-    <section className="rounded-2xl border border-border bg-white p-5 md:p-6">
+    <section className="rounded-2xl bg-white p-5 shadow-card md:p-6">
       <h2 className="border-b border-border pb-3 font-sans text-base font-semibold">Next Steps</h2>
       {rows.length === 0 ? (
         <p className="pt-4 text-body text-muted">Nothing to do right now.</p>

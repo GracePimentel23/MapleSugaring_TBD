@@ -5,6 +5,7 @@ import { PencilIcon } from "@/components/icons";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { Button, Card, CardTitle, Field, inputClass, Modal } from "@/components/ui/ui";
+import Select from "@/components/ui/Select";
 import { defaultThresholds, thresholdDefs, type ThresholdDef } from "@/lib/data/thresholds";
 
 function EditThresholdModal({ def, onClose }: { def: ThresholdDef; onClose: () => void }) {
@@ -51,6 +52,43 @@ function EditThresholdModal({ def, onClose }: { def: ThresholdDef; onClose: () =
       </div>
       <p className="pb-2 text-sm text-muted">Saved in this browser only, until the API stores thresholds.</p>
     </Modal>
+  );
+}
+
+/** How long Start Collection switches a bucket's weight alerts off while it is emptied. */
+const PAUSE_CHOICES = [1, 2, 3, 5, 10];
+
+function CollectionPause({ canEdit }: { canEdit: boolean }) {
+  const { maintenanceDefaults, setMaintenanceDefaults } = useClubSettings();
+  const minutes = maintenanceDefaults.emptyMinutes ?? 2;
+  return (
+    <div className="flex flex-wrap items-center gap-4 border-b border-border py-5">
+      <div className="min-w-[200px] flex-1">
+        <p className="font-sans text-base font-medium">Weight alerts off while collecting</p>
+        <p className="text-sm text-muted">
+          Start Collection pauses a bucket&apos;s weight alerts this long, so emptying it is not taken for a spill.
+          They turn back on by themselves when the time is up.
+        </p>
+      </div>
+      {canEdit ? (
+        <div className="w-40">
+          <Select
+            label="Weight alerts off while collecting"
+            value={String(minutes)}
+            onChange={(value) => setMaintenanceDefaults({ ...maintenanceDefaults, emptyMinutes: Number(value) })}
+            options={PAUSE_CHOICES.map((choice) => ({
+              value: String(choice),
+              label: `${choice} minute${choice === 1 ? "" : "s"}`,
+            }))}
+          />
+        </div>
+      ) : (
+        <div className="min-w-16 text-center">
+          <div className="font-sans text-base font-semibold">{minutes} min</div>
+          <div className="text-sm text-muted">Paused</div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -121,6 +159,7 @@ export default function ThresholdsTab() {
           );
         })}
       </ul>
+      <CollectionPause canEdit={canEdit} />
       <p className="mt-5 text-sm text-muted">
         The sensors measure weight only, so there are no sap temperature or sugar thresholds. Enter Brix by hand when a
         batch finishes.

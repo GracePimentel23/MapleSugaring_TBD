@@ -24,8 +24,8 @@ export default function StationTile({
       type="button"
       onClick={onOpen}
       className={cx(
-        "flex flex-col rounded-2xl border p-5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md",
-        inactive ? "border-[#DAD9D1] bg-[#EFEFE9]" : "border-border bg-white",
+        "flex flex-col rounded-2xl p-5 text-left shadow-card transition-all hover:-translate-y-0.5 hover:shadow-card-hover",
+        inactive ? "bg-[#EFEFE9]" : "bg-white",
       )}
     >
       <div className="flex items-start justify-between gap-2">

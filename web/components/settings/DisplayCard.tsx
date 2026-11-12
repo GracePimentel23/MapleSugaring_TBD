@@ -16,7 +16,7 @@ export default function DisplayCard() {
           <p className="font-sans text-base font-semibold">Background animations</p>
           <p className="text-sm text-muted">
             Falling leaves, syrup bubbles and moving weather on the dashboard cards. Turn off for a still
-            picture. Devices set to reduce motion always get the still version.
+            picture. Phones and devices set to reduce motion always get the still version.
           </p>
         </div>
       </div>

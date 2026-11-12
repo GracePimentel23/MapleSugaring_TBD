@@ -20,8 +20,13 @@ import { useCallback, useEffect, useState } from "react";
  *                pauses the alerts; this only remembers it was for emptying, so the app says "Being
  *                emptied" and shows the countdown banner (Resume Alerts) instead of "Maintenance".
  *                To remove: a worker station mode for emptying that does not log the drop by itself.
+ *   changes      When each collection, batch, station or note was added or deleted from this browser,
+ *                for the "Collection added · Nov 11, 3:42 PM" toast and the times on Collections,
+ *                Batches and Recent Activity. The worker keeps the day of a collection, not the time.
+ *                To remove: a created_at on collections and batches in the worker's API, or the audit
+ *                log for everyone who can see the records.
  */
-export type BrowserStore = "resolutions" | "snoozes" | "alertNotes" | "emptying";
+export type BrowserStore = "resolutions" | "snoozes" | "alertNotes" | "emptying" | "changes";
 
 /** A list kept in this browser under `tbd.<store>`; empty on the server and until it has loaded. */
 export function useBrowserList<T>(store: BrowserStore): [T[], (update: (current: T[]) => T[]) => void] {

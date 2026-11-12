@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { alertHeadlines, urgencyMeta, urgencyOf } from "@/components/alerts/AlertIcon";
 import { ExclamationIcon } from "@/components/icons";
 import { useLive } from "@/components/live/LiveProvider";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
+import { useEmptyingNow } from "@/components/stations/EmptyingBanner";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
 import Select from "@/components/ui/Select";
 import { lineCursor, tooltipContentStyle, tooltipItemStyle, tooltipLabelStyle } from "@/components/ui/chartTheme";
@@ -110,7 +111,7 @@ function Choice({
 
 /** The bucket's weight around a sudden change, from raw readings (managers and up can read them). */
 function WeightGraph({ bucketId }: { bucketId: number }) {
-  const { animations } = useClubSettings();
+  const { motion } = useClubSettings();
   const [points, setPoints] = useState<{ time: string; lbs: number }[] | null>(null);
 
   useEffect(() => {
@@ -156,7 +157,7 @@ function WeightGraph({ bucketId }: { bucketId: number }) {
             stroke="var(--color-status-problem)"
             strokeWidth={2.5}
             dot={false}
-            isAnimationActive={animations}
+            isAnimationActive={motion}
           />
         </LineChart>
       </ResponsiveContainer>
@@ -174,6 +175,9 @@ export default function ResolveAlertModal({ alert, onClose }: { alert: ClubAlert
     useStationState();
   const emptyMinutes = maintenanceDefaults.emptyMinutes ?? 2;
   const station = stations.find((item) => item.bucketId === alert.bucketId) ?? null;
+  const emptyingNow = useEmptyingNow().find((item) => item.session.bucketId === alert.bucketId);
+  const pauseRunning = !!emptyingNow && emptyingNow.left > 0;
+  const sawPauseRunning = useRef(false);
   const flow = flowFor[alert.kind];
   const canAct = can("alerts:resolve");
 
@@ -195,6 +199,14 @@ export default function ResolveAlertModal({ alert, onClose }: { alert: ClubAlert
   const [snoozeHours, setSnoozeHours] = useState(1);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
+
+  // Once the pause runs out (or someone resumes alerts from the banner), this pop-up has nothing
+  // left to wait for: it closes, and the banner says the alerts are back on.
+  useEffect(() => {
+    if (collectStage !== "where" || pauseFailed) return;
+    if (pauseRunning) sawPauseRunning.current = true;
+    else if (sawPauseRunning.current) onClose();
+  }, [collectStage, pauseFailed, pauseRunning, onClose]);
 
   // "it lost 5.2 lbs at once" in the worker's message
   const lost = Number(/lost ([\d.]+) lbs/.exec(alert.context)?.[1] ?? 0);

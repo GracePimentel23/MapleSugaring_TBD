@@ -11,10 +11,10 @@ export function cx(...classes: (string | false | null | undefined)[]): string {
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4 max-md:pt-4">
+    <div className="mb-5 flex flex-wrap items-start justify-between gap-4 max-md:pt-4">
       <div className="min-w-0">
-        <h1 className="font-sans text-3xl font-bold tracking-tight md:text-[48px] md:leading-tight">{title}</h1>
-        {subtitle ? <p className="mt-1 max-w-2xl text-sm text-muted">{subtitle}</p> : null}
+        <h1 className="font-sans text-3xl leading-tight font-bold tracking-tight md:text-[48px] md:leading-[1.1]">{title}</h1>
+        {subtitle ? <p className="mt-0.5 max-w-2xl text-sm text-muted">{subtitle}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
@@ -34,15 +34,15 @@ export function Card({
   className?: string;
   padded?: boolean;
 }) {
-  return <div className={cx("rounded-2xl border border-border bg-white", padded && "p-5", className)}>{children}</div>;
+  return <div className={cx("rounded-2xl bg-white shadow-card", padded && "p-5", className)}>{children}</div>;
 }
 
 export function CardTitle({ title, subtitle, action }: { title: string; subtitle?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-5 flex items-start justify-between gap-4">
+    <div className="mb-4 flex items-start justify-between gap-4">
       <div>
-        <h2 className="font-sans text-xl font-bold md:text-2xl">{title}</h2>
-        {subtitle ? <p className="mt-1 max-w-xl text-sm text-muted">{subtitle}</p> : null}
+        <h2 className="font-sans text-xl leading-tight font-bold md:text-2xl">{title}</h2>
+        {subtitle ? <p className="mt-0.5 max-w-xl text-sm text-muted">{subtitle}</p> : null}
       </div>
       {action}
     </div>
@@ -66,14 +66,14 @@ export function StatCard({
   return (
     <div
       className={cx(
-        "rounded-2xl border p-5",
-        dark ? "border-accent bg-accent text-white" : "border-border bg-white",
+        "rounded-2xl p-5 shadow-card",
+        dark ? "bg-accent text-white" : "bg-white",
         className,
       )}
     >
       <div className={cx("text-sm", dark ? "text-white/80" : "text-muted")}>{label}</div>
-      <div className="mt-1 font-sans text-[30px] leading-tight font-bold md:text-3xl">{value}</div>
-      {note ? <div className={cx("mt-1 text-sm", dark ? "text-white/80" : "text-muted")}>{note}</div> : null}
+      <div className="mt-1 font-sans text-[30px] leading-none font-bold md:text-3xl">{value}</div>
+      {note ? <div className={cx("mt-2 text-sm", dark ? "text-white/85" : "text-muted")}>{note}</div> : null}
     </div>
   );
 }
@@ -129,7 +129,7 @@ export function FilterPill({
       aria-pressed={active}
       className={cx(
         "relative inline-flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 font-sans text-sm font-medium whitespace-nowrap transition-colors",
-        active ? "border-accent bg-accent text-white" : "border-border bg-white text-text hover:border-accent/40",
+        active ? "border-accent bg-accent text-white" : "border-transparent bg-white text-text shadow-card hover:border-accent/40",
         className,
       )}
     >
@@ -596,7 +596,7 @@ export function EmptyState({
   return (
     <div
       className={cx(
-        "flex flex-col items-center rounded-2xl border border-dashed border-[#CFD6C8] bg-white text-center",
+        "flex flex-col items-center rounded-2xl bg-white text-center shadow-card",
         compact ? "px-6 py-7" : "px-6 py-14",
       )}
     >

@@ -1,3 +1,4 @@
+import type { ChangeStamp } from "@/components/live/LiveProvider";
 import type { AuditEntry } from "@/components/session/SessionProvider";
 import type { LiveDay } from "@/lib/live/day";
 import { getResolvedHistory } from "@/lib/selectors/alerts";
@@ -26,17 +27,26 @@ const COVERED = new Set(["Logged collection", "Started batch"]);
  * The latest happenings at the sugarbush: collections, batches, alerts clearing, and changes made
  * in the app (from the audit log, for roles that can read it).
  */
-export function getRecentActivity(day: LiveDay, audit: AuditEntry[], limit = 4): ActivityItem[] {
+export function getRecentActivity(
+  day: LiveDay,
+  audit: AuditEntry[],
+  changes: ChangeStamp[] = [],
+  limit = 4,
+): ActivityItem[] {
   const items: ActivityItem[] = [];
+  // The worker keeps the day of a collection or batch; this browser knows the time of those it added.
+  const addedAt = (record: string) => changes.find((item) => item.kind === "added" && item.record === record)?.at;
+  const timed = (date: string, at: string | undefined) =>
+    at
+      ? { date: dayOf(at), time: timeOf(at), sortAt: new Date(at).getTime() }
+      : { date, time: "", sortAt: new Date(`${date}T12:00:00Z`).getTime() };
 
   for (const collection of day.collections.slice(0, 20)) {
     const buckets = collection.entries.map((entry) => entry.bucketName.replace("Bucket ", "")).join(" and ");
     items.push({
       key: `collection-${collection.id}`,
       text: `${collection.loggedBy || "Someone"} logged ${collection.totalLbs} lbs from ${buckets}`,
-      date: collection.date,
-      time: "",
-      sortAt: new Date(`${collection.date}T12:00:00Z`).getTime(),
+      ...timed(collection.date, addedAt(`collections/${collection.id}`)),
     });
   }
 
@@ -50,9 +60,19 @@ export function getRecentActivity(day: LiveDay, audit: AuditEntry[], limit = 4):
     items.push({
       key: `batch-${batch.id}`,
       text,
-      date: batch.date,
-      time: "",
-      sortAt: new Date(`${batch.date}T12:00:00Z`).getTime(),
+      ...timed(batch.date, batch.status === "active" ? addedAt(`batches/${batch.id}`) : undefined),
+    });
+  }
+
+  // Deletes leave nothing else behind, so this is where they show, with when.
+  for (const change of changes.slice(0, 50)) {
+    if (change.kind !== "deleted") continue;
+    items.push({
+      key: `deleted-${change.record}-${change.at}`,
+      text: `${change.by || "Someone"} deleted a ${change.what.toLowerCase()}`,
+      date: dayOf(change.at),
+      time: timeOf(change.at),
+      sortAt: new Date(change.at).getTime(),
     });
   }
 

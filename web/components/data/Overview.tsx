@@ -190,8 +190,8 @@ function batchLine(batch: Batch, weight: (lbs: number) => string): { status: str
 }
 
 export default function Overview({ day }: { day: LiveDay }) {
-  const { dayIndex, weather } = useLive();
-  const { weight, temp, seasons: seasonRecords, syrupGoalLbs, animations } = useClubSettings();
+  const { dayIndex, weather, changes } = useLive();
+  const { weight, temp, seasons: seasonRecords, syrupGoalLbs, motion } = useClubSettings();
   const { audit } = useSession();
   const { viewBatch } = useBatchState();
   const seasons = day.seasons;
@@ -248,7 +248,7 @@ export default function Overview({ day }: { day: LiveDay }) {
 
   const goalPercent = syrupGoalLbs ? (syrup / syrupGoalLbs) * 100 : 0;
   const sapNeeded = Math.round(syrupGoalLbs * (ratio || 40));
-  const activity = isCurrent ? getRecentActivity(day, audit) : [];
+  const activity = isCurrent ? getRecentActivity(day, audit, changes) : [];
 
   return (
     <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
@@ -337,7 +337,7 @@ export default function Overview({ day }: { day: LiveDay }) {
             </div>
           </Panel>
 
-          <section className="flex flex-col rounded-2xl border border-[#F0D9BC] bg-[#FAEBD7] p-5">
+          <section className="flex flex-col rounded-2xl bg-[#FAEBD7] p-5 shadow-card">
             <h2 className="mb-4 font-sans text-lg font-semibold text-[#4A2E0E]">Syrup Goal</h2>
             <div className="flex flex-1 items-center gap-5">
               <GoalBottle percent={goalPercent} />
@@ -427,7 +427,7 @@ export default function Overview({ day }: { day: LiveDay }) {
                     dataKey="lbs"
                     radius={[4, 4, 4, 4]}
                     maxBarSize={38}
-                    isAnimationActive={animations}
+                    isAnimationActive={motion}
                     animationDuration={900}
                   >
                     {chartData.map((point) => (
@@ -445,7 +445,7 @@ export default function Overview({ day }: { day: LiveDay }) {
                     strokeWidth={2}
                     strokeDasharray="4 4"
                     dot={false}
-                    isAnimationActive={animations}
+                    isAnimationActive={motion}
                     animationDuration={900}
                   />
                 </ComposedChart>

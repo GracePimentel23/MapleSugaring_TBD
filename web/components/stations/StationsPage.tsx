@@ -54,8 +54,8 @@ function StationCard({
       id={`station-${station.bucketId}`}
       onClick={onOpen}
       className={cx(
-        "group scroll-mt-6 cursor-pointer rounded-2xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-md",
-        inactive ? "border-[#DAD9D1] bg-[#EFEFE9]" : "border-border bg-white",
+        "group scroll-mt-6 cursor-pointer rounded-2xl p-5 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-card-hover",
+        inactive ? "bg-[#EFEFE9]" : "bg-white",
       )}
       style={{ boxShadow: highlighted ? "0 0 0 3px rgba(223,168,0,0.55)" : undefined }}
     >
@@ -100,7 +100,7 @@ function StatusLegend() {
     ["maintenance", "Alerts are paused while someone services it."],
   ];
   return (
-    <div className="absolute top-full right-0 z-30 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-2xl border border-border bg-white p-4 text-left shadow-xl">
+    <div className="absolute top-full right-0 z-30 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-2xl bg-white p-4 text-left shadow-xl">
       <p className="mb-3 font-sans text-base font-semibold">What the statuses mean</p>
       <dl className="space-y-3 text-sm">
         {items.map(([status, text]) => (
@@ -181,7 +181,7 @@ export default function StationsPage() {
               "flex h-[38px] shrink-0 items-center justify-center gap-1.5 rounded-full border font-sans text-sm font-semibold transition-colors max-sm:w-[38px] sm:px-3",
               urgentFirst
                 ? "border-accent bg-accent-light text-accent"
-                : "border-border bg-white text-muted hover:text-text",
+                : "border-transparent bg-white text-muted shadow-card hover:text-text",
             )}
           >
             <SortIcon size={18} />
@@ -197,7 +197,7 @@ export default function StationsPage() {
                 "flex h-[38px] w-[38px] items-center justify-center rounded-full border transition-colors",
                 showLegend
                   ? "border-accent bg-accent-light text-accent"
-                  : "border-border bg-white text-muted hover:text-text",
+                  : "border-transparent bg-white text-muted shadow-card hover:text-text",
               )}
             >
               <InfoIcon size={18} />

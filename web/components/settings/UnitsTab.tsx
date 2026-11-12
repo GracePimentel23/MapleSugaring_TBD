@@ -28,7 +28,7 @@ function Radio<T extends string>({
 }) {
   // A two-way toggle in the app's style, instead of browser radio circles.
   return (
-    <div role="radiogroup" aria-label={name} className="inline-flex rounded-xl border border-border bg-white p-1">
+    <div role="radiogroup" aria-label={name} className="inline-flex rounded-xl bg-white p-1 shadow-card">
       {options.map((option) => (
         <button
           key={option.value}

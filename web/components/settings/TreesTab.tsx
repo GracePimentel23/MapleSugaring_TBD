@@ -207,20 +207,6 @@ export default function TreesTab() {
               />
             </div>
           </Field>
-          <Field label="Time to empty a bucket" hint="Weight alerts pause this long after Start Collection.">
-            <div className="min-w-[200px]">
-              <Select
-                label="Time to empty a bucket"
-                value={String(maintenanceDefaults.emptyMinutes ?? 2)}
-                disabled={!canEditDefaults}
-                onChange={(value) => setMaintenanceDefaults({ ...maintenanceDefaults, emptyMinutes: Number(value) })}
-                options={[1, 2, 5, 10].map((minutes) => ({
-                  value: String(minutes),
-                  label: `${minutes} minute${minutes === 1 ? "" : "s"}`,
-                }))}
-              />
-            </div>
-          </Field>
         </div>
         <div className="mt-5">
           <Checkbox

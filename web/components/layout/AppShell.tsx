@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import NotificationsMenu from "@/components/alerts/NotificationsMenu";
 import AccountMenu from "@/components/auth/AccountMenu";
 import { dataSections } from "@/components/data/sections";
@@ -10,11 +10,10 @@ import { useLive } from "@/components/live/LiveProvider";
 import {
   BarsIcon,
   BellIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
   DropIcon,
   GearIcon,
   GridIcon,
+  LeafArrow,
   LeafMark,
   WrenchIcon,
 } from "@/components/icons";
@@ -40,6 +39,10 @@ const navItems: { id: PageId; href: string; label: string; Icon: typeof GridIcon
  * to the Alerts page), and Demo is desktop only, so none of them is in the tab bar.
  */
 const mobileItems = navItems.filter((item) => item.id !== "settings" && item.id !== "alerts" && item.id !== "demo");
+
+/** The two widths of the side menu: a rail of icons, and open with labels. */
+const NAV_RAIL = 76;
+const NAV_WIDE = 236;
 
 /** The component id (lib/rbac.config.ts) that gates the page at `pathname`. */
 function gateFor(pathname: string, page: PageId | null): string | null {
@@ -90,11 +93,47 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { day, source } = useLive();
   const { shows } = useSession();
   const { animations } = useClubSettings();
-  const [collapsed, setCollapsed] = useState(false);
+  // The side menu starts as a rail of icons. Hovering opens it over the page; the logo pins it open.
+  const [pinned, setPinned] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const expanded = pinned || hovered;
+  const dataOpen = expanded && active === "data";
   const gate = gateFor(pathname, active);
   const allowed = gate === null || shows(gate);
   const visibleNav = navItems.filter((item) => shows(`nav.${item.id}`));
   const visibleMobile = mobileItems.filter((item) => shows(`nav.${item.id}`));
+
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- read once after hydration
+      if (window.localStorage.getItem("tbd.navPinned") === "1") setPinned(true);
+    } catch {
+      // storage blocked: start collapsed
+    }
+  }, []);
+
+  function togglePinned() {
+    const next = !pinned;
+    setPinned(next);
+    // Collapsing closes it now, even with the pointer still over it.
+    if (!next) setHovered(false);
+    try {
+      window.localStorage.setItem("tbd.navPinned", next ? "1" : "0");
+    } catch {
+      // not remembered
+    }
+  }
+
+  // A short delay, so sweeping the pointer past the menu does not open it.
+  function hoverOpen() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(() => setHovered(true), 120);
+  }
+  function hoverClose() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setHovered(false);
+  }
 
   // A failed sign-in comes back from the worker as /?auth_error=...; show it on the login page.
   useEffect(() => {
@@ -119,82 +158,111 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg text-text" data-motion={animations ? "on" : "off"}>
-      <aside
-        className={cx(
-          "hidden shrink-0 flex-col bg-sidebar text-white transition-[width] duration-200 md:flex",
-          collapsed ? "w-[72px]" : "w-[220px]",
-        )}
+      {/* The rail keeps its place in the layout; the panel inside widens over the page on hover. */}
+      <div
+        className="relative hidden shrink-0 transition-[width] duration-200 md:block"
+        style={{ width: pinned ? NAV_WIDE : NAV_RAIL }}
       >
-        <div
-          className={cx("flex items-center pt-6 pb-6", collapsed ? "justify-center px-2" : "justify-between pr-3 pl-5")}
-        >
-          {collapsed ? null : (
-            <span className="flex items-center gap-2.5 font-sans text-xl leading-tight font-bold">
-              <LeafMark size={28} className="shrink-0" />
-              Maple Sugaring
-            </span>
+        <aside
+          aria-label="Main"
+          onMouseEnter={hoverOpen}
+          onMouseLeave={hoverClose}
+          onFocus={() => setHovered(true)}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHovered(false);
+          }}
+          className={cx(
+            "absolute inset-y-0 left-0 z-40 flex flex-col overflow-x-hidden overflow-y-auto bg-sidebar text-white transition-[width,box-shadow] duration-200",
+            expanded && !pinned && "shadow-[8px_0_32px_rgb(0_0_0/0.18)]",
           )}
-          <button
-            type="button"
-            onClick={() => setCollapsed(!collapsed)}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="rounded-lg p-1.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-          >
-            {collapsed ? <ChevronRightIcon size={18} /> : <ChevronLeftIcon size={18} />}
-          </button>
-        </div>
+          style={{ width: expanded ? NAV_WIDE : NAV_RAIL }}
+        >
+          {/* Same height as the page header, so the logo and the header line up. */}
+          <div className="flex h-[76px] shrink-0 items-center px-3">
+            <button
+              type="button"
+              onClick={togglePinned}
+              aria-label={pinned ? "Collapse the menu" : "Keep the menu open"}
+              aria-pressed={pinned}
+              title={pinned ? "Collapse the menu" : "Keep the menu open"}
+              className="flex min-w-0 items-center gap-2 rounded-xl py-1.5 pr-3 transition-colors hover:bg-white/10"
+            >
+              <span className="flex w-[52px] shrink-0 justify-center">
+                <LeafMark size={30} />
+              </span>
+              <span
+                className={cx(
+                  "font-sans text-[19px] leading-tight font-bold whitespace-nowrap transition-opacity duration-150",
+                  expanded ? "opacity-100" : "opacity-0",
+                )}
+              >
+                Maple Sugaring
+              </span>
+            </button>
+          </div>
 
-        <nav className="flex flex-1 flex-col gap-1 px-3">
-          {visibleNav.map(({ id, href, label, Icon }) => {
-            const isActive = active === id;
-            return (
-              <div key={id}>
-                <Link
-                  href={href}
-                  title={collapsed ? label : undefined}
-                  className={cx(
-                    "relative flex items-center gap-3 rounded-xl font-sans text-body transition-colors",
-                    collapsed ? "justify-center p-3" : "px-3 py-2.5",
-                    isActive
-                      ? "bg-sidebar-active font-semibold text-white"
-                      : "text-white/85 hover:bg-white/10 hover:text-white",
-                  )}
-                >
-                  <Icon size={20} />
-                  {collapsed ? null : <span>{label}</span>}
-                </Link>
+          <nav className="flex flex-1 flex-col gap-1 px-3 pt-2 pb-6">
+            {visibleNav.map(({ id, href, label, Icon }) => {
+              const isActive = active === id;
+              return (
+                <div key={id}>
+                  <Link
+                    href={href}
+                    title={expanded ? undefined : label}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cx(
+                      "relative flex h-11 items-center gap-3 rounded-xl px-4 font-sans text-body whitespace-nowrap transition-colors",
+                      isActive
+                        ? "bg-sidebar-active font-semibold text-white"
+                        : "text-white/80 hover:bg-white/10 hover:text-white",
+                    )}
+                  >
+                    <Icon size={20} className="shrink-0" />
+                    <span className={cx("flex-1 transition-opacity duration-150", expanded ? "opacity-100" : "opacity-0")}>
+                      {label}
+                    </span>
+                    {isActive && expanded && !(id === "data" && dataOpen) ? <LeafArrow /> : null}
+                  </Link>
 
-                {id === "data" && !collapsed ? (
-                  <div className="mt-1 mb-1 ml-8 flex flex-col gap-0.5">
-                    {dataSections
-                      .filter((section) => shows(`data.${section.id}`))
-                      .map((section) => {
-                        const sectionActive = pathname === section.href;
-                        return (
-                          <Link
-                            key={section.id}
-                            href={section.href}
-                            className={cx(
-                              "rounded-xl px-3 py-2 font-sans text-sm transition-colors",
-                              sectionActive
-                                ? "bg-sidebar-active font-semibold text-white"
-                                : "text-white/80 hover:bg-white/10 hover:text-white",
-                            )}
-                          >
-                            {section.label}
-                          </Link>
-                        );
-                      })}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </nav>
-      </aside>
+                  {id === "data" && dataOpen ? (
+                    // A thin stem from the Data icon; the open page hangs a leaf on it.
+                    <div className="relative mt-1 mb-1 ml-[27px] flex flex-col border-l border-white/20 py-0.5">
+                      {dataSections
+                        .filter((section) => shows(`data.${section.id}`))
+                        .map((section) => {
+                          const sectionActive = pathname === section.href;
+                          return (
+                            <Link
+                              key={section.id}
+                              href={section.href}
+                              aria-current={sectionActive ? "page" : undefined}
+                              className={cx(
+                                "relative flex items-center rounded-r-xl py-2 pr-3 pl-6 font-sans text-sm whitespace-nowrap transition-colors",
+                                sectionActive
+                                  ? "font-semibold text-white"
+                                  : "text-white/70 hover:bg-white/5 hover:text-white",
+                              )}
+                            >
+                              {sectionActive ? (
+                                <span className="absolute top-1/2 -left-[8px] -translate-y-1/2 text-[#A9D18E]">
+                                  <LeafArrow size={15} />
+                                </span>
+                              ) : null}
+                              {section.label}
+                            </Link>
+                          );
+                        })}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </nav>
+        </aside>
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="hidden items-center justify-between px-6 pt-5 pb-2 md:flex lg:px-10">
+        <header className="hidden h-[76px] shrink-0 items-center justify-between px-6 md:flex lg:px-10">
           <div className="flex items-center gap-3">
             <span className="rounded-full bg-season-badge px-3 py-1 font-sans text-sm font-semibold text-white">
               {day.meta.seasonLabel}

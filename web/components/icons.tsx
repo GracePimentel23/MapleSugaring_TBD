@@ -51,6 +51,22 @@ export function LeafMark({ size = 24, className }: { size?: number; className?: 
   );
 }
 
+/** The leaf turned on its side, pointing right like an arrow: marks the open page in a menu. */
+export function LeafArrow({ size = 14, className }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 100 110"
+      fill="currentColor"
+      aria-hidden="true"
+      className={`shrink-0 rotate-90${className ? ` ${className}` : ""}`}
+    >
+      <path d={LEAF_PATH} />
+    </svg>
+  );
+}
+
 export function GridIcon(props: IconProps) {
   return (
     <Svg {...props}>

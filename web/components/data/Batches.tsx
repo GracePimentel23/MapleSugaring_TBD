@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useBatchState, type BatchView } from "@/components/data/BatchStateProvider";
 import { DropIcon, MoreIcon, PencilIcon, PlusIcon } from "@/components/icons";
+import { timeOfDay, useLive } from "@/components/live/LiveProvider";
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import { useSession } from "@/components/session/SessionProvider";
 import { NotesList } from "@/components/stations/StationForms";
@@ -133,14 +134,15 @@ function CollectionPicker({
   );
 }
 
-/** The newest note as the batch's one-line status, with the full list behind a link. */
+/**
+ * The batch's notes behind a link. No one-line preview: the card already says what is in the batch
+ * (Included Collections), and the note it was created with is often out of date.
+ */
 function BatchNotes({ view }: { view: BatchView }) {
   const [open, setOpen] = useState(false);
-  const latest = view.notes[0];
 
   return (
     <div className="mt-4">
-      {latest ? <p className="text-body text-muted">{latest.text}</p> : null}
       {view.notes.length > 0 ? (
         <button
           type="button"
@@ -176,7 +178,9 @@ function OpenBatchCard({
   onAdvance: (() => void) | null;
 }) {
   const { weight, weightUnit } = useClubSettings();
+  const { addedAt } = useLive();
   const { batch } = view;
+  const added = addedAt(`batches/${batch.id}`);
   const mine = collections.filter((collection) => view.collectionIds.includes(collection.id));
   const next = nextStep[batch.status];
 
@@ -191,7 +195,8 @@ function OpenBatchCard({
             </span>
           </div>
           <div className="mt-0.5 text-body text-muted">
-            Started {monthDay(batch.date)} · {batch.createdBy}
+            Started {monthDay(batch.date)}
+            {added ? `, ${timeOfDay(added)}` : ""} · {batch.createdBy}
           </div>
         </div>
         {onEdit ? (
@@ -212,7 +217,11 @@ function OpenBatchCard({
       </div>
       {mine.length ? (
         <p className="mb-5 text-sm text-muted">
-          {mine.map((collection) => `${collectionLabel(collection)} (${monthDay(collection.date)})`).join(" · ")}
+          <span className="font-semibold text-text">Included Collections:</span>{" "}
+          {[...mine]
+            .sort((a, b) => b.collectionNumber - a.collectionNumber)
+            .map(collectionLabel)
+            .join(" · ")}
         </p>
       ) : null}
 

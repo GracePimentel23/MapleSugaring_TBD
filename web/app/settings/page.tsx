@@ -9,6 +9,7 @@ import TreesTab from "@/components/settings/TreesTab";
 import UnitsTab from "@/components/settings/UnitsTab";
 import UsersTab from "@/components/settings/UsersTab";
 import { useSession } from "@/components/session/SessionProvider";
+import { LeafArrow } from "@/components/icons";
 import { cx } from "@/components/ui/ui";
 
 type TabId = "thresholds" | "users" | "trees" | "notifications" | "units" | "display" | "audit";
@@ -33,7 +34,7 @@ export default function SettingsPage() {
 
   return (
     <div className="w-full px-4 pt-2 pb-10 md:px-6 lg:px-10">
-      <h1 className="mb-6 font-sans max-md:pt-4 text-3xl font-bold tracking-tight md:text-[48px] md:leading-tight">
+      <h1 className="mb-5 font-sans text-3xl leading-tight font-bold tracking-tight max-md:pt-4 md:text-[48px] md:leading-[1.1]">
         Settings
       </h1>
 
@@ -49,11 +50,12 @@ export default function SettingsPage() {
               onClick={() => setRequested(tab.id)}
               aria-current={active === tab.id ? "page" : undefined}
               className={cx(
-                "shrink-0 rounded-xl px-4 py-2.5 text-left font-sans text-body whitespace-nowrap transition-colors lg:py-3",
-                active === tab.id ? "bg-accent-mid font-semibold text-white" : "text-text hover:bg-white",
+                "flex shrink-0 items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-left font-sans text-body whitespace-nowrap transition-colors lg:py-3",
+                active === tab.id ? "bg-white font-semibold text-accent shadow-card" : "text-text hover:bg-white/70",
               )}
             >
               {tab.label}
+              {active === tab.id ? <LeafArrow size={14} className="text-accent-mid max-lg:hidden" /> : null}
             </button>
           ))}
         </nav>
