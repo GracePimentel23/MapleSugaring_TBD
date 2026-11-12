@@ -28,9 +28,12 @@ export default function StatusBadge({
   status,
   size = "md",
   plain = false,
+  label,
   className,
 }: {
   status: StationStatus;
+  /** A more specific word than the status's own (see stationStatusLabel) */
+  label?: string;
   size?: "sm" | "md";
   plain?: boolean;
   className?: string;
@@ -47,7 +50,7 @@ export default function StatusBadge({
         )}
         style={{ color: meta.color, background: meta.bg }}
       >
-        {meta.label}
+        {label ?? meta.label}
       </span>
     );
   }
@@ -69,7 +72,7 @@ export default function StatusBadge({
           <span className="relative inline-flex h-2 w-2 rounded-full bg-current" />
         </span>
       )}
-      {meta.label}
+      {label ?? meta.label}
     </span>
   );
 }

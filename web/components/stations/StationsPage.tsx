@@ -11,6 +11,7 @@ import StatusBadge from "@/components/stations/StatusBadge";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
 import { Button, Card, cx, EmptyState, FilterPill, PageHeader, ProgressBar } from "@/components/ui/ui";
 import {
+  stationStatusLabel,
   byUrgency,
   getStationSummary,
   matchesFilter,
@@ -71,7 +72,7 @@ function StationCard({
           {station.name}
         </button>
         {/* The status stays at full strength even when the card is greyed out */}
-        <StatusBadge status={station.status} plain />
+        <StatusBadge status={station.status} label={stationStatusLabel(station)} plain />
       </div>
       <p className="text-sm text-muted">{treeLine(station)}</p>
 

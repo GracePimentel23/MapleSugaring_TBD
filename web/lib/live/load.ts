@@ -1,6 +1,8 @@
 import "server-only";
 
+import { cookies } from "next/headers";
 import { fetchWorker } from "@/lib/api/server";
+import { DEMO_COOKIE, parseDemoChoice, withDemoData } from "@/lib/demo/scenario";
 import type { ApiAlert, ApiDashboard, ApiNotes, ApiStation, LiveData } from "@/lib/live/types";
 import { loadWeather, todayIso } from "@/lib/live/weather";
 import type { Batch, Collection, SeasonSummary } from "@/lib/types/schema";
@@ -26,7 +28,10 @@ export async function loadLive(): Promise<LiveData> {
     loadWeather(today),
   ]);
 
-  return {
+  // Demo layer (front end only, see lib/demo/scenario.ts): remove with that file.
+  const demo = parseDemoChoice((await cookies()).get(DEMO_COOKIE)?.value);
+
+  return withDemoData({
     source: stations ? "live" : "offline",
     today,
     stations: stations?.stations ?? [],
@@ -37,5 +42,5 @@ export async function loadLive(): Promise<LiveData> {
     dashboard,
     notes: notes ?? { bucket: {}, batch: {} },
     weather,
-  };
+  }, demo);
 }

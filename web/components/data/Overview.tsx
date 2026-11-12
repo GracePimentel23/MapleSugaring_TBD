@@ -14,8 +14,10 @@ import { sapSeasonOf, type LiveDay } from "@/lib/live/day";
 import { activityWhen, getRecentActivity } from "@/lib/selectors/activity";
 import { cycleDays } from "@/lib/selectors/analysis";
 import {
+  FLOW_DAY_GUIDE,
   flowRating,
   flowRatingMeta,
+  isGoodFlow,
   seasonDay,
   seasonPhase,
   TYPICAL_SEASON_DAYS,
@@ -106,13 +108,12 @@ function GoalBottle({ percent }: { percent: number }) {
   );
 }
 
-/** How fast sap should run that day: three drops, filled by the rating (good 3, fair 2, slow 1). */
+/** How fast sap should run that day: four drops, filled by the rating (best 4, good 3, fair 2, slow 1). */
 function FlowDrops({ rating }: { rating: FlowRating }) {
-  const filled = rating === "good" ? 3 : rating === "fair" ? 2 : 1;
-  const { color } = flowRatingMeta[rating];
+  const { color, drops: filled } = flowRatingMeta[rating];
   return (
     <span className="flex items-center gap-0.5" aria-hidden="true">
-      {[0, 1, 2].map((index) => (
+      {[0, 1, 2, 3].map((index) => (
         <svg key={index} viewBox="0 0 12 16" width="12" height="16">
           <path
             d="M6 1S1 7.5 1 10.5a5 5 0 0 0 10 0C11 7.5 6 1 6 1z"
@@ -243,7 +244,7 @@ export default function Overview({ day }: { day: LiveDay }) {
           : "No season set up yet";
   const todayRating = day.weather.available ? flowRating(day.weather.lowF, day.weather.highF) : "slow";
   const outlook = weather.slice(dayIndex + 1, dayIndex + 5).filter((item) => item.available);
-  const nextGood = outlook.find((item) => flowRating(item.lowF, item.highF) === "good");
+  const nextGood = outlook.find((item) => isGoodFlow(flowRating(item.lowF, item.highF)));
   const today = day.dailyTotals[day.dailyTotals.length - 1];
 
   const goalPercent = syrupGoalLbs ? (syrup / syrupGoalLbs) * 100 : 0;
@@ -511,6 +512,20 @@ export default function Overview({ day }: { day: LiveDay }) {
                   })}
                 </ul>
               )}
+              {/* What each rating means, so a "best day" is something you can picture */}
+              <dl className="mt-4 space-y-2 rounded-xl bg-bg px-4 py-3">
+                {FLOW_DAY_GUIDE.map(({ rating, text }) => (
+                  <div key={rating} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3">
+                    <span className="row-span-2 pt-0.5">
+                      <FlowDrops rating={rating} />
+                    </span>
+                    <dt className="font-sans text-sm font-semibold" style={{ color: flowRatingMeta[rating].color }}>
+                      {flowRatingMeta[rating].label}
+                    </dt>
+                    <dd className="text-sm text-muted">{text}</dd>
+                  </div>
+                ))}
+              </dl>
             </Panel>
           ) : null}
           {isCurrent ? (

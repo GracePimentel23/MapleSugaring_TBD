@@ -357,6 +357,17 @@ export function byUrgency(a: StationView, b: StationView): number {
   return statusRank[a.status] - statusRank[b.status] || a.bucketId - b.bucketId;
 }
 
+/**
+ * The badge word for a station: the status label, except where one status covers two problems
+ * (a knocked-over bucket shows as Full, a sensor fault as Low battery) and the other one is the cause.
+ */
+export function stationStatusLabel(station: Pick<StationView, "status" | "alerts">): string {
+  const has = (kind: ClubAlert["kind"]) => station.alerts.some((alert) => alert.kind === kind);
+  if (station.status === "full" && has("tipped") && !has("full")) return "Knocked over";
+  if (station.status === "lowBattery" && has("sensor") && !has("battery")) return "Sensor fault";
+  return stationStatusMeta[station.status].label;
+}
+
 /** label, text color, badge background, and progress-bar fill for each status */
 export const stationStatusMeta: Record<
   StationStatus,

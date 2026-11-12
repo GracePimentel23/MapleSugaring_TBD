@@ -270,7 +270,8 @@ export default function StationStateProvider({ children }: { children: ReactNode
     (alert: ClubAlert, note?: string) => {
       setSnoozes((current) => current.filter((item) => item.key !== alert.key));
       if (alert.alertId) {
-        void send("PATCH", `/alerts/${alert.alertId}`, { is_resolved: true, by });
+        // Demo alerts (negative ids, lib/demo/scenario.ts) have no worker row; they only hide here.
+        if (alert.alertId > 0) void send("PATCH", `/alerts/${alert.alertId}`, { is_resolved: true, by });
         // The worker does not store how; keep it here for the Resolved table (demo storage).
         if (note) {
           setAlertNotes((current) => [

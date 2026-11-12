@@ -10,7 +10,7 @@ import StatusBadge from "@/components/stations/StatusBadge";
 import { useStationCards, useStationState } from "@/components/stations/StationStateProvider";
 import { lineCursor, tooltipContentStyle, tooltipItemStyle, tooltipLabelStyle } from "@/components/ui/chartTheme";
 import { Button, ChartEmpty, InfoBox, Modal, ProgressBar, Toggle } from "@/components/ui/ui";
-import { stationStatusMeta } from "@/lib/selectors/stations";
+import { stationStatusLabel, stationStatusMeta } from "@/lib/selectors/stations";
 import type { StationView } from "@/lib/types/schema";
 
 function StationDetail({
@@ -39,7 +39,7 @@ function StationDetail({
       title={station.name}
       width="lg"
       subtitle={`${station.treeLabel} · Updated ${station.lastUpdated}`}
-      badge={<StatusBadge status={station.status} />}
+      badge={<StatusBadge status={station.status} label={stationStatusLabel(station)} />}
       onClose={onClose}
       footer={
         <div className="flex w-full flex-col gap-3">

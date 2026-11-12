@@ -99,14 +99,24 @@ function sapCondition(weather: WeatherDay): DashboardMeta["sapCondition"] {
     return { label: "Sap Condition", headline: "No forecast right now", flow: "unknown" };
   }
   const rating = flowRating(weather.lowF, weather.highF);
+  if (rating === "best") {
+    return { label: "Sap Condition", headline: "A hard freeze, then sun and the mid-40s: the best kind of sap day", flow: "peak" };
+  }
   if (rating === "good") {
     return { label: "Sap Condition", headline: "A freezing night and a thaw by midday push sap", flow: "strong" };
   }
   if (rating === "fair") {
     return { label: "Sap Condition", headline: "A small freeze-thaw swing, expect a modest run", flow: "moderate" };
   }
+  if (/freezing|ice|sleet/i.test(weather.summary)) {
+    return { label: "Sap Condition", headline: "Ice on the trees and lines keeps the sap from moving", flow: "none" };
+  }
   if (weather.highF < 32) {
-    return { label: "Sap Condition", headline: "Too cold all day for sap to run", flow: "none" };
+    return {
+      label: "Sap Condition",
+      headline: weather.snowIn >= 1 ? "Snowing and too cold all day for sap to run" : "Too cold all day for sap to run",
+      flow: "none",
+    };
   }
   return { label: "Sap Condition", headline: "No overnight freeze, so the trees are not pushing sap", flow: "slow" };
 }

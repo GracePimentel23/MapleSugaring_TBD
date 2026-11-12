@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import AuditTab from "@/components/settings/AuditTab";
+import DemoDataCard from "@/components/settings/DemoDataCard";
 import DisplayCard from "@/components/settings/DisplayCard";
 import NotificationsTab from "@/components/settings/NotificationsTab";
 import ThresholdsTab from "@/components/settings/ThresholdsTab";
@@ -67,6 +68,7 @@ export default function SettingsPage() {
           {active === "notifications" ? <NotificationsTab /> : null}
           {active === "units" ? <UnitsTab /> : null}
           {active === "display" ? <DisplayCard /> : null}
+          {active === "display" ? <DemoDataCard /> : null}
           {active === "audit" ? <AuditTab /> : null}
         </div>
       </div>

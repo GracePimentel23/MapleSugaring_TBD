@@ -176,9 +176,10 @@ export function DropArt({ fill }: { fill: number }) {
   );
 }
 
-export type WeatherKind = "sun" | "partly" | "cloud" | "rain" | "storm" | "snow";
+export type WeatherKind = "sun" | "partly" | "cloud" | "rain" | "storm" | "snow" | "ice";
 
 export function weatherKind(day: WeatherDay): WeatherKind {
+  if (/freezing|ice|sleet/i.test(day.summary)) return "ice";
   if (day.snowIn >= 0.2) return "snow";
   if (day.precipIn >= 0.5 && day.windMph >= 18) return "storm";
   if (day.precipIn >= 0.15) return "rain";
@@ -316,6 +317,36 @@ export function WeatherArt({ kind }: { kind: WeatherKind }) {
             />
           ))
         : null}
+
+      {kind === "ice"
+        ? PRECIP_COLUMNS.map((left, index) => (
+            // Sleet: short, pale pellets falling at a slant
+            <span
+              key={left}
+              className="anim-precip absolute top-[18%] h-2 w-[3px] rounded-full bg-[#7E98B0] md:h-3 md:w-1"
+              style={{
+                left,
+                animationDuration: `${2.2 + (index % 4) * 0.4}s`,
+                animationDelay: `-${(index * 0.7) % 2.6}s`,
+              }}
+            />
+          ))
+        : null}
+      {kind === "ice" ? (
+        // Icicles hanging from the top edge of the card
+        <svg
+          viewBox="0 0 200 40"
+          preserveAspectRatio="none"
+          className="absolute top-0 right-0 h-14 w-3/5 md:h-20"
+          fill="#F7FBFE"
+          stroke="#7E98B0"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        >
+          <path d="M0 0h200v4l-6 0-4 22-4-22-10 0-3 14-3-14-12 0-5 32-5-32-10 0-3 12-3-12-12 0-4 26-4-26-10 0-3 16-3-16-12 0-5 30-5-30-10 0-3 10-3-10-12 0-4 24-4-24-14 0-3 14-3-14-18 0z" />
+        </svg>
+      ) : null}
 
       {kind === "storm" ? (
         <svg viewBox="0 0 20 34" className="anim-flash absolute top-[22%] right-[22%] h-24 w-14" fill="#E8C77A">

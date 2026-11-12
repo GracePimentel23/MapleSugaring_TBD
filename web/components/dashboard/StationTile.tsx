@@ -3,7 +3,7 @@
 import { useClubSettings } from "@/components/session/ClubSettingsProvider";
 import StatusBadge from "@/components/stations/StatusBadge";
 import { cx, ProgressBar } from "@/components/ui/ui";
-import { stationStatusMeta } from "@/lib/selectors/stations";
+import { stationStatusLabel, stationStatusMeta } from "@/lib/selectors/stations";
 import type { StationView } from "@/lib/types/schema";
 
 /** Compact station card for the Dashboard. Opens the station pop-up. */
@@ -30,7 +30,7 @@ export default function StationTile({
     >
       <div className="flex items-start justify-between gap-2">
         <span className="font-sans text-base font-semibold">{station.name}</span>
-        <StatusBadge status={station.status} />
+        <StatusBadge status={station.status} label={stationStatusLabel(station)} />
       </div>
       <span className="mt-1 text-sm text-muted">{station.location}</span>
       <div className={cx("mt-4 mb-3", inactive && "opacity-60")}>
